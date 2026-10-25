@@ -1,0 +1,16 @@
+# SwiftPM 构建产物
+.build/
+.build-*/
+.swiftpm/
+
+# Xcode 本地状态
+DerivedData/
+*.xcuserdatad/
+xcuserdata/
+
+# 本地知识元数据
+.proma/
+
+# macOS 与编辑器杂项
+.DS_Store
+*.swp
