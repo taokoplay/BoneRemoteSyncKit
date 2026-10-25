@@ -1,6 +1,5 @@
 import Foundation
-import BoneRemoteSyncCore
-import BoneRemoteSyncWebDAV
+import BoneRemoteSyncKit
 
 /// Upload a caller-owned file into a caller-selected new directory and exercise file operations.
 /// Use a fresh, dedicated test path. The caller must explicitly authorize the resulting writes.

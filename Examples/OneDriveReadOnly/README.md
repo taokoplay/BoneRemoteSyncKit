@@ -1,31 +1,67 @@
-# OneDrive Personal 联调（本示例只用读路径）
+# OneDrive Personal 宿主接入示例
 
-本目录是可编译的宿主接入片段，不是已注册的 Microsoft 应用，不会自动读取凭据、登录账号或发出真实请求。不得把 fixture token 当作真实凭据。
+[返回项目首页](../../README.md) · [OneDrive 详细语义](../../Docs/OneDrive.md)
 
-## 应用注册
+[OneDriveExample.swift](OneDriveExample.swift) 演示授权事务管理、连接、分页与下载。目录名保留 `OneDriveReadOnly`，表示**该示例只使用读路径**，不是 SDK 只支持读取，也不是只读授权。
 
-1. 在 Microsoft Entra 注册支持 **Personal Microsoft accounts** 的应用（本 SDK 固定 `consumers` authority，不支持组织租户/SharePoint）。是否能注册及账号权限需实际确认。
-2. 取得公开的 Application (client) ID，配置原生 public client 及精确回调 URI。回调 URI 必须与注册值一致，SDK 不创建 scheme handler 或 loopback listener。
-3. delegated 文件权限：本示例只用读路径，但库固定申请 `Files.ReadWrite`（写能力需要它，`Files.Read` 会在真实账号上以 403 拒绝写操作），因此同意页会显示“完全访问文件”。请求 `offline_access` 以取得 refresh token。不要创建、分发或写入 `client_secret`；此模块也不读取 client secret。
-4. 在支持的平台由宿主用系统授权会话（通常为 `ASWebAuthenticationSession`）打开授权 URL，再将回调传回。tvOS 不包含浏览器授权 UI，可由宿主提供已取得的 OAuth 凭据；模块编译支持不等于设备授权流程已验证。
+此文件是可编译的宿主片段，不是已注册的 Microsoft 应用；不会自动读取真实凭据、打开登录页面或存储 token。不要把 fixture 中的虚构 token 用于真实账号。
 
-## 接入顺序
+## 依赖与宿主准备
 
-- 初始化 `OneDriveExample(clientID:redirectURI:persistRefreshedToken:)`，回调同步、线程安全地将轮换后的令牌写入当前账号 Keychain；不得阻塞或在内部调用 source。失败应抛错，连接将关闭；不要把令牌写日志或 UserDefaults。
-- `beginAuthorization()` 返回 URL；宿主打开系统授权 UI，保存并隔离账号流程；勿记录 URL、state、codeVerifier 或回调。
-- 收到 callback 后调用 `completeAuthorization(callback:)`。示例在 await 前消费事务；库 helper 本身为无状态值，直接使用 helper 的宿主也必须一次性消费事务，避免重复兑换。
-- **先将首次 OneDriveToken 写入 Keychain**，再 `connect(savedCredential: token.credential)`。自动刷新只通过 `onTokenRefresh` 回传后续令牌。省略该 callback 可用于临时会话，但不会替宿主持久化轮换凭据。
-- `page(path:cursor:)` 逐页读取；游标短期、当前连接内有效，下一页保持 path、limit、includeHidden 一致。成功推进会消费旧游标；不得持久化、记录或跨连接使用。
-- 选择普通文件后 `download(_:to:)`；目标需在应用可写且独占控制的目录内。示例默认不覆盖已有文件。
-- 退出账号时调用 `disconnect()`，由宿主删除该账号 Keychain。库内 disconnect 只取消会话并清内存，不撤销远端授权、不删除宿主凭据。
+只需为宿主 target 添加 `BoneRemoteSyncKit` 产品，并将示例 Swift 文件加入该 target：
 
-## 真实账号最小验收（尚未执行）
+```swift
+.product(name: "BoneRemoteSyncKit", package: "BoneRemoteSyncKit")
+```
 
-1. 用专门的测试个人账号完成首次授权、拒绝授权、回调状态不符与取消；核对同意范围。
-2. 验证主盘、中文/空格/`#`/`%`路径、大于200条目录分页及文件重命名后ID下载。
-3. 用空文件、小文件和大文件检验长度、内容及progress；抓包只记录请求域名/是否有Authorization，不记录token或预授权URL。
-4. 验证刷新轮换、重新启动后读取新凭据、授权撤销、网络失败与限流。刷新失败后库关闭连接，避免反复使用可能已消费的refresh token；重新连接或交互授权由宿主决定。
-5. 验证下载取消、disconnect/reconnect、链接过期、远端版本变化；失败时旧目标不变。
-6. 检查实际CDN是否需要重定向。v1拒绝所有自动重定向；若真实服务依赖它，必须另行设计安全策略，不直接放开凭据跨域。
+源码统一使用 `import BoneRemoteSyncKit`，无需再分别导入 Core 或 OneDrive。
 
-本地 HTTP fixture 只证明 SDK 在合成服务下的语义，不证明微软 CDN、国内网络、组织策略、移动端或真实大文件行为。
+宿主还需准备：
+
+- 支持个人 Microsoft 账号的 public-client 应用注册和公开 client ID。
+- 与注册配置完全一致的 redirect URI，以及 URL scheme／回调处理。
+- 系统授权 UI、账号选择与账号隔离的 Keychain 存储。
+- 应用可写、可独占的下载目录。
+
+## 应用注册与权限
+
+1. 在 Microsoft Entra 注册支持 **Personal Microsoft accounts** 的应用。SDK 使用 `consumers` authority，不支持组织账号或 SharePoint。
+2. 配置原生 public client 和精确回调 URI。SDK 不注册 URL scheme，也不创建 loopback listener。
+3. SDK 固定请求 **`Files.ReadWrite offline_access`**。即使这个示例只读取，也会请求写权限；`Files.Read` 不含写权限，不能用于证明 SDK 写操作可用。实际同意页面文案由微软决定。
+4. 不创建或嵌入 `client_secret`。原生 public-client 流程不会读取应用密钥。
+5. 在支持的平台使用系统授权会话（通常为 `ASWebAuthenticationSession`）。tvOS 没有本示例提供的登录 UI，需由宿主另行提供已取得的 OAuth 凭据。
+
+平台编译通过不代表上述授权流程已在设备上验收。
+
+## 调用顺序
+
+| 阶段 | 调用 | 宿主职责 |
+| --- | --- | --- |
+| 初始化 | `OneDriveExample(clientID:redirectURI:persistRefreshedToken:)` | 刷新回调同步、线程安全且按账号原子保存 token |
+| 发起授权 | `beginAuthorization()` | 用系统 UI 打开返回 URL；不打印 URL、state 或 verifier |
+| 处理回调 | `completeAuthorization(callback:)` | 先完成安全存储，再连接；示例在 await 前消费事务，避免重复兑换 |
+| 建立连接 | `connect(savedCredential:)` | 传入已保存 token 的 `credential` |
+| 分页 | `page(path:cursor:)` | 保持路径及选项一致，逐页推进，不保存或跨连接复用游标 |
+| 下载 | `download(_:to:)` | 提供独占目标；示例显式禁止覆盖 |
+| 结束 | `disconnect()` | 成功／异常路径都等待调用；退出账号时另外清理对应 Keychain |
+
+`persistRefreshedToken` 只负责后续刷新；**首次 token 必须由宿主在 `connect` 前保存**。刷新回调不能长期阻塞或回调 source；失败应抛错，连接会关闭。省略持久化回调不会自动保存轮换 token。
+
+`disconnect()` 取消会话并清除内存状态，不撤销微软授权，也不删除宿主凭据。用户切换账号时，应取消并隔离未完成的授权流程。
+
+## 写入与大文件
+
+SDK 还支持上传、递归建目录、删除和移动，见 [OneDrive 写入能力](../../Docs/OneDrive.md#写入能力与限制)。当前 Simple upload 上限为 250 MiB，没有 Upload Session、上传续传、下载续传或服务端复制。
+
+## 真实账号验收清单
+
+**当前尚未完成真实 Microsoft 应用与账号验收。** 本地 fixture 不能证明 CDN、国内网络、组织策略或设备授权行为。
+
+1. 用测试个人账号验证首次授权、拒绝授权、回调状态不符、取消与账号切换。
+2. 核对同意范围，验证分页超过 200 项、中文及特殊字符路径，以及文件改名后的 ID 下载。
+3. 测试空文件、普通文件及接近上传限制的文件，下载后比较长度与内容；不把进度回调当作远端完成证明。
+4. 在专用目录验证创建、上传、移动和删除；确认同名冲突，并检查并发竞争后的实际状态。
+5. 验证 token 刷新轮换、重启后读取新凭据、授权撤销、网络失败与限流。
+6. 验证取消、disconnect/reconnect、预授权链接过期、远端版本变化；失败时确认已有本地目标未被破坏。
+7. 检查实际 CDN 是否依赖重定向。当前拒绝自动重定向，若不兼容需设计安全策略，不能直接放行凭据跨域。
+8. 调试日志只保留必要的域名、状态和步骤，不记录 token、完整授权回调或预授权下载 URL。

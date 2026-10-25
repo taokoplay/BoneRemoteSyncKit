@@ -1,6 +1,5 @@
 import Foundation
-import BoneRemoteSyncCore
-import BoneRemoteSyncOneDrive
+import BoneRemoteSyncKit
 
 /// Host integration sample. This does not open an authorization UI or store secrets.
 /// Build into the host app; provide an exact account-scoped, atomic Keychain writer.

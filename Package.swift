@@ -10,6 +10,9 @@ let package = Package(
         .visionOS(.v1),
     ],
     products: [
+        // 推荐统一入口：一次导入契约与全部已实现来源。
+        .library(name: "BoneRemoteSyncKit", targets: ["BoneRemoteSyncKit"]),
+        // 保留分模块产品，兼容已有集成及按需依赖。
         // 契约层：所有来源共用，零依赖。
         .library(name: "BoneRemoteSyncCore", targets: ["BoneRemoteSyncCore"]),
         // 本地目录来源：同时作为测试桩，也是后续 iCloud 目录的来源基础。
@@ -18,10 +21,15 @@ let package = Package(
         .library(name: "BoneRemoteSyncOneDrive", targets: ["BoneRemoteSyncOneDrive"]),
     ],
     targets: [
+        .target(
+            name: "BoneRemoteSyncKit",
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"]
+        ),
         .target(name: "BoneRemoteSyncCore"),
         .target(name: "BoneRemoteSyncLocal", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncWebDAV", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"]),
+        .testTarget(name: "BoneRemoteSyncKitTests", dependencies: ["BoneRemoteSyncKit"]),
         .testTarget(name: "BoneRemoteSyncOneDriveTests",
                     dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive"],
                     resources: [.copy("Fixtures")]),
