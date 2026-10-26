@@ -10,6 +10,11 @@ extension OneDriveSource: RemoteWritableSource {
     public func upload(from localURL: URL, to path: String, options: RemoteUploadOptions) async throws -> RemoteEntry {
         do {
             let ctx = try context()
+            let contentType = options.contentType ?? "application/octet-stream"
+            guard !contentType.isEmpty, contentType.utf8.count <= 1024,
+                  !contentType.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }) else {
+                throw RemoteSyncError.unsupported(operation: "OneDrive Content-Type 无效")
+            }
             let target = RemotePath.normalize(path)
             guard target != "/" else { throw RemoteSyncError.unsupported(operation: "OneDrive 不能用文件覆盖根目录") }
             let (parentPath, name) = try split(target)
@@ -32,6 +37,7 @@ extension OneDriveSource: RemoteWritableSource {
                 path: target,
                 method: "PUT",
                 body: .file(localURL),
+                contentType: contentType,
                 uploadProgress: options.progress
             )
             let value = try decode(ODItem.self, response.data)

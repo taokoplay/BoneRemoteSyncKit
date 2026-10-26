@@ -48,7 +48,8 @@ class Handler(BaseHTTPRequestHandler):
     def record(self, body=''):
         with lock, open(log, 'a') as f:
             f.write(json.dumps(dict(method=self.command, path=self.path, body=body,
-                                    authorization=self.headers.get('Authorization'))) + '\n')
+                                    authorization=self.headers.get('Authorization'),
+                                    contentType=self.headers.get('Content-Type'))) + '\n')
     def reply(self, status, value, headers=None):
         data = value if isinstance(value, bytes) else json.dumps(value).encode()
         self.send_response(status)
@@ -99,6 +100,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.body_bytes().decode(); self.record(body)
         parsed, path = self.target()
+        if path == '/oauth/token':
+            return self.reply(200, dict(access_token='REFRESHED', refresh_token='ROTATED', expires_in=3600, token_type='Bearer'))
         m = re.fullmatch(r'/v1\.0/drives/D/items/([^/]+)/children', path)
         if not m: return self.reply(404, dict(error=dict(code='itemNotFound')))
         pid = m.group(1)
@@ -120,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
         if pid not in nodes or not nodes[pid]['folder']:
             return self.reply(404, dict(error=dict(code='itemNotFound')))
         if scenario == 'upload-forbidden': return self.reply(403, dict(error=dict(code='accessDenied')))
+        if scenario == 'upload-refresh' and self.headers.get('Authorization') != 'Bearer REFRESHED':
+            return self.reply(401, dict(error=dict(code='unauthenticated')))
         query = urllib.parse.parse_qs(parsed.query)
         behavior = (query.get('@microsoft.graph.conflictBehavior') or ['replace'])[0]
         existing = [c for c in children(pid) if nodes[c]['name'] == name]

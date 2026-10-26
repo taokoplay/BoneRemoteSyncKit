@@ -35,10 +35,12 @@ func listWebDAVRoot(baseURL: URL, credential: RemoteCredential) async throws -> 
 - **读写与复制。** 遵循 `RemoteCopyingSource`（包含 `RemoteWritableSource` / `RemoteSource`），上传、建目录、删除、移动、复制能力为 true；上传续传、变更流、内容哈希仍为 false。能力位表示适配器实现，并非服务端支持或账号写权限探测；权限不足/方法不支持时仍会报错。旧 `walk(path:includeHidden:)` 是顺序目录遍历；新 visitor 式 `walk` 支持有界并发。两者都不是媒体播放或文件内容流 API。
 - **连接验证。** `connect` 使用根目录 Depth:0 PROPFIND 验证 collection；每次连接独立 ephemeral URLSession 池，活动响应独占串行 delegate 队列，最多保留4个空闲会话以复用连接；断开/重连取消旧请求，旧下载不能安装本地文件；旧写流程不能借用新连接继续发送，已发出的远端写入仍可能完成。连接失败保持未连接。
 - **路径。** 来源内 `/` 对应 `baseURL`；逐段编码中文、空格、`#`、`?`、`%`。只接受同源、根内的安全 href，拒绝编码斜杠/点段、NUL、反斜杠、query、fragment。不会拿服务端 href 直接发请求。
-- **认证与网络。** 默认系统 TLS 校验，不放行自签名，不自动读取系统凭据或保存密码；禁止自动跟随全部 3xx，请提供最终 URL。支持 HTTP 以适配本地网络，但 **HTTP Basic 只是 Base64，不能保护密码，请优先 HTTPS**。App 的 ATS、网络/局域网权限和证书配置由调用方管理，SDK 不修改系统安全设置。
+- **认证与网络。** 默认系统 TLS 校验，不放行自签名，不自动读取系统凭据或保存密码；URLSession 禁止自动跟随全部 3xx。仅 PROPFIND 收到 301/308 且 Location 严格保持 scheme、主机、有效端口和原编码路径、只追加一个 `/` 时，才在原 deadline 内用本地重建 URL 再请求一次（每次 attempt 最多一次）。跨源、改路径、query、fragment、userinfo 或继续重定向均拒绝；GET 和写请求不使用此例外。其他情况请提供最终 URL。支持 HTTP 以适配本地网络，但 **HTTP Basic 只是 Base64，不能保护密码，请优先 HTTPS**。App 的 ATS、网络/局域网权限和证书配置由调用方管理，SDK 不修改系统安全设置。
 ### 浏览与下载
 
-- **目录。** Depth:1 排除自身、非直接子项和失败属性，默认过滤点开头隐藏项，目录优先排序。没有通用分页：`limit` 允许为 nil 或正数但只作为统一请求提示、不会截断结果；非法 `limit` 与非 nil `cursor` 均明确拒绝，`nextCursor=nil`。对文件调用 list 抛 `.unsupported(operation: "列出非目录条目")`。XML 限 16 MiB、32 层和最多 100,000 条响应；仅支持 UTF-8 DAV XML，拒绝 DTD/实体声明。按 Data 块接收，在来源 actor 外聚合/解析；一次 XML 解析独占并复用一组日期解析器，无全局共享可变 formatter。超限需拆分目录，不会伪造下一页。
+- **元数据。** PROPFIND 显式请求 `creationdate`，仅采纳成功 DAV 属性中的 ISO 8601 创建时间，缺失或无法解析返回 nil。`getlastmodified` 仍按 HTTP 日期解析。普通下载保留输入条目的创建时间，managed 下载与检查点也保留该字段；相同 ETag/大小的恢复若本次缺少时间，保留检查点已知值，不用 nil 覆盖。检查点的创建时间允许缺失，已 ready 的记录也不补造该值。只支持当前 schema，不提供跨版本检查点迁移承诺；未知 schema 仍会拒绝，且不自动删除已有 part 或检查点。PUT 成功返回值未回查属性，因此 `createdAt` 仍可能为 nil；需要远端当前时间时再显式 stat。来源时间不会自动写入本地目标。分类是[通用类型提示](API.md#文件时间与类型分类)，不解析媒体内容。
+
+- **目录。** 先检查 207 XML 内目标资源的状态：401/403/404/423 等保留对应认证、权限、不存在或冲突语义；目标存在却缺少属性报明确错误，不当作不存在。Depth:1 再排除自身、非直接子项和失败子项属性，默认过滤点开头隐藏项，目录优先排序。没有通用分页：`limit` 允许为 nil 或正数但只作为统一请求提示、不会截断结果；非法 `limit` 与非 nil `cursor` 均明确拒绝，`nextCursor=nil`。对文件调用 list 抛 `.unsupported(operation: "列出非目录条目")`。XML 限 16 MiB、32 层和最多 100,000 条响应；仅支持 UTF-8 DAV XML，拒绝 DTD/实体声明。按 Data 块接收，在来源 actor 外聚合/解析；一次 XML 解析独占并复用一组日期解析器，无全局共享可变 formatter。超限需拆分目录，不会伪造下一页。
 - **下载。** URLSession delegate 按 Data 块接收，来源 actor 外按 64 KiB 写入 `<目标>.part`，完成后同步并原子安装；不主动把整文件放入内存。应用层接收队列最多 256 KiB，按 64 KiB交付，慢消费者对独占回调队列施加背压并暂停任务；URLSession/系统内部缓存、在途回调 Data 及写入缓冲不计入该队列上限，因此它不是进程总内存上限。断开会唤醒阻塞的回调。空文件、进度、取消和非覆盖安装均有测试。状态/ETag/Range 头验证失败不会改写原 part；传输中失败或取消保留已写 part，旧目标不变。失败前自动创建的父目录可能保留。
 - **校验。** 默认校验响应及条目大小；HTTP Content-Length/Range 的传输完整性始终校验。ETag 是不透明版本标识，不保证是内容哈希。没有大小/哈希的服务无法证明文件内容完整，可信 TLS 与服务端语义仍是前提。
 ### 本地目标与请求预算
@@ -117,7 +119,7 @@ let dav = try WebDAVSource(
 ```
 
 - 默认 `.none`：只尝试一次，不添加总 deadline。`.standard`：总尝试最多 3 次、初始退避 0.5 秒、退避上限 8 秒、总 deadline 120 秒；退避带 0.5...1 倍 jitter。`maxAttempts` 包含首次，不是额外次数。
-- 仅重试只读 PROPFIND / GET（含写流程的只读预检），从不自动重试 PUT / MKCOL / DELETE / MOVE / COPY：HTTP **408、429、500、502、503、504**，以及原始 `URLError` 的 `timedOut`、`networkConnectionLost`、`notConnectedToInternet`、`cannotConnectToHost`、`dnsLookupFailed`。取消、认证/权限、TLS/证书、重定向、XML、ETag/Range/完整性及本地文件错误不重试；不依赖公共 `isRetryable` 提示或错误字符串。
+- 仅重试只读 PROPFIND / GET（含写流程的只读预检），从不自动重试 PUT / MKCOL / DELETE / MOVE / COPY：HTTP **408、429、500、502、503、504**，以及原始 `URLError` 的 `timedOut`、`networkConnectionLost`、`notConnectedToInternet`、`cannotConnectToHost`、`dnsLookupFailed`。207 内请求目标的资源级瞬态状态也进入同一有限重试策略，不因失败子项重试整页。取消、认证/权限、TLS/证书、不符合上述尾斜杠规范化条件的重定向、XML、ETag/Range/完整性及本地文件错误不重试；不依赖公共 `isRetryable` 提示或错误字符串。
 - 有效 `Retry-After` 是等待下限，不压缩到 `maxDelay`；超过剩余 deadline 时停止并返回最后错误。单个恢复调用先进行最多 N 次 stat 预检，再进行最多 N 次 GET / Range，共用一个 deadline，最多 2N 个请求，不含之前单独调用的 `connect`。同一恢复调用内 GET 重试不会再次 stat 或换用新版本。
 - 普通 `download` 仅重试**尚未开始打开/截断 part** 的失败。体传输或磁盘修改开始后仍保留原有手动恢复语义，不自动重启。自动恢复体传输失败只在 managed 入口执行。
 - `maxAttempts` 必须为 1…8；延时有限且 `0 <= initialDelay <= maxDelay <= 300` 秒；`totalTimeout` 若非 nil 必须在 `(0, 86400]` 秒，多次尝试要求提供总 deadline。非法策略在 source 初始化时拒绝。

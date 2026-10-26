@@ -27,6 +27,7 @@ struct DAVCheckpointRecord: Codable, Sendable, Equatable {
     var prefixSHA256: String
     let partDevice: UInt64
     let partInode: UInt64
+    var createdAt: Date? = nil
     var modifiedAt: Date? = nil
     var contentType: String? = nil
 
@@ -36,6 +37,7 @@ struct DAVCheckpointRecord: Codable, Sendable, Equatable {
               Self.isDigest(prefixSHA256), partInode > 0,
               phase != .readyToInstall || committedBytes == expectedSize,
               contentType.map({ $0.utf8.count <= 1024 }) ?? true,
+              createdAt.map({ $0.timeIntervalSince1970.isFinite }) ?? true,
               modifiedAt.map({ $0.timeIntervalSince1970.isFinite }) ?? true else {
             throw RemoteSyncError.conflict(path: "WebDAV 检查点")
         }

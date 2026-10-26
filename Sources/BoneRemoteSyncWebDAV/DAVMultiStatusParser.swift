@@ -7,6 +7,7 @@ struct DAVResponse: Sendable {
     var hasProperties = false
     var isDirectory = false
     var size: Int64?
+    var createdAt: Date? = nil
     var modifiedAt: Date?
     var etag: String?
     var contentType: String?
@@ -82,6 +83,7 @@ final class DAVMultiStatusParser: NSObject, XMLParserDelegate {
             case "resourcetype": properties.hasProperties = true
             case "getcontentlength":
                 if let size = Int64(value), size >= 0 { properties.size = size }
+            case "creationdate": properties.createdAt = RemoteCreationDate.parse(value)
             case "getlastmodified": properties.modifiedAt = dateParser.parse(value)
             case "getetag": properties.etag = value.isEmpty ? nil : value
             case "getcontenttype": properties.contentType = value.isEmpty ? nil : value
@@ -91,6 +93,7 @@ final class DAVMultiStatusParser: NSObject, XMLParserDelegate {
         if matches(["multistatus", "response", "propstat"]), let status = propStatus, (200..<300).contains(status) {
             if properties.hasProperties { current.hasProperties = true; current.isDirectory = properties.isDirectory }
             if let size = properties.size { current.size = size }
+            if let date = properties.createdAt { current.createdAt = date }
             if let date = properties.modifiedAt { current.modifiedAt = date }
             if let etag = properties.etag { current.etag = etag }
             if let type = properties.contentType { current.contentType = type }

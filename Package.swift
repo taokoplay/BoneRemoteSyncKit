@@ -12,7 +12,7 @@ let package = Package(
     products: [
         // 推荐统一入口：一次导入契约与全部已实现来源。
         .library(name: "BoneRemoteSyncKit", targets: ["BoneRemoteSyncKit"]),
-        // 保留分模块产品，兼容已有集成及按需依赖。
+        // 分模块产品用于按需依赖，不作为旧版兼容层。
         // 契约层：所有来源共用，零依赖。
         .library(name: "BoneRemoteSyncCore", targets: ["BoneRemoteSyncCore"]),
         // 本地目录来源：同时作为测试桩，也是后续 iCloud 目录的来源基础。

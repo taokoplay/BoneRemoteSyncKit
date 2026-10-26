@@ -50,6 +50,10 @@ func listOneDriveRoot(
 
 此函数把目录结果收集到内存，适用于大小可控的目录；大型目录应逐页消费，而非一直累积。
 
+## 文件元数据
+
+`createdAt` 使用 Graph `driveItem.createdDateTime`，不是 `fileSystemInfo.createdDateTime` 或拍摄/录制时间；缺失、字段类型错误或日期无法解析返回 nil，不使用修改时间兜底；其他关键字段仍严格解码。list、stat、下载及收到 driveItem 的写入返回值共用映射，下载仍返回远端条目时间，不主动设置本地目标时间。`contentType` 来自 `file.mimeType`，由[通用分类规则](API.md#文件时间与类型分类)转换为列表展示提示；不下载或分析文件内容。
+
 ## 认证与生命周期
 
 - **只支持 Personal 主盘**，不包含组织/SharePoint、共享 `remoteItem`、package、已删除条目；遇到不支持的 facet 明确报错，不静默漏掉。
@@ -110,6 +114,7 @@ print(uploaded.path ?? uploaded.id)
 | 操作 | 语义与限制 |
 | --- | --- |
 | `upload` | Graph simple upload 单次 PUT，**上限 250 MiB**，超出抛 `.unsupported`，不降级到 upload session。只接受普通文件，不能用文件覆盖根目录。 |
+| MIME 请求头 | `RemoteUploadOptions.contentType` 作为 PUT 的 `Content-Type` 发送，默认 `application/octet-stream`；401 刷新后的认证重放保留该值。空值、控制字符或超过 1024 UTF-8 字节的值在请求前拒绝；此检查不等于完整 MIME 语法校验，也不保证 Graph 最终返回相同 MIME。 |
 | 覆盖行为 | `RemoteUploadOptions.overwrite == true` 时发 `@microsoft.graph.conflictBehavior=replace`，否则发 `fail`；不在本地抢先判断，冲突由服务端结果决定。 |
 | `makeDirectory` | 逐级递归创建，已存在目录视为成功，同名文件抛 `.conflict`；目标为根目录时直接返回。 |
 | `remove` | 删除文件或整棵目录；拒绝删除根目录；不存在时按 Graph 结果映射错误。 |

@@ -77,7 +77,7 @@ enum DAVDownloadWorker {
         try Task.checkCancellation()
         let result = RemoteEntry(id: RemotePath.relative(path), path: path, name: RemotePath.name(of: path), type: .file,
             size: written, modifiedAt: response.value(forHTTPHeaderField: "Last-Modified").flatMap(DAVHTTPDate.parse) ?? entry.modifiedAt,
-            etag: etag, contentType: response.mimeType ?? entry.contentType)
+            etag: etag, contentType: response.mimeType ?? entry.contentType, createdAt: entry.createdAt)
         handedOff = true
         return DAVPreparedDownload(entry: result, handle: output)
         } catch { throw DAVRequestFailure.nonRetryable(error) }

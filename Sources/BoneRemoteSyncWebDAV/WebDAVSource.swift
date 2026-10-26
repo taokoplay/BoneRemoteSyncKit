@@ -127,20 +127,21 @@ public actor WebDAVSource: RemoteSource {
         request.setValue(String(depth), forHTTPHeaderField: "Depth")
         request.setValue("application/xml; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(Self.propfindBody.utf8)
-        let responses = try await DAVPropertyWorker.fetch(session: session, request: request, path: path, retryPolicy: retryPolicy)
+        let responses = try await DAVPropertyWorker.fetch(session: session, request: request, path: path, location: location, retryPolicy: retryPolicy)
         try checkGeneration(version)
+        _ = try DAVPropertyWorker.resource(in: responses, path: path, location: location, requestURL: request.url!)
         return responses.compactMap { item in
             guard item.hasProperties, item.status.map({ (200..<300).contains($0) }) ?? true,
                   let itemPath = location.path(for: item.href, relativeTo: request.url!) else { return nil }
             return RemoteEntry(id: RemotePath.relative(itemPath), path: itemPath,
                 name: itemPath == "/" ? location.baseURL.lastPathComponent : RemotePath.name(of: itemPath),
                 type: item.isDirectory ? .directory : .file, size: item.isDirectory ? nil : item.size,
-                modifiedAt: item.modifiedAt, etag: item.etag, contentType: item.contentType)
+                modifiedAt: item.modifiedAt, etag: item.etag, contentType: item.contentType, createdAt: item.createdAt)
         }
     }
 
     static let propfindBody = """
     <?xml version="1.0" encoding="utf-8"?>
-    <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/><d:getcontenttype/></d:prop></d:propfind>
+    <d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:creationdate/><d:getetag/><d:getcontenttype/></d:prop></d:propfind>
     """
 }

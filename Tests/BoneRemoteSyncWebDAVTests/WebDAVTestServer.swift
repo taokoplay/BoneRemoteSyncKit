@@ -9,12 +9,14 @@ final class WebDAVTestServer: @unchecked Sendable {
     let baseURL: URL
     private let process: Process
     private let logURL: URL
+    private let terminated = DispatchSemaphore(value: 0)
 
     init(root: String = "dav", fixture: String = "server") throws {
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneDAVTests-\(UUID())")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         logURL = workspace.appendingPathComponent("requests.jsonl")
         process = Process()
+        process.terminationHandler = { [terminated] _ in terminated.signal() }
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
         let script = Bundle.module.url(forResource: fixture, withExtension: "py", subdirectory: "Fixtures")!
         process.arguments = ["-u", script.path, logURL.path]
@@ -32,7 +34,10 @@ final class WebDAVTestServer: @unchecked Sendable {
     }
 
     func cleanUp() {
-        if process.isRunning { process.terminate(); process.waitUntilExit() }
+        if process.isRunning { process.terminate() }
+        // waitUntilExit can remain in a run loop after the child has already exited when
+        // called on a Swift Testing cooperative thread. Use the pre-registered callback.
+        #expect(terminated.wait(timeout: .now() + 10) == .success, "WebDAV fixture did not terminate")
         try? FileManager.default.removeItem(at: workspace)
     }
 

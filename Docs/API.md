@@ -14,7 +14,7 @@
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
 
-分模块产品仍保留，兼容旧集成或按需依赖。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
+分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
 
 ```text
 App：import BoneRemoteSyncKit
@@ -55,6 +55,43 @@ LocalFileSource / WebDAVSource / OneDriveSource
 - `RemoteEntry.id` 与 `path` 不可互换。OneDrive 下载按不透明 ID 定位并重新查询元数据；浏览与文件管理接口通常接收来源内路径。`path` 是可选字段，调用方不应无条件强制解包。
 - `etag` 是版本元数据，不保证是内容哈希。缺少可信版本信息时，`size` 与 `modifiedAt` 只能用于启发式比较。
 - `hasReliableFingerprint` 只表示具备 ETag 或修改时间，不证明内容一致，也不能单独支撑自动删除或双向冲突决策。
+
+## 文件时间与类型分类
+
+`RemoteEntry` 同时用于 list、stat 和下载返回值。除名称、路径、文件/目录、大小、修改时间、ETag 与 MIME 外，现在还包含可选 `createdAt: Date?`，以及无 I/O 的计算属性 `fileCategory: RemoteFileCategory`。
+
+| 来源 | `createdAt` 的含义 |
+| --- | --- |
+| Local | 文件系统 `creationDate` |
+| WebDAV | 成功 DAV 属性中的 `creationdate`（ISO 8601，支持小数秒和时区偏移） |
+| OneDrive | Graph `driveItem.createdDateTime`，不是 `fileSystemInfo.createdDateTime` |
+
+网络创建时间接受带时区的 `YYYY-MM-DDTHH:mm:ss[.小数秒]Z` 或 `±HH:mm` 形式，严格检查日期与完整输入；年份为 0001–9999 的延伸公历，时区偏移小时小于 24、分钟小于 60，不接受闰秒、24:00、无时区或尾随垃圾。
+
+缺失或无法解析时返回 nil，不以修改时间或当前时间填充。这些来源的创建时间不一定有完全相同的语义，也不代表 EXIF 拍摄时间、音频录制时间或首次内容生成时间。移动、复制、上传可能改变创建时间。下载返回的是**来源条目元数据**，不承诺把该时间设置到本地目标文件。
+
+分类规则依次为：
+
+1. 目录固定为 `.directory`。
+2. MIME 忽略大小写、两端空格和 `;` 后的参数：`image/*`、`audio/*`、`video/*` 分别归入图片、音频、视频；`text/*` 及已识别 PDF、Office、JSON、XML、EPUB 等归入文档；ZIP、gzip、tar、7z、RAR 等归入归档。这里的 `*` 表示合法的具体子类型，不是接受通配符 MIME。
+3. 仅当 MIME 缺失、格式无效，或为 `application/octet-stream`、`binary/octet-stream`、`application/binary` 时，按不区分大小写的常见扩展名回退。
+4. 未识别的具体 MIME、未知扩展名、无扩展名或单独的 `.jpg` 等点文件返回 `.unknown`。如 `application/ogg` 可能承载音频或视频，不武断归类；仅有 `.mp4` 时则作为视频提示。
+
+可用类别为 `.directory`、`.image`、`.audio`、`.video`、`.document`、`.archive`、`.unknown`。例如 `audio/flac` 配合文件名 `photo.jpg` 返回 `.audio`；未知的具体 `application/x-custom` 配合该文件名仍返回 `.unknown`。常见扩展名映射是有限清单，不是完整格式注册表。
+
+```swift
+import Foundation
+import BoneRemoteSyncKit
+
+func describeFile(_ entry: RemoteEntry) -> String {
+    let created = entry.createdAt.map { ISO8601DateFormatter().string(from: $0) } ?? "未知"
+    return "\(entry.name) · \(entry.fileCategory.rawValue) · 创建时间：\(created)"
+}
+```
+
+分类不打开文件、不读取文件头、不下载远端内容，也不验证 MIME 或扩展名是否真实；不能用它做安全校验或判断文件一定可解码。当前没有图片尺寸、EXIF、音视频时长、封面、缩略图、播放或转码 API。普通 list 不会隐式提取这些信息。
+
+当前数据语义：`createdAt` 是默认 nil 的可选参数；Swift 合成的 Codable 将缺失字段解码为 nil，与来源可能不提供创建时间的语义一致。这不是跨版本格式兼容承诺。分类是计算属性，不重复写入 Codable 数据。`createdAt` 参与合成的相等性/哈希，完整条目相等不等于内容相同；`hasReliableFingerprint` 仍只依据 ETag 或修改时间，不因为有创建时间就变成 true。
 
 ## 分页
 

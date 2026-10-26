@@ -25,6 +25,9 @@ public struct RemoteEntry: Sendable, Hashable, Codable, Identifiable {
     /// 目录通常为 nil。
     public let size: Int64?
     public let modifiedAt: Date?
+    /// 来源报告的条目创建时间；不是拍摄/录制时间。缺失或无效时为 nil。
+    /// Local 为文件系统创建时间，WebDAV 为 DAV creationdate，OneDrive 为 driveItem.createdDateTime。
+    public let createdAt: Date?
     /// 变更检测主依据。缺失时上层必须退化为 size + modifiedAt。
     public let etag: String?
     public let contentType: String?
@@ -37,7 +40,8 @@ public struct RemoteEntry: Sendable, Hashable, Codable, Identifiable {
         size: Int64? = nil,
         modifiedAt: Date? = nil,
         etag: String? = nil,
-        contentType: String? = nil
+        contentType: String? = nil,
+        createdAt: Date? = nil
     ) {
         self.id = id
         self.path = path
@@ -47,6 +51,7 @@ public struct RemoteEntry: Sendable, Hashable, Codable, Identifiable {
         self.modifiedAt = modifiedAt
         self.etag = etag
         self.contentType = contentType
+        self.createdAt = createdAt
     }
 
     public var isDirectory: Bool { type == .directory }

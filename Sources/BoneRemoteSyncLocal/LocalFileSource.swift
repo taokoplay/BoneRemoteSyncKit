@@ -69,7 +69,7 @@ public actor LocalFileSource: RemoteCopyingSource {
         }
 
         let keys: [URLResourceKey] = [
-            .isDirectoryKey, .fileSizeKey, .contentModificationDateKey, .contentTypeKey,
+            .isDirectoryKey, .fileSizeKey, .contentModificationDateKey, .creationDateKey, .contentTypeKey,
         ]
         let parentPath = normalized
         var entries = try fileManager
@@ -118,52 +118,11 @@ public actor LocalFileSource: RemoteCopyingSource {
         if let expected = options.expectedETag, let actual = current.etag, expected != actual {
             throw RemoteSyncError.conflict(path: remotePath)
         }
-        if fileManager.fileExists(atPath: destination.path), !options.overwrite {
-            throw RemoteSyncError.conflict(path: destination.path)
-        }
-
-        try ensureParentDirectoryExists(for: destination)
-
-        let partURL = destination.appendingPathExtension("part")
-        let resumeOffset = options.resumeFrom ?? 0
-
-        if resumeOffset > 0 {
-            let existing = (try? fileManager.attributesOfItem(atPath: partURL.path)[.size] as? NSNumber)?.int64Value ?? 0
-            guard existing == resumeOffset else {
-                // 偏移与临时文件实际长度不符，说明上次写入不完整，只能重来。
-                try? fileManager.removeItem(at: partURL)
-                throw RemoteSyncError.conflict(path: partURL.path)
-            }
-        } else {
-            try? fileManager.removeItem(at: partURL)
-            fileManager.createFile(atPath: partURL.path, contents: nil)
-        }
-
-        do {
-            try copy(
-                from: sourceURL,
-                to: partURL,
-                offset: resumeOffset,
-                totalSize: current.size ?? 0,
-                progress: options.progress
-            )
-
-            if options.verifySize, let expectedSize = current.size {
-                let written = (try fileManager.attributesOfItem(atPath: partURL.path)[.size] as? NSNumber)?.int64Value ?? 0
-                guard written == expectedSize else {
-                    try? fileManager.removeItem(at: partURL)
-                    throw RemoteSyncError.integrityMismatch(path: destination.path)
-                }
-            }
-        } catch is CancellationError {
-            // 保留 .part 供下次续传。
-            throw RemoteSyncError.cancelled
-        }
-
-        if fileManager.fileExists(atPath: destination.path) {
-            _ = try fileManager.replaceItemAt(destination, withItemAt: partURL)
-        } else {
-            try fileManager.moveItem(at: partURL, to: destination)
+        try withFileErrors(path: destination.path) {
+            // Resolve only the source alias already validated to be inside the configured root.
+            let pinnedSource = try canonicalURL(sourceURL, path: remotePath)
+            let transfer = try LocalDownloadFile(source: pinnedSource, destination: destination)
+            try transfer.transfer(options: options)
         }
 
         return current
@@ -199,7 +158,7 @@ public actor LocalFileSource: RemoteCopyingSource {
     /// 前缀失配会算出空路径，进而在递归遍历里导致自我循环。
     func makeEntry(for url: URL, at path: String) throws -> RemoteEntry {
         let values = try url.resourceValues(forKeys: [
-            .isDirectoryKey, .fileSizeKey, .contentModificationDateKey, .contentTypeKey,
+            .isDirectoryKey, .fileSizeKey, .contentModificationDateKey, .creationDateKey, .contentTypeKey,
         ])
         let isDirectory = values.isDirectory ?? false
         let normalized = RemotePath.normalize(path)
@@ -214,7 +173,8 @@ public actor LocalFileSource: RemoteCopyingSource {
             size: size,
             modifiedAt: modified,
             etag: Self.fingerprint(size: size, modifiedAt: modified),
-            contentType: values.contentType?.preferredMIMEType
+            contentType: values.contentType?.preferredMIMEType,
+            createdAt: values.creationDate
         )
     }
 
@@ -225,45 +185,4 @@ public actor LocalFileSource: RemoteCopyingSource {
         return "\(size)-\(millis)"
     }
 
-    private func ensureParentDirectoryExists(for url: URL) throws {
-        let parent = url.deletingLastPathComponent()
-        if !fileManager.fileExists(atPath: parent.path) {
-            try fileManager.createDirectory(at: parent, withIntermediateDirectories: true)
-        }
-    }
-
-    private func copy(
-        from source: URL,
-        to target: URL,
-        offset: Int64,
-        totalSize: Int64,
-        progress: (@Sendable (Int64) -> Void)?
-    ) throws {
-        let input = try FileHandle(forReadingFrom: source)
-        defer { try? input.close() }
-
-        let output = try FileHandle(forWritingTo: target)
-        defer { try? output.close() }
-
-        if offset > 0 {
-            try input.seek(toOffset: UInt64(offset))
-            try output.seekToEnd()
-        }
-
-        let chunkSize = 1 << 20 // 1 MiB
-        var written = offset
-        while true {
-            try Task.checkCancellation()
-            let data = try input.read(upToCount: chunkSize) ?? Data()
-            if data.isEmpty { break }
-            try output.write(contentsOf: data)
-            written += Int64(data.count)
-            progress?(written)
-        }
-        try output.close()
-
-        if totalSize > 0, written > totalSize {
-            throw RemoteSyncError.integrityMismatch(path: target.path)
-        }
-    }
 }

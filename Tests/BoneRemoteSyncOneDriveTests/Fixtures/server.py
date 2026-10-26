@@ -28,7 +28,7 @@ class Handler(BaseHTTPRequestHandler):
     @property
     def base(self): return 'http://127.0.0.1:'+str(self.server.server_port)
     def item(self,id='file',name='资料 #?%.bin',size=len(PAYLOAD),folder=False):
-        value=dict(id=id,name=name,size=size,eTag='"v1"',lastModifiedDateTime='2026-10-20T00:00:00Z',parentReference=dict(driveId='D'))
+        value=dict(id=id,name=name,size=size,eTag='"v1"',lastModifiedDateTime='2026-10-20T00:00:00Z',createdDateTime='2026-10-19T01:02:03Z',parentReference=dict(driveId='D'))
         value['folder' if folder else 'file']={} if folder else dict(mimeType='application/octet-stream')
         if not folder: value['@microsoft.graph.downloadUrl']=self.base+'/download/'+id
         return value

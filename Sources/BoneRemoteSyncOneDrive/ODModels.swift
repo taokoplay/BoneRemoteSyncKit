@@ -16,6 +16,13 @@ struct ODItem: Decodable {
     let size: Int64?
     let eTag: String?
     let lastModifiedDateTime: String?
+    private struct OptionalDateString: Decodable {
+        let value: String?
+        init(from decoder: any Decoder) throws {
+            value = try? decoder.singleValueContainer().decode(String.self)
+        }
+    }
+    private let createdDateTime: OptionalDateString?
     let file: File?
     let folder: Empty?
     let remoteItem: Empty?
@@ -24,7 +31,7 @@ struct ODItem: Decodable {
     let parentReference: Parent?
     let downloadURL: String?
     enum CodingKeys: String, CodingKey {
-        case id, name, size, eTag, lastModifiedDateTime, file, folder, remoteItem, package, deleted, parentReference
+        case id, name, size, eTag, lastModifiedDateTime, createdDateTime, file, folder, remoteItem, package, deleted, parentReference
         case downloadURL = "@microsoft.graph.downloadUrl"
     }
     func validate(drive: String, path: String) throws {
@@ -39,8 +46,9 @@ struct ODItem: Decodable {
         let formatter = ISO8601DateFormatter()
         var modified = lastModifiedDateTime.flatMap { formatter.date(from: $0) }
         if modified == nil { formatter.formatOptions.insert(.withFractionalSeconds); modified = lastModifiedDateTime.flatMap { formatter.date(from: $0) } }
+        let created = RemoteCreationDate.parse(createdDateTime?.value)
         return RemoteEntry(id: ODLocation.identity(drive: drive, item: id), path: path,
             name: path == "/" ? "" : name, type: folder != nil ? .directory : .file,
-            size: folder != nil ? nil : size, modifiedAt: modified, etag: eTag, contentType: file?.mimeType)
+            size: folder != nil ? nil : size, modifiedAt: modified, etag: eTag, contentType: file?.mimeType, createdAt: created)
     }
 }

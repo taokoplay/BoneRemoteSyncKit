@@ -24,20 +24,13 @@ struct DAVWriteContext: Sendable {
         request.setValue("0", forHTTPHeaderField: "Depth")
         request.setValue("application/xml; charset=utf-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = Data(WebDAVSource.propfindBody.utf8)
-        let responses = try await DAVPropertyWorker.fetch(session: session, request: request, path: path,
+        let responses = try await DAVPropertyWorker.fetch(session: session, request: request, path: path, location: location,
                                                          retryPolicy: retryPolicy, scope: scope)
         try scope.check()
-        guard let item = responses.first(where: { location.path(for: $0.href, relativeTo: request.url!) == path }) else {
-            throw RemoteSyncError.notFound(path: path)
-        }
-        if let status = item.status, !(200..<300).contains(status) {
-            throw DAVRequestFailure.http(status: status, retryAfter: nil, path: path)
-        }
-        // Failed or missing properties are not proof that the resource is absent.
-        guard item.hasProperties else { throw RemoteSyncError.underlying("WebDAV 写操作预检缺少资源属性") }
+        let item = try DAVPropertyWorker.resource(in: responses, path: path, location: location, requestURL: request.url!)
         return RemoteEntry(id: RemotePath.relative(path), path: path, name: RemotePath.name(of: path),
                            type: item.isDirectory ? .directory : .file, size: item.size,
-                           modifiedAt: item.modifiedAt, etag: item.etag, contentType: item.contentType)
+                           modifiedAt: item.modifiedAt, etag: item.etag, contentType: item.contentType, createdAt: item.createdAt)
     }
 
     func optionalStat(_ path: String) async throws -> RemoteEntry? {

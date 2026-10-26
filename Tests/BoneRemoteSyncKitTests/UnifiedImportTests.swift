@@ -23,6 +23,11 @@ import BoneRemoteSyncKit
         #expect(RemotePath.normalize("folder/../file") == "/file")
         #expect(RemoteUploadOptions(overwrite: false).overwrite == false)
         #expect(RemoteDownloadOptions().verifySize)
+        let metadata = RemoteEntry(id: "photo", path: "/photo", name: "photo.HEIC", type: .file,
+                                   createdAt: Date(timeIntervalSince1970: 123))
+        let category: RemoteFileCategory = metadata.fileCategory
+        #expect(category == .image)
+        #expect(metadata.createdAt == Date(timeIntervalSince1970: 123))
         #expect(WebDAVResumableDownloadOptions(sourceNamespace: "test-account").sourceNamespace == "test-account")
         let oauth = OneDriveOAuth(configuration: configuration)
         let authorization: OneDriveAuthorization = try oauth.authorize()

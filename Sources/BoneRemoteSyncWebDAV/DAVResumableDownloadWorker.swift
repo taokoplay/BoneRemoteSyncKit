@@ -58,20 +58,17 @@ final class DAVResumableDownloadWorker: @unchecked Sendable {
         } else if partExists { throw conflict() }
         if !alreadyInstalled { try target.validate(overwrite: options.overwrite, offset: 0) }
 
-        let responses = try await DAVPropertyWorker.fetch(session: session, request: statRequest, path: path,
+        let responses = try await DAVPropertyWorker.fetch(session: session, request: statRequest, path: path, location: location,
                                                           retryPolicy: policy, scope: scope)
         try scope.check()
-        guard let item = responses.first(where: {
-            $0.hasProperties && ($0.status.map { (200..<300).contains($0) } ?? true) &&
-            location.path(for: $0.href, relativeTo: statRequest.url!) == path
-        }) else { throw RemoteSyncError.notFound(path: path) }
+        let item = try DAVPropertyWorker.resource(in: responses, path: path, location: location, requestURL: statRequest.url!)
         guard !item.isDirectory, let size = item.size, size >= 0,
               let etag = item.etag, WebDAVSource.isStrongETag(etag), etag.utf8.count <= 4096,
               item.contentType.map({ $0.utf8.count <= 1024 }) ?? true else {
             throw RemoteSyncError.unsupported(operation: "WebDAV 恢复下载需要强 ETag、已知大小和有界元数据")
         }
         let entry = RemoteEntry(id: RemotePath.relative(path), path: path, name: RemotePath.name(of: path),
-                               type: .file, size: size, modifiedAt: item.modifiedAt, etag: etag, contentType: item.contentType)
+                               type: .file, size: size, modifiedAt: item.modifiedAt, etag: etag, contentType: item.contentType, createdAt: item.createdAt)
         if var saved = record {
             guard saved.etag == etag, saved.expectedSize == size else { throw conflict() }
             if saved.phase == .readyToInstall { return try prepared(saved, alreadyInstalled: alreadyInstalled) }
@@ -132,7 +129,7 @@ final class DAVResumableDownloadWorker: @unchecked Sendable {
             let saved = DAVCheckpointRecord(binding: store.binding, etag: entry.etag!, expectedSize: entry.size!,
                 committedBytes: 0, prefixSHA256: DAVPartHasher.hex(hasher.finalize()),
                 partDevice: UInt64(info.st_dev), partInode: UInt64(info.st_ino),
-                modifiedAt: entry.modifiedAt, contentType: entry.contentType)
+                createdAt: entry.createdAt, modifiedAt: entry.modifiedAt, contentType: entry.contentType)
             try commit(saved)
         }
         let output = handle!
@@ -161,6 +158,7 @@ final class DAVResumableDownloadWorker: @unchecked Sendable {
         ready.phase = .readyToInstall; ready.committedBytes = written
         ready.prefixSHA256 = DAVPartHasher.hex(hasher.finalize())
         ready.modifiedAt = stream.response.value(forHTTPHeaderField: "Last-Modified").flatMap(DAVHTTPDate.parse) ?? entry.modifiedAt
+        ready.createdAt = entry.createdAt ?? ready.createdAt
         ready.contentType = stream.response.mimeType ?? entry.contentType
         try commit(ready)
         try hooks.call(.readyCommitted)
@@ -196,7 +194,7 @@ final class DAVResumableDownloadWorker: @unchecked Sendable {
         try target.verifyManagedIdentity(handle: handle!, record: saved, installed: alreadyInstalled)
         guard try store.load() == saved else { throw conflict() }
         let entry = RemoteEntry(id: RemotePath.relative(path), path: path, name: RemotePath.name(of: path), type: .file,
-                                size: saved.expectedSize, modifiedAt: saved.modifiedAt, etag: saved.etag, contentType: saved.contentType)
+                                size: saved.expectedSize, modifiedAt: saved.modifiedAt, etag: saved.etag, contentType: saved.contentType, createdAt: saved.createdAt)
         handedOff = true
         return DAVPreparedRecovery(entry: entry, handle: handle!, record: saved, store: store, alreadyInstalled: alreadyInstalled)
     }

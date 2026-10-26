@@ -49,7 +49,7 @@ def response(href, directory=False, size=None, etag='"v1"', failed=False):
         props += "<d:getcontentlength>%s</d:getcontentlength>" % size
     if etag:
         props += "<d:getetag>%s</d:getetag>" % escape(etag)
-    props += "<d:getlastmodified>Tue, 20 Oct 2026 01:00:00 GMT</d:getlastmodified><d:getcontenttype>application/octet-stream</d:getcontenttype>"
+    props += "<d:creationdate>2026-10-19T01:02:03.125Z</d:creationdate><d:getlastmodified>Tue, 20 Oct 2026 01:00:00 GMT</d:getlastmodified><d:getcontenttype>application/octet-stream</d:getcontenttype>"
     return "<d:response><d:href>%s</d:href><d:propstat><d:prop>%s</d:prop><d:status>HTTP/1.1 %s</d:status></d:propstat></d:response>" % (escape(href), props, "404 Not Found" if failed else "200 OK")
 
 
@@ -61,10 +61,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def record(self):
         body_size = int(self.headers.get("Content-Length", "0"))
-        if body_size:
-            self.rfile.read(body_size)
+        body = self.rfile.read(body_size) if body_size else b""
         with open(LOG, "a") as out:
-            out.write(json.dumps({"method": self.command, "path": self.path, "authorization": self.headers.get("Authorization"), "depth": self.headers.get("Depth"), "range": self.headers.get("Range"), "ifMatch": self.headers.get("If-Match")}) + "\n")
+            out.write(json.dumps({"method": self.command, "path": self.path, "authorization": self.headers.get("Authorization"), "depth": self.headers.get("Depth"), "asksCreationDate": b"creationdate" in body, "range": self.headers.get("Range"), "ifMatch": self.headers.get("If-Match")}) + "\n")
 
     def send(self, status, body=b"", headers=None):
         self.send_response(status)
@@ -137,6 +136,8 @@ class Handler(BaseHTTPRequestHandler):
                 entries.append(response("/%s/" % base + quote(name, safe="/") + ("/" if is_dir else ""), is_dir, None if is_dir else len(FILES[name])))
             # Bad hrefs and failures must not become visible traversable items.
             entries += [response("https://evil.example/%s/steal" % base, True), response("/%s/%s/injected/grandchild" % (base, quote(item, safe="/")), True), response("/%s/failed" % base, failed=True), response("/%s/../escape" % base), response("/%s/a%%2fb" % base)]
+        if base == "no-creation":
+            entries = [entry.replace("<d:creationdate>2026-10-19T01:02:03.125Z</d:creationdate>", "") for entry in entries]
         xml = '<?xml version="1.0" encoding="utf-8"?><d:multistatus xmlns:d="DAV:">' + "".join(entries) + "</d:multistatus>"
         self.send(207, xml.encode(), {"Content-Type": "application/xml; charset=utf-8"})
 
