@@ -51,15 +51,15 @@
 
 ### Xcode
 
-添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
+添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.2.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。当前接入示例使用 `main`，没有依赖尚未发布的版本标签；需要固定构建时可锁定已验证的提交。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.2.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.2.0"` 改为 `branch: "main"`。
 
 ```swift
 // Package.dependencies
-.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", branch: "main")
+.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.2.0")
 ```
 
 ```swift
@@ -73,7 +73,7 @@
 import BoneRemoteSyncKit
 ```
 
-**版本策略：** 直接按当前版本 API 和数据格式接入，不将旧 API、旧序列化数据或旧检查点的向后兼容作为维护约束，也不提供跨版本迁移承诺。宿主应同步更新依赖与调用代码；分模块产品用于按需依赖，不是旧版兼容层。[更新说明](CHANGELOG.md)中的未发布更新不属于 `v0.1.0`；使用远程 `main` 时，应确认对应更新已推送，不能仅凭本地实现或提交判断远程可用性。
+**版本策略：** 直接按当前版本 API 和数据格式接入，不将旧 API、旧序列化数据或旧检查点的向后兼容作为维护约束，也不提供跨版本迁移承诺。宿主应同步更新依赖与调用代码；分模块产品用于按需依赖，不是旧版兼容层。本次新增功能与修复包含在 `v0.2.0`，不属于 `v0.1.0`；使用 `main` 时，其内容可能领先于最新版本标签。
 
 ## 快速上手
 
@@ -170,7 +170,7 @@ func transferFile(
 
 | 文档 | 内容 |
 | --- | --- |
-| [更新说明](CHANGELOG.md) | 未发布功能、缺陷修复、版本策略与行为变化、已知限制 |
+| [更新说明](CHANGELOG.md) | 版本功能、缺陷修复、版本策略与行为变化、已知限制 |
 | [通用 API 与生命周期](Docs/API.md) | 模块、协议、路径、分页、遍历、错误、进度与宿主职责 |
 | [本地目录](Docs/Local.md) | 本地读写、落盘、符号链接和权限边界 |
 | [WebDAV](Docs/WebDAV.md) | 连接、文件管理、条件覆盖、重试、Range 与 checkpoint 恢复 |
@@ -189,4 +189,4 @@ swift build -c release
 
 HTTP 集成测试在 macOS 上运行，需要 `/usr/bin/python3`（Python 3.8+，仅标准库），只访问本机临时 fixture。生产模块不依赖 Python。
 
-截至 **2026-10-26**，当前缺陷修复与文件元数据工作区全包复测 **260 项测试通过**，Release 构建、独立消费端和最低平台目标编译检查通过。并发测试曾出现 WebDAV 短时限、上传进度断言失败及历史 fixture 清理挂起，相关调整与原始失败均见[验证记录](Docs/Validation.md)。此结果不等于真实服务兼容性或全平台运行验收，也不表示既有 `v0.1.0` 标签已包含本轮修复或元数据扩展。
+截至 **2026-10-26**，`v0.2.0` 所含实现此前全包复测 **260 项测试通过**，Release 构建、独立消费端和最低平台目标编译检查通过。并发测试曾出现 WebDAV 短时限、上传进度断言失败及历史 fixture 清理挂起，相关调整与原始失败均见[验证记录](Docs/Validation.md)。此结果不等于真实服务兼容性或全平台运行验收，也不表示既有 `v0.1.0` 标签已包含本轮修复或元数据扩展。
