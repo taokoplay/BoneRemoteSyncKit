@@ -13,7 +13,7 @@
 5. 先将首次 token 保存到当前账号 Keychain，再以 `token.credential` 连接。为后续刷新提供同步、线程安全、账号隔离的持久化回调。
 6. 成功、失败或用户退出时等待 `disconnect()`。退出账号后的 Keychain 清理由宿主负责。
 
-上述授权 UI 和 URL scheme 注册不是 SDK 内置能力。来源模块的凭据保存仍由宿主负责；未发布 [Catalog](Catalog.md) 提供可选 Keychain 桥接与固定引用会话。可编译的事务管理示例见 [OneDriveExample.swift](../Examples/OneDriveReadOnly/OneDriveExample.swift)。
+上述授权 UI 和 URL scheme 注册不是 SDK 内置能力。来源模块的凭据保存仍由宿主负责；[Catalog](Catalog.md) 提供可选 Keychain 桥接与固定引用会话。可编译的事务管理示例见 [OneDriveExample.swift](../Examples/OneDriveReadOnly/OneDriveExample.swift)。
 
 ## 使用已取得的凭据
 
@@ -134,4 +134,4 @@ print(uploaded.path ?? uploaded.id)
 
 ## 可选配置与离线索引
 
-未发布 [Catalog](Catalog.md) 保存应用配置、已核对的主盘 ID、选定目录及列表元数据，不保存 nextLink/cursor/预授权下载 URL。`connectedDriveID()` 仅在成功连接期间可用，供宿主初始化绑定，不泄露 token。首次授权与每次轮换都要保存完整凭据，同 reference 的独立 source 不能并发轮换；Catalog 以引用级 lease 协调。根按路径绑定，改名需重新选择，不把旧子树自动改写为新路径。
+[Catalog](Catalog.md) 保存应用配置、已核对的主盘 ID、选定目录及列表元数据，不保存 nextLink/cursor/预授权下载 URL。`connectedDriveID()` 仅在成功连接期间可用，供宿主初始化绑定，不泄露 token。首次授权与每次轮换都要保存完整凭据，同 reference 的独立 source 不能并发轮换；Catalog 以引用级 lease 协调。根按路径绑定，改名需重新选择，不把旧子树自动改写为新路径。

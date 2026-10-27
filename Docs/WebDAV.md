@@ -158,6 +158,6 @@ print(downloaded.size ?? 0)
 
 ## 可选配置与离线索引
 
-未发布 [Catalog](Catalog.md) 保存 collection 配置和选定根，凭据仅存安全 store。`profile.sourceNamespace` 来自持久 binding UUID，可用作 managed 下载命名空间；不要每次下载随机生成或在换账号后沿用旧绑定。
+[Catalog](Catalog.md) 保存 collection 配置和选定根，凭据仅存安全 store。`profile.sourceNamespace` 来自持久 binding UUID，可用作 managed 下载命名空间；不要每次下载随机生成或在换账号后沿用旧绑定。
 
 Depth:1 返回的异常 href、重复项、非直接子项、缺必需属性或失败 child response 会使 coverage 为 partial，显式隐藏过滤不算遗漏。即时浏览仍可展示成功项，但 Catalog 拒绝以 partial/unknown 覆盖旧完整列表；目标 403/404 也不能当成功空目录。

@@ -2,7 +2,7 @@
 
 [Catalog 设计与 API](../../Docs/Catalog.md) · [首页](../../README.md)
 
-`CatalogExample.swift` 是宿主接入片段，不是独立 App。API 尚未发布，不在 `v0.2.0` 标签中。
+`CatalogExample.swift` 是宿主接入片段，不是独立 App。API 自 `v0.3.0` 发布，不在 `v0.2.0` 标签中。
 
 1. 只依赖 `BoneRemoteSyncKit` 产品。
 2. 创建私有 Application Support 子目录，将其中的普通本地文件 URL 传为 `databaseURL`。不要使用同步目录或可清理 Caches。

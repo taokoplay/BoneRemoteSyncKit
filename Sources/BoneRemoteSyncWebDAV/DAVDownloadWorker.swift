@@ -41,7 +41,7 @@ enum DAVDownloadWorker {
         var written = offset
         var buffer = Data()
         buffer.reserveCapacity(64 * 1024)
-        options.progress?(written)
+        options.reportTransferred(written, total: expectedSize)
         while let chunk = try await stream.next() {
             try Task.checkCancellation()
             var position = 0
@@ -57,7 +57,7 @@ enum DAVDownloadWorker {
                     try output.write(contentsOf: buffer)
                     written += Int64(buffer.count)
                     buffer.removeAll(keepingCapacity: true)
-                    options.progress?(written)
+                    options.reportTransferred(written, total: expectedSize)
                 }
             }
         }
@@ -68,7 +68,7 @@ enum DAVDownloadWorker {
             }
             try output.write(contentsOf: buffer)
             written += Int64(buffer.count)
-            options.progress?(written)
+            options.reportTransferred(written, total: expectedSize)
         }
         try Task.checkCancellation()
         if let rangeLength, written - offset != rangeLength { throw RemoteSyncError.integrityMismatch(path: path) }

@@ -25,7 +25,7 @@ extension OneDriveSource {
                 request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
                 // No Graph token, If-Match or ambient credentials are forwarded to the pre-authorized CDN.
                 let result = try await ctx.client.send(request, sink: ODDownloadSink(target: target, expected: size,
-                    verifySize: options.verifySize, progress: options.progress))
+                    verifySize: options.verifySize, progress: { options.reportTransferred($0, total: size) }))
                 try check(ctx.generation)
                 if attempt == 0, [401, 403].contains(result.response.statusCode) { continue }
                 try ODHTTPClient.validate(result.response, path: entry.path ?? "/")

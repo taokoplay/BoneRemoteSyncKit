@@ -11,6 +11,12 @@ final class ProgressProbe: @unchecked Sendable {
     var bytes: Int64 { lock.withLock { values.last ?? 0 } }
     var monotonic: Bool { lock.withLock { zip(values, values.dropFirst()).allSatisfy { $0 <= $1 } } }
 }
+private final class ODPhaseProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [RemoteDownloadProgress] = []
+    func record(_ event: RemoteDownloadProgress) { lock.withLock { events.append(event) } }
+    var values: [RemoteDownloadProgress] { lock.withLock { events } }
+}
 @Suite struct OneDriveDownloadTests {
     @Test(arguments: ["normal", "expired"])
     func downloadsByIDWithoutBearerAtCDN(scenario: String) async throws {
@@ -29,6 +35,19 @@ final class ProgressProbe: @unchecked Sendable {
         #expect(try FileManager.default.contentsOfDirectory(atPath: server.workspace.path).allSatisfy { !$0.hasPrefix(".bone-onedrive-") })
         await source.disconnect()
     }
+    @Test func emptyDownloadStillReportsTransferPhase() async throws {
+        let server = try OneDriveTestServer(); defer { server.cleanUp() }
+        let source = server.source()
+        try await source.connect(server.credential)
+        let probe = ODPhaseProbe()
+        _ = try await source.download(path: "/empty", to: server.file(), options: .init(phaseProgress: { probe.record($0) }))
+        #expect(probe.values.count == 1)
+        #expect(probe.values.first?.phase == .transferring)
+        #expect(probe.values.first?.totalBytes == 0)
+        #expect(probe.values.first?.fractionCompleted == nil)
+        await source.disconnect()
+    }
+
     @Test func emptyFileAndNonOverwriteAndUnsupportedResume() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }; let source = server.source()
         try await source.connect(server.credential)

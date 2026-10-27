@@ -4,6 +4,12 @@ import Testing
 import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
+private final class DAVPhaseProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [RemoteDownloadProgress] = []
+    func record(_ event: RemoteDownloadProgress) { lock.withLock { events.append(event) } }
+    var values: [RemoteDownloadProgress] { lock.withLock { events } }
+}
 @Suite struct WebDAVDownloadTests {
     @Test func completeDownloadAndEmptyFileUseAtomicTargetAndReportBytes() async throws {
         let server = try WebDAVTestServer()
@@ -21,6 +27,22 @@ import BoneRemoteSyncWebDAV
         let empty = server.file("nested/empty")
         _ = try await source.download(path: "/empty.txt", to: empty)
         #expect(try Data(contentsOf: empty).isEmpty)
+        await source.disconnect()
+    }
+
+    @Test func resumedDownloadReportsTransferPhaseAndSourceTotal() async throws {
+        let server = try WebDAVTestServer(); defer { server.cleanUp() }
+        let source = try server.source()
+        try await source.connect(.anonymous)
+        let probe = DAVPhaseProbe()
+        let target = server.file()
+        try Data("abcde".utf8).write(to: target.appendingPathExtension("part"))
+        _ = try await source.download(path: "/hello.txt", to: target,
+            options: .init(resumeFrom: 5, expectedETag: "\"v1\"", phaseProgress: { probe.record($0) }))
+        #expect(probe.values.first?.completedBytes == 5)
+        #expect(probe.values.last?.completedBytes == 26)
+        #expect(probe.values.last?.fractionCompleted == 1)
+        #expect(probe.values.allSatisfy { $0.phase == .transferring && $0.totalBytes == 26 })
         await source.disconnect()
     }
 

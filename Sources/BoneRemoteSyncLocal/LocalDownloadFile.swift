@@ -76,7 +76,7 @@ final class LocalDownloadFile {
         try input.seek(toOffset: UInt64(offset))
         try output.seek(toOffset: UInt64(offset))
         var written = offset
-        options.progress?(written)
+        options.reportTransferred(written, total: original.st_size)
         while true {
             try Task.checkCancellation()
             let bytes = try input.read(upToCount: 1 << 20) ?? Data()
@@ -86,7 +86,7 @@ final class LocalDownloadFile {
             }
             try output.write(contentsOf: bytes)
             written += Int64(bytes.count)
-            options.progress?(written)
+            options.reportTransferred(written, total: original.st_size)
         }
         try Task.checkCancellation()
         var after = stat()

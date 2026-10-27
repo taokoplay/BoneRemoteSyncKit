@@ -75,7 +75,14 @@ final class ODHTTPState: NSObject, URLSessionDataDelegate, @unchecked Sendable {
                       !sink.verifySize || response.expectedContentLength < 0 || response.expectedContentLength == sink.expected else {
                     throw RemoteSyncError.integrityMismatch(path: sink.target.destination.path)
                 }
-                try lock.withLock { if terminal == nil { try sink.target.open() } }
+                let opened = try lock.withLock {
+                    guard terminal == nil else { return false }
+                    try sink.target.open()
+                    return true
+                }
+                guard opened else { completionHandler(.cancel); return }
+                // Report the phase even for an empty response, outside the state lock.
+                sink.progress?(0)
                 completionHandler(.allow)
             } catch { finish(.failure(error)); completionHandler(.cancel) }
         } else if response.expectedContentLength > Int64(limit) {

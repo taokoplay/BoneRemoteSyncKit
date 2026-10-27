@@ -1,6 +1,6 @@
 # 未支持来源开发计划
 
-> 本文是 `BoneRemoteSyncKit` 当前开发路线图，不代表下列来源已经实现或已纳入发布版本。当前已实现的来源仍是 Local、WebDAV、OneDrive Personal 和未发布的 iCloud Drive；本计划不会把预留枚举值或空目标描述成可用适配器。
+> 本文是 `BoneRemoteSyncKit` 当前开发路线图，不代表下列来源已经实现或已纳入发布版本。当前已实现的来源仍是 Local、WebDAV、OneDrive Personal 和自 `v0.3.0` 发布的 iCloud Drive；本计划不会把预留枚举值或空目标描述成可用适配器。
 
 [返回项目首页](../README.md) · [通用 API](API.md) · [验证状态](Validation.md)
 

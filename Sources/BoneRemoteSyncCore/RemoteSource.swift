@@ -29,7 +29,8 @@ public protocol RemoteSource: Sendable {
     var kind: RemoteSourceKind { get }
     var capabilities: RemoteCapabilities { get }
 
-    /// 建立会话。凭据错误必须抛 `.authenticationFailed`，不要原样透出底层错误。
+    /// 建立会话。凭据错误使用 `RemoteSyncError.authenticationFailed`。
+    /// 来源可另行公开结构化诊断错误；具体错误类型与恢复策略以来源合同为准。
     func connect(_ credential: RemoteCredential) async throws
 
     /// 释放连接与临时资源。重复调用必须安全。
@@ -40,7 +41,8 @@ public protocol RemoteSource: Sendable {
 
     func stat(path: String) async throws -> RemoteEntry
 
-    /// 下载到本地文件。实现必须保证：失败不留半成品在目标位置。
+    /// 下载到本地文件。最终目标只安装完整内容；失败可保留来源约定的 staging/part。
+    /// 取消或错误不能撤回已完成的原子安装。
     func download(
         _ entry: RemoteEntry,
         to destination: URL,

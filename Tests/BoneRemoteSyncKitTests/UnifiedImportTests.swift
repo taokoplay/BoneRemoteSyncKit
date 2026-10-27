@@ -30,6 +30,13 @@ import BoneRemoteSyncKit
         let idSource: any RemoteIDAddressableSource = oneDrive
         #expect(idSource.capabilities.idAddressing)
         #expect(RemoteDownloadOptions().verifySize)
+        let phase: RemoteDownloadPhase = .preparing
+        let preparation: RemoteDownloadPreparationState = .inProgress
+        let progress = RemoteDownloadProgress(phase: phase, preparationState: preparation)
+        #expect(progress.fractionCompleted == nil)
+        let status = ICloudDriveStatus(availability: .unavailable, unavailableReason: .driveUnavailable)
+        #expect(status.unavailableReason == .driveUnavailable)
+        #expect(ICloudDriveError.downloadTimedOut(path: "/f").remoteSyncError == .network("iCloud 文件下载超时：/f"))
         let metadata = RemoteEntry(id: "photo", path: "/photo", name: "photo.HEIC", type: .file,
                                    createdAt: Date(timeIntervalSince1970: 123))
         let category: RemoteFileCategory = metadata.fileCategory

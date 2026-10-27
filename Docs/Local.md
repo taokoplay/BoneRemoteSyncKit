@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [通用 API](API.md)
 
-`LocalFileSource(root:)` 将已有本地目录作为来源根，使用 `.anonymous` 连接。通过 `import BoneRemoteSyncKit` 可访问所有类型。根目录须已存在且获得宿主授权；该适配器不是 iCloud Drive 实现，不处理云端占位文件或 `NSFileCoordinator`；需要这些能力时使用独立的 [ICloudDriveSource](ICloudDrive.md)（未发布）。
+`LocalFileSource(root:)` 将已有本地目录作为来源根，使用 `.anonymous` 连接。通过 `import BoneRemoteSyncKit` 可访问所有类型。根目录须已存在且获得宿主授权；该适配器不是 iCloud Drive 实现，不处理云端占位文件或 `NSFileCoordinator`；需要这些能力时使用独立的 [ICloudDriveSource](ICloudDrive.md)（自 `v0.3.0` 提供）。
 
 ## 操作语义
 
@@ -35,7 +35,7 @@
 
 - 写操作检查规范路径、根目录保护与父目录符号链接，包括目标文件尚不存在的情况；悬空/循环链接及含 NUL 的非法路径保守拒绝。
 - 这是应用层路径边界检查，**不是安全 sandbox**，不保证抵抗其他进程在检查与执行之间恶意替换目录（TOCTOU）。调用方应使用自己控制的根目录。
-- iOS/macOS sandbox、security-scoped URL 的授权生命周期由调用方管理；来源模块不封装 bookmark 或 iCloud 文件协调。未发布 [Catalog](Catalog.md) 支持宿主 resolver/lease 桥接，不把保存路径视为永久授权。
+- iOS/macOS sandbox、security-scoped URL 的授权生命周期由调用方管理；来源模块不封装 bookmark 或 iCloud 文件协调。[Catalog](Catalog.md) 支持宿主 resolver/lease 桥接，不把保存路径视为永久授权。
 - 所有测试仅使用各自创建的临时目录，不会删除或改写用户真实文件。
 
 ## 使用方式

@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按当前开发源码描述。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage 和 `connectedDriveID()` 为未发布改动，不在 `v0.2.0` 中。
+> 本页按 `v0.3.0` API 描述。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage、阶段进度和 `connectedDriveID()` 自此版本发布，不在 `v0.2.0` 中。
 
 ## 统一入口与模块
 
@@ -13,10 +13,10 @@
 | `BoneRemoteSyncKit` | 对外统一入口 |
 | `BoneRemoteSyncCore` | 来源协议、条目、能力、错误、路径、凭据与传输选项 |
 | `BoneRemoteSyncLocal` | 本地目录来源 |
-| `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照（未发布） |
+| `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照 |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
-| `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（未发布，见 [Catalog](Catalog.md)） |
+| `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
 
@@ -197,7 +197,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 ## 错误与重试
 
-`RemoteSyncError` 提供未连接、认证失败、不存在、权限不足、不支持、限流、网络错误、冲突、完整性不匹配、取消和底层错误等分类。适配器尽量归一化错误，但宿主仍应保留普通 `Error` 的兜底处理，不假定所有本地系统异常都已映射。
+`RemoteSyncError` 提供未连接、认证失败、不存在、权限不足、不支持、限流、网络错误、冲突、完整性不匹配、取消和底层错误等分类。iCloud 特有账号/容器/目录/超时/版本冲突保留 `ICloudDriveError`，其 `remoteSyncError` 仅是宿主可选的共享投影（见 [错误映射](ICloudDrive.md#宿主错误映射与迁移)）。其他错误由适配器尽量归一化，但宿主仍应保留普通 `Error` 的兜底处理，不假定所有本地系统异常都已映射。
 
 - `isRetryable` 只是分类提示，不包含操作幂等性判断。
 - WebDAV 默认不重试；显式策略只重试白名单内的 PROPFIND / GET，写流程的只读预检可使用同一策略，写请求本身不重试。
@@ -209,11 +209,11 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 进度回调为同步 `@Sendable` 闭包，不保证在主线程。回调应线程安全且快速返回；UI 更新由宿主切换到 `MainActor`。
 
-下载回调报告已写入字节，上传回调报告发送进度。它们不等于远端持久化确认；WebDAV managed 恢复回调也不等于 checkpoint 已提交偏移，重试后可能回退。长时间阻塞回调会延迟取消与截止时间处理。
+`RemoteDownloadOptions.progress` 报告已写 staging/part 字节（含续传偏移）。新增 `phaseProgress` 报告 `RemoteDownloadProgress`：iCloud preparing 状态变化与各来源普通 download 的 transferring 字节，比例 0...1；未知总量或空文件比例 nil。两阶段比例独立，重试可回退，达到 1 不等于最终安装成功。iCloud 不伪造系统网络百分比，详见[下载阶段状态机](ICloudDrive.md#下载阶段状态机)。上传回调报告发送进度。它们不等于远端持久化确认；WebDAV managed 恢复回调也不等于 checkpoint 已提交偏移，重试后可能回退。长时间阻塞回调会延迟取消与截止时间处理。网络来源已在途的回调可能晚于取消返回；宿主应以任务标识过滤过期事件，不把 async 终态当作回调排空屏障。
 
 ## 宿主职责
 
-- 登录 UI、账号选择与授权策略。直接使用来源模块时负责安全存储和 token 原子持久化；使用未发布 Catalog 时可选内置 Keychain 桥接，仍须管理 service、账号退出和授权 UI。
+- 登录 UI、账号选择与授权策略。直接使用来源模块时负责安全存储和 token 原子持久化；使用 Catalog 时可选内置 Keychain 桥接，仍须管理 service、账号退出和授权 UI。
 - 系统 sandbox、security-scoped URL／bookmark、ATS 和局域网权限。
 - 多来源实例、多个进程之间的目标文件、part、checkpoint 独占协调。
 - 上传来源在读取期间保持稳定；下载目标位于应用有权且可独占控制的目录。
@@ -223,7 +223,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 ## 列表完整性与缓存消费者
 
-无 options 的 stream `walk` 保留即时部分浏览语义，不能据其缺项清理缓存。带 `RemoteWalkOptions` 的 visitor 遍历遇到 partial/unknown 页会失败，在访问该页条目前拒绝；之前完整页的 visitor 副作用不会回滚。需要跨启动保存列表、失败保留旧版本与目录级发布时使用未发布 [Catalog](Catalog.md)，不要把 visitor 逐条回调直接当作完整目录事务。
+无 options 的 stream `walk` 保留即时部分浏览语义，不能据其缺项清理缓存。带 `RemoteWalkOptions` 的 visitor 遍历遇到 partial/unknown 页会失败，在访问该页条目前拒绝；之前完整页的 visitor 副作用不会回滚。需要跨启动保存列表、失败保留旧版本与目录级发布时使用 [Catalog](Catalog.md)，不要把 visitor 逐条回调直接当作完整目录事务。
 
 ## 错误诊断日志
 

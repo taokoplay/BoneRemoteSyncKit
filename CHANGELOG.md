@@ -1,38 +1,52 @@
 # 更新说明
 
-## 未发布 — 未支持来源开发计划
-
-- 新增[未支持来源开发计划](Docs/CloudDriveRoadmap.md)，按阶段规划 Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 及区域性 API 网盘。
-- 明确稳定 ID、分页、条件写入、内容校验、可恢复传输、认证隔离和真实服务验收等共性门槛；计划文档不代表这些来源已经实现。
-
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
-本文件记录对使用者有影响的功能、修复、版本策略与行为变化。实现完成、测试通过和版本发布是不同状态；标为“未发布”的内容不代表已包含在远程分支或版本标签中。
+本文件记录对使用者有影响的功能、修复、版本策略与行为变化。实现完成、测试通过和版本发布是不同状态；版本标签也不代表真实账号、服务端或全部平台已经验收。
 
-## 未发布 — 通用文件语义与 OneDrive 稳定 ID
+## v0.3.0 — 2026-10-27
 
-- Core 新增可选 `RemoteIDAddressableSource` 和 `RemoteCapabilities.idAddressing`；OneDrive 支持按稳定条目 ID 查询、目录浏览、分页和下载，ID 分页游标绑定当前会话及寻址模式。
-- `RemoteUploadOptions.expectedETag` 表达调用方读取版本的条件覆盖；WebDAV 用强 ETag 执行 `If-Match`，本地、iCloud Drive、OneDrive 明确拒绝，不静默降级。
-- 新增独立 `RemoteContentChecksum` / `RemoteContentChecksumAlgorithm` 模型，保留摘要原始字节并校验算法长度；不将 ETag 冒充内容哈希，当前各来源仍不自动提供或验证内容摘要。
-- 新增 Core/WebDAV/OneDrive/iCloud 回归测试和接入文档。本轮源码改动尚未提交、推送或发布，真实账号/服务端验收仍待完成。
+本版本以 Git 附注标签 `v0.3.0` 发布，不另外创建 GitHub Release。以下为相对 `v0.2.0` 的变化，包含此前已合入 main 的 Catalog、日志、首轮 iCloud 与通用文件语义，以及本轮 iCloud 备份 R1/R2 契约；既有 `v0.1.0`、`v0.2.0` 标签保持不变。
 
-## 未发布 — iCloud Drive 文件来源
+### iCloud Drive 文件来源与备份接入
 
 - 新增独立 `BoneRemoteSyncICloud` 产品、`ICloudDriveSource` 和配置/状态/错误模型，统一 Kit 导出；系统账号通过 `.anonymous` 使用，宿主负责 entitlement 与容器。
 - 增加文件协调、占位下载请求及有界轮询、原子 upload/download、手动下载续传、取消/断开隔离、根/链接路径保护及冲突拒绝。
 - 支持 list/stat、文件传输、建目录、删除、移动和仅文件 copy；不支持目录 copy、Catalog iCloud provider、变更流、版本选版、CloudKit 或自动同步。
-- 新增 29 项专项测试和只读宿主示例；最终串行全包 361 项通过，四目标编译/链接通过。真实 iCloud 验收仍待完成，不将本地测试视为云端同步完成证明。
-- 本阶段改动尚未提交、推送或发布。接入与限制见 [iCloud 指南](Docs/ICloudDrive.md)，实际检查见 [验证记录](Docs/Validation.md)。
+- iCloud 特有错误保留 `ICloudDriveError`，不先折叠成 network/conflict；新增账号身份不可用、Drive/容器不可用、配置目录不存在分类，`status.unavailableReason` 可用于无副作用查询。不能可靠识别的系统状态不强判为 Drive 关闭。
+- 已连接配置根被删除时保留可识别目录错误，权限/IO 失败不误报为目录不存在；元数据读取晚到后再次核验账号，避免旧账号 ready 回调。覆盖账号切换、超时、取消、准备/传输顺序、空文件及续传回归。
+- 新增备份目录显式初始化、带阶段恢复、上传和宿主选定旧备份清理示例，补齐 Q1–Q7 与错误迁移说明。接入与限制见 [iCloud 指南](Docs/ICloudDrive.md)。
 
-## 未发布 — 配置持久化与目录缓存
+### 通用文件语义与 OneDrive 稳定 ID
 
-- 新增 Core 结构化错误日志规范与 `RemoteLogger`：固定分类/级别/操作、默认关闭、宿主注入输出，Catalog 初始化/恢复/关闭及高层操作自动接入。丢弃原始错误文本，sink 抛错不替换业务错误，刷新失败按类别聚合；详见[日志规范](Docs/Logging.md)。
+- Core 新增 `RemoteDownloadPhase` / `RemoteDownloadPreparationState` / `RemoteDownloadProgress` 与 `RemoteDownloadOptions.phaseProgress`。iCloud 准备阶段采样状态变化并去重；Local、iCloud、WebDAV、OneDrive 普通下载报告传输字节。无可靠比例时返回 nil，不引入 NSMetadataQuery 或伪造网络百分比。
+- 新增可选 `RemoteIDAddressableSource` 和 `RemoteCapabilities.idAddressing`；OneDrive 支持按稳定条目 ID 查询、目录浏览、分页和下载，ID 分页游标绑定当前会话及寻址模式。
+- `RemoteUploadOptions.expectedETag` 表达调用方读取版本的条件覆盖；WebDAV 用强 ETag 执行 `If-Match`，本地、iCloud Drive、OneDrive 明确拒绝，不静默降级。
+- 新增独立 `RemoteContentChecksum` / `RemoteContentChecksumAlgorithm` 模型，保留摘要原始字节并校验算法长度；不将 ETag 冒充内容哈希，当前各来源仍不自动提供或验证内容摘要。
+
+### 配置持久化、目录缓存与日志
+
 - 新增可选 `BoneRemoteSyncCatalog`，由统一 Kit 导出：系统 SQLite 配置/根选择/离线分页，显式 children/subtree 刷新、目录级原子发布、失败保留旧缓存与中断恢复。
-- 新增可替换同步凭据 store 和 Apple Keychain 桥接，固定引用轮换回调、引用级会话互斥、Local 宿主访问 lease。没有真实 Keychain/账号验收。
+- 新增可替换同步凭据 store 和 Apple Keychain 桥接，固定引用轮换回调、引用级会话互斥、Local 宿主访问 lease；没有真实 Keychain/账号验收。
+- 新增 OneDrive `connectedDriveID()` 以核对持久账号绑定；不保存 token 到 SQLite、不持久化远端 cursor。API 与行为边界见 [Catalog](Docs/Catalog.md)。
+- 新增 Core 结构化错误日志规范与 `RemoteLogger`：固定分类/级别/操作、默认关闭、宿主注入输出，Catalog 初始化/恢复/关闭及高层操作自动接入。丢弃原始错误文本，sink 抛错不替换业务错误，刷新失败按类别聚合；详见[日志规范](Docs/Logging.md)。
+
+### 契约变化与迁移
+
+- 继续采用当前 API 优先策略，不保留旧 API、序列化格式或 checkpoint 的兼容层。宿主应同步更新调用代码及穷尽 switch。
 - `RemoteListPage` 构造必须显式指定 coverage；Local/WebDAV 不再把已知漏项报告为完整目录。visitor walk 拒绝 partial/unknown，stream walk 仍仅用于部分浏览。
-- 细化 `RemoteCatalogFailureReason`：保留未连接、不支持、限流、冲突、完整性不匹配及取消分类，不再统一折叠成 network/other；宿主的穷尽 switch 需同步更新。
-- 新增 OneDrive `connectedDriveID()` 以核对持久账号绑定；不保存 token 到 SQLite、不持久化远端 cursor。
-- 本次没有发布新版本、移动旧 tag 或创建 GitHub Release。API 与行为边界见 [Catalog](Docs/Catalog.md)，实际检查结果见 [验证记录](Docs/Validation.md)。
+- 细化 `RemoteCatalogFailureReason`：保留未连接、不支持、限流、冲突、完整性不匹配及取消分类，不再统一折叠成 network/other。
+- 开发分支原 `ICloudDriveError.unavailable` 已删除，宿主应优先 catch iCloud 错误；只需要通用分类时显式使用 `remoteSyncError` 投影。iCloud 来源本身不在 `v0.2.0` 中。
+- 两阶段比例相互独立，达到 1 不等于最终安装完成。网络来源已在途回调可能晚于取消返回，宿主按任务 ID 过滤过期事件，不将 async 终态视作回调排空屏障。
+
+### 验证与范围
+
+- 最终串行全包 **392 项通过**：39 XCTest + 353 Swift Testing；参数化 case 不额外相加。Release、独立 Kit 消费端、七模块及 iCloud 示例的四目标编译/链接通过，指南 3 个 Swift 片段四目标类型检查通过。
+- 使用 Swift 6.4 / Xcode 27.1、Swift 6 模式；最低声明平台不变。平台编译不等于 Swift 6.0 编译器或最低 OS 真机验收。
+- 真实 iCloud entitlement、账号、Drive 开关、真正占位文件、离线/空间不足、双设备传播与冲突版本仍未验收；真实 Graph/WebDAV 写入及 Keychain 验收也未完成。既有 WebDAV 并发短 deadline 风险仍保留，串行通过不证明其消失。
+- 新增[未支持来源开发计划](Docs/CloudDriveRoadmap.md)，按阶段规划 Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 及区域性 API 网盘。计划文档不代表这些来源已经实现；本版本不含新网盘适配器或自动同步引擎。
+
+各阶段的原始失败、审查修复、测试数量及未验收项见[验证记录](Docs/Validation.md)，不将历史定向结果与最终全包相加。
 
 ## v0.2.0 — 2026-10-26
 
