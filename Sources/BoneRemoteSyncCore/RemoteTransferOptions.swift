@@ -34,15 +34,20 @@ public struct RemoteDownloadOptions: Sendable {
 /// 上传选项，供 RemoteWritableSource 使用。
 public struct RemoteUploadOptions: Sendable {
     public var overwrite: Bool
+    /// 仅在远端仍匹配调用方读取的版本时更新。需要来源支持可靠条件上传；不支持时必须拒绝，不能静默忽略。
+    /// 与 overwrite=false 不能同时使用。ETag 是来源内不透明版本，不是内容摘要。
+    public var expectedETag: String?
     public var contentType: String?
     public var progress: (@Sendable (Int64) -> Void)?
 
     public init(
         overwrite: Bool = true,
+        expectedETag: String? = nil,
         contentType: String? = nil,
         progress: (@Sendable (Int64) -> Void)? = nil
     ) {
         self.overwrite = overwrite
+        self.expectedETag = expectedETag
         self.contentType = contentType
         self.progress = progress
     }

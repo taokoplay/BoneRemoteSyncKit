@@ -1,8 +1,8 @@
 # 通用 API 与生命周期
 
-[返回项目首页](../README.md) · [本地目录](Local.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
+[返回项目首页](../README.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按当前开发源码描述。Catalog、必填列表 coverage 和 `connectedDriveID()` 为未发布改动，不在 `v0.2.0` 中。
+> 本页按当前开发源码描述。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage 和 `connectedDriveID()` 为未发布改动，不在 `v0.2.0` 中。
 
 ## 统一入口与模块
 
@@ -13,6 +13,7 @@
 | `BoneRemoteSyncKit` | 对外统一入口 |
 | `BoneRemoteSyncCore` | 来源协议、条目、能力、错误、路径、凭据与传输选项 |
 | `BoneRemoteSyncLocal` | 本地目录来源 |
+| `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照（未发布） |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（未发布，见 [Catalog](Catalog.md)） |
@@ -24,12 +25,12 @@ App：import BoneRemoteSyncKit
     ↓
 RemoteSource / RemoteWritableSource / RemoteCopyingSource
     ↓
-LocalFileSource / WebDAVSource / OneDriveSource
+LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
     ↓
-本地文件系统 / URLSession
+本地文件系统 / iCloud 容器与 NSFileCoordinator / URLSession
 ```
 
-当前没有 `BoneRemoteSyncEngine`、iCloud 或 SMB 产品。枚举中预留来源类型不代表适配器已实现。
+当前没有 `BoneRemoteSyncEngine` 或 SMB 产品。iCloud Drive 为独立来源，详见 [iCloud 指南](ICloudDrive.md)；Catalog 默认工厂暂不集成它。枚举中其他预留来源类型不代表适配器已实现。
 
 ## 协议与能力
 
@@ -37,7 +38,7 @@ LocalFileSource / WebDAVSource / OneDriveSource
 | --- | --- | --- |
 | `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 全部来源 |
 | `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 全部来源 |
-| `RemoteCopyingSource` | `copy` | 本地、WebDAV |
+| `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件） |
 
 `walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。`maxConcurrentTransfers` 只是建议值，不是全局调度器。
 
@@ -53,11 +54,11 @@ LocalFileSource / WebDAVSource / OneDriveSource
 
 ## 路径与条目
 
-- 路径使用来源内 POSIX 风格，`/` 对应配置的本地目录、WebDAV collection 或 OneDrive 主盘根。
+- 路径使用来源内 POSIX 风格，`/` 对应配置的本地目录、WebDAV collection、iCloud 容器的配置子目录或 OneDrive 主盘根。
 - `RemotePath.normalize` 负责格式归一化；不要先对路径执行 URL 编码，WebDAV 会逐段处理中文、空格和特殊字符。
-- `RemoteEntry.id` 与 `path` 不可互换。OneDrive 下载按不透明 ID 定位并重新查询元数据；浏览与文件管理接口通常接收来源内路径。`path` 是可选字段，调用方不应无条件强制解包。
-- `etag` 是版本元数据，不保证是内容哈希。缺少可信版本信息时，`size` 与 `modifiedAt` 只能用于启发式比较。
-- `hasReliableFingerprint` 只表示具备 ETag 或修改时间，不证明内容一致，也不能单独支撑自动删除或双向冲突决策。
+- `RemoteEntry.id` 与 `path` 不可互换。OneDrive 的 `RemoteIDAddressableSource` 支持按不透明 ID 读取条目、列出父目录和下载；重命名后按 ID 查询可能返回 `path=nil`，不能回退到旧路径。稳定 ID 只在同一来源/账号/主盘会话内有效，不能持久化为跨账号凭据或拼接为 URL。其他来源尚未声明该能力，调用方应检查 `capabilities.idAddressing`，不要把相对路径伪装成稳定 ID。
+- `etag` 是版本元数据，不保证是内容哈希。`RemoteUploadOptions.expectedETag` 只有在 `conditionalUpload` 为 true 时才可用；WebDAV 将调用方的强 ETag 原样放入 `If-Match`，其他当前来源明确拒绝。缺少可信版本信息时，`size` 与 `modifiedAt` 只能用于启发式比较。
+- `RemoteContentChecksum` 另行表达整文件摘要，包含算法和原始摘要字节；不同算法不能直接比较，且 SDK 不因来源报告摘要就声称已验证下载。`hasReliableFingerprint` 只表示具备 ETag 或修改时间，不证明内容一致，也不能单独支撑自动删除或双向冲突决策。
 
 ## 文件时间与类型分类
 
@@ -65,7 +66,7 @@ LocalFileSource / WebDAVSource / OneDriveSource
 
 | 来源 | `createdAt` 的含义 |
 | --- | --- |
-| Local | 文件系统 `creationDate` |
+| Local / iCloud | 本机文件系统 `creationDate` |
 | WebDAV | 成功 DAV 属性中的 `creationdate`（ISO 8601，支持小数秒和时区偏移） |
 | OneDrive | Graph `driveItem.createdDateTime`，不是 `fileSystemInfo.createdDateTime` |
 
@@ -96,17 +97,21 @@ func describeFile(_ entry: RemoteEntry) -> String {
 
 当前数据语义：`createdAt` 是默认 nil 的可选参数；Swift 合成的 Codable 将缺失字段解码为 nil，与来源可能不提供创建时间的语义一致。这不是跨版本格式兼容承诺。分类是计算属性，不重复写入 Codable 数据。`createdAt` 参与合成的相等性/哈希，完整条目相等不等于内容相同；`hasReliableFingerprint` 仍只依据 ETag 或修改时间，不因为有创建时间就变成 true。
 
+## 稳定 ID 读取
+
+部分云盘可通过可选的 `RemoteIDAddressableSource` 按稳定条目标识读取，而不是依赖可变路径。当前只有 OneDrive Personal 实现 `stat(id:)`、`list(parentID:request:)` 与 `download(id:to:options:)`；按 ID 返回的条目可以没有路径。调用前检查 `capabilities.idAddressing`，不要把路径、分页游标或下载 URL 当稳定 ID。
+
 ## 分页
 
 `RemoteListRequest.limit` 是正数页大小提示，不是跨来源统一截断条数：
 
 | 来源 | `limit` | `cursor` |
 | --- | --- | --- |
-| 本地 | nil 或正数合法，仍返回完整单层结果 | 拒绝任何非 nil 值，包括 `""` |
+| 本地 / iCloud | nil 或正数合法，仍返回完整单层结果 | 拒绝任何非 nil 值，包括 `""` |
 | WebDAV | nil 或正数合法，仍返回完整 Depth:1 结果 | 拒绝任何非 nil 值，包括 `""` |
 | OneDrive | 向 Graph 发送 `min(limit, 200)`，实际条数由服务端决定 | 使用来源返回的游标，并保持目录与选项一致 |
 
-`RemoteListRequest.all` **不代表自动消费所有 OneDrive 页面**。三个来源均先检查连接上下文，再在操作中校验请求参数，因此未连接时不保证优先返回参数错误。
+`RemoteListRequest.all` **不代表自动消费所有 OneDrive 页面**。四个来源的 list 均先检查连接上下文，再在操作中校验请求参数，因此未连接时不保证优先返回参数错误。
 
 `RemoteListPage(coverage:entries:nextCursor:)` 必须显式传入 `.complete/.partial/.unknown`，没有默认 complete。`isLastPage` 只表示 cursor 为 nil；所有页 complete 且全部分页完成才有目录发布资格，仍不证明瞬时快照。
 
@@ -170,6 +175,8 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 ## 写入与失败语义
 
+下表为原三个来源；iCloud 的协调、本地提交与云端异步传播、仅文件 copy 和冲突拒绝策略见 [iCloud 写入语义](ICloudDrive.md#当前能力与协调语义)。
+
 统一协议统一的是调用方式，不是远端事务保证。
 
 | 行为 | 本地 | WebDAV | OneDrive |
@@ -177,6 +184,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 | 上传父目录 | 可自动创建 | 必须已存在 | 必须已存在 |
 | `overwrite=false` | 非覆盖安装 | `If-None-Match: *` | Graph `conflictBehavior=fail` |
 | `overwrite=true` | 原子替换普通文件 | 已有文件要求强 ETag / `If-Match` | Graph `conflictBehavior=replace` |
+| `expectedETag` | 不支持，调用前拒绝 | 强 ETag 预检并原样发送 `If-Match` | 不支持，调用前拒绝 |
 | 上传临时存储 | 同目录 staging | 私有磁盘快照，约源文件大小 | 文件式上传；不要假定具备 WebDAV 快照保证 |
 | MOVE / COPY | 不覆盖；父目录须存在 | `Overwrite: F`；父目录须存在 | MOVE 先查目标再 PATCH；无 COPY |
 | 写入失败 | 按操作保留或清理局部状态 | 远端可能已改变，无回滚 | 远端可能已改变，无回滚 |

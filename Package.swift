@@ -15,8 +15,9 @@ let package = Package(
         // 分模块产品用于按需依赖，不作为旧版兼容层。
         // 契约层：所有来源共用，零依赖。
         .library(name: "BoneRemoteSyncCore", targets: ["BoneRemoteSyncCore"]),
-        // 本地目录来源：同时作为测试桩，也是后续 iCloud 目录的来源基础。
+        // 普通本地目录来源；iCloud 使用独立协调适配器。
         .library(name: "BoneRemoteSyncLocal", targets: ["BoneRemoteSyncLocal"]),
+        .library(name: "BoneRemoteSyncICloud", targets: ["BoneRemoteSyncICloud"]),
         .library(name: "BoneRemoteSyncWebDAV", targets: ["BoneRemoteSyncWebDAV"]),
         .library(name: "BoneRemoteSyncOneDrive", targets: ["BoneRemoteSyncOneDrive"]),
         .library(name: "BoneRemoteSyncCatalog", targets: ["BoneRemoteSyncCatalog"]),
@@ -24,7 +25,7 @@ let package = Package(
     targets: [
         .target(
             name: "BoneRemoteSyncKit",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog"]
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog"]
         ),
         .target(name: "BoneRemoteSyncCatalog",
                 dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],
@@ -32,6 +33,7 @@ let package = Package(
         .testTarget(name: "BoneRemoteSyncCatalogTests", dependencies: ["BoneRemoteSyncCatalog"]),
         .target(name: "BoneRemoteSyncCore"),
         .target(name: "BoneRemoteSyncLocal", dependencies: ["BoneRemoteSyncCore"]),
+        .target(name: "BoneRemoteSyncICloud", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncWebDAV", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"]),
         .testTarget(name: "BoneRemoteSyncKitTests", dependencies: ["BoneRemoteSyncKit"]),
@@ -46,6 +48,10 @@ let package = Package(
         .testTarget(
             name: "BoneRemoteSyncCoreTests",
             dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal"]
+        ),
+        .testTarget(
+            name: "BoneRemoteSyncICloudTests",
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncICloud"]
         ),
     ]
 )

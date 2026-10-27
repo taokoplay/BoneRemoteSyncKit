@@ -8,10 +8,14 @@ public struct RemoteCapabilities: Sendable, Hashable {
     /// 是否支持列目录。理论上所有来源都应为 true，保留字段用于尚未实现的适配器。
     public var list: Bool
     public var stat: Bool
+    /// 是否实现 RemoteIDAddressableSource。只涉及稳定 ID 读取，不表示支持按 ID 写入或遍历。
+    public var idAddressing: Bool
     public var download: Bool
     /// 是否支持按字节区间读取，决定能否断点续传。
     public var rangedDownload: Bool
     public var upload: Bool
+    /// 上传时能可靠执行调用方 expectedETag；false 时不得静默忽略该条件。
+    public var conditionalUpload: Bool
     public var resumableUpload: Bool
     public var makeDirectory: Bool
     public var remove: Bool
@@ -19,7 +23,7 @@ public struct RemoteCapabilities: Sendable, Hashable {
     public var copy: Bool
     /// 是否提供远端变更流。false 意味着同步只能靠定期全量扫描。
     public var changeFeed: Bool
-    /// 是否提供稳定内容哈希。false 时只能做 size/mtime 比对。
+    /// 是否由来源提供稳定内容校验值；false 不代表 ETag 是哈希。
     public var contentHash: Bool
     /// 建议并发传输数。云端通常 3~4，局域网 SMB 可以更高。
     public var maxConcurrentTransfers: Int
@@ -27,9 +31,11 @@ public struct RemoteCapabilities: Sendable, Hashable {
     public init(
         list: Bool = true,
         stat: Bool = true,
+        idAddressing: Bool = false,
         download: Bool = true,
         rangedDownload: Bool = false,
         upload: Bool = false,
+        conditionalUpload: Bool = false,
         resumableUpload: Bool = false,
         makeDirectory: Bool = false,
         remove: Bool = false,
@@ -41,9 +47,11 @@ public struct RemoteCapabilities: Sendable, Hashable {
     ) {
         self.list = list
         self.stat = stat
+        self.idAddressing = idAddressing
         self.download = download
         self.rangedDownload = rangedDownload
         self.upload = upload
+        self.conditionalUpload = conditionalUpload
         self.resumableUpload = resumableUpload
         self.makeDirectory = makeDirectory
         self.remove = remove

@@ -68,11 +68,12 @@ func listOneDriveRoot(
 ## 条目、分页与下载安全
 
 - `RemoteEntry.id` 是 `driveID + itemID` 的不透明编码，`path` 只用于展示/路径定位，下载始终重新按 ID 查元数据。Graph eTag 仅用于元数据变化检查，不作为 CDN HTTP validator。
+- `RemoteIDAddressableSource` 支持 `stat(id:)`、`list(parentID:request:)` 和 `download(id:to:options:)`。按 ID 读取不依赖旧路径；重命名后条目可能 `path == nil`。ID 只在当前 Personal 主盘和连接会话内有效，不能拼接 Graph URL、下载 URL 或跨账号复用。
 ### 分页与游标
 
 - `list` 保留服务端顺序，默认过滤点开头的隐藏名称。`limit` 可为 nil，非 nil 时必须为正数；向 Graph 发送 `min(limit, 200)`，不保证返回条数精确等于该值。
 - `RemoteListRequest.all` 不会自动读完所有页面，必须继续消费 `nextCursor`。通用参数约定见[分页说明](API.md#分页)。
-- 游标绑定当前连接、路径及选项；成功推进后旧游标失效，断开连接会清空。最多保留 256 个待推进游标，满时淘汰最早的未推进项；已消费或已淘汰的游标明确报错。
+- 游标绑定当前连接、路径/父 ID 寻址模式、父标识及选项；成功推进后旧游标失效，断开连接会清空。按 ID 获得的页面条目不虚构路径。最多保留 256 个待推进游标，满时淘汰最早的未推进项；已消费或已淘汰的游标明确报错。
 - `nextLink` 必须同源、同 API 版本，并指向同一目录的 children 资源。检测游标循环，只保存 URL 的 SHA-256，单目录最多 10,000 页。这不是整个 App 的内存硬上限；Core visitor 遍历另行检查整次条目预算。
 
 ### 网络与下载链接
@@ -94,7 +95,7 @@ func listOneDriveRoot(
 
 ## 写入能力与限制
 
-`OneDriveSource` 同时遵循 `RemoteWritableSource`，能力位 `upload`/`makeDirectory`/`remove`/`move` 为 true，`resumableUpload`/`rangedDownload`/`copy` 为 false。
+`OneDriveSource` 同时遵循 `RemoteWritableSource` 和 `RemoteIDAddressableSource`，能力位 `idAddressing`、`upload`/`makeDirectory`/`remove`/`move` 为 true，`conditionalUpload`、`resumableUpload`/`rangedDownload`/`copy` 为 false。
 
 以下写片段在已连接的 `source` 上执行，`staging` 必须指向宿主提供的真实普通文件。示例路径及删除动作需由调用方明确授权。
 

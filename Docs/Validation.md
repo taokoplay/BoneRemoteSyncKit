@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md)
 
-本页区分实现、受控测试、平台编译与真实服务验收。测试结果截至 **2026-10-26（GMT+8）**；**2026-10-27** 将已验证的 Catalog 与日志源码整理为本地 Git 提交，仅调整文档状态表述。历史元数据结果对应 `0579c64` / `v0.2.0`。当前未推送或发布新版本，原 `v0.1.0` 与 `v0.2.0` 不变。测试数量与工具链描述对应当时记录，不是对后续任意版本的保证。
+本页区分实现、受控测试、平台编译与真实服务验收。测试结果截至 **2026-10-26（GMT+8）**；**2026-10-27** 将已验证的 Catalog 与日志源码整理为本地 Git 提交，随后新增未提交的 iCloud Drive 来源；本轮结果单列如下。历史元数据结果对应 `0579c64` / `v0.2.0`。当前未推送或发布新版本，原 `v0.1.0` 与 `v0.2.0` 不变。测试数量与工具链描述对应当时记录，不是对后续任意版本的保证。
 
 ## 本地验证命令
 
@@ -24,6 +24,47 @@ swift test --filter UnifiedImportTests
 - WebDAV 与 OneDrive 的 HTTP fixture 测试仅在 macOS 运行，使用 `/usr/bin/python3`（Python 3.8+）及标准库。
 - fixture 只监听 `127.0.0.1` 动态端口，使用合成数据、虚构凭据与自建临时目录，不需要真实 NAS 或 Microsoft 账号。
 - 生产模块不依赖 Python，也不提供 Linux 支持。
+
+## 当前未发布第二轮通用语义与 OneDrive 验证
+
+截至 **2026-10-27（GMT+8）**，本轮改动仅在工作树中，尚未提交、推送或发布；以下是本机源码/fixture 验证，不是真实账号或远端服务验收。
+
+| 检查 | 结果与范围 |
+| --- | --- |
+| 条件上传红绿 | 先用回归测试证明旧 WebDAV 实现忽略调用方 ETag；随后 WebDAV `If-Match`、Local/iCloud/OneDrive 拒绝分支通过 |
+| 内容校验值红绿 | 算法长度校验、Codable 不绕过校验、原始摘要字节与 ETag 独立性通过 |
+| OneDrive 稳定 ID 红绿 | 按 ID 查询、重命名后 `path=nil`、父 ID 分页、游标绑定/消费、下载及错误输入边界通过 |
+| 第二轮全包 | **336 个测试运行项通过**（SwiftPM 按 target 输出 126、58、2、25、69、56 的测试运行汇总；参数化 case 不额外相加） |
+| Release | `swift build -c release` 通过 |
+| 独立 Kit 消费端 | 通过，确认新 Core/OneDrive API 由单一 Kit 产品暴露；未连接真实账号 |
+| 最低目标 | macOS12、iOS15/tvOS15/visionOS1 四目标，七模块编译/链接与 iCloud 示例类型检查通过 |
+| Package/文档 | `dump-package`、`describe`、Markdown 本地链接、`git diff --check` 通过 |
+
+本轮未进行真实 WebDAV/OneDrive 服务、Microsoft/Apple 账号、跨设备传播或发布验收；OneDrive ID 语义在本地 HTTP fixture 中验证，不能据此声称真实 Graph 行为已验收。未实现 OneDrive Upload Session、ID 写接口、内容摘要自动采集/下载校验、Catalog 稳定 ID 缓存或自动同步引擎。
+
+## 当前未发布 iCloud Drive 验证
+
+截至 **2026-10-27（GMT+8）**，iCloud 改动仅在工作树中，尚未提交、推送或发布，不在 `v0.2.0` 中。验证使用 Swift 6.4 / Xcode 27.1、Swift 6 语言模式，不是 Swift 6.0 编译器或最低系统实机验收。
+
+| 检查 | 结果与范围 |
+| --- | --- |
+| `swift test --no-parallel` | **361 项通过**：39 XCTest（原 34 + iCloud 5）+ WebDAV 122、OneDrive 53、Kit 2、iCloud 24、Core/Local 65、Catalog 56；参数化 case 不额外累计 |
+| iCloud 专项 | 共 **29 项**；临时目录、真实本地 NSFileCoordinator 调用与注入 ubiquitous 状态，不连接真实 iCloud |
+| Release | 来源与安全修复后构建通过 |
+| 最低平台目标 | Core、Local、ICloud、WebDAV、OneDrive、Catalog、Kit 七模块编译/链接通过；macOS12、iOS15/tvOS15/visionOS1 Simulator；新的 iCloud 示例四目标类型检查通过 |
+| 独立 Kit 消费端 | 只依赖/导入 Kit，构建并运行 iCloud 类型、协议和能力断言；没有连接 Apple 账号 |
+| 文档 | iCloud 指南 Swift 示例类型检查；本地链接与 `git diff --check` 检查 |
+| 独立只读复核 | 多次等待未得到结果后取消，**没有形成独立审查结论**；不把任务启动/终止当作审查通过 |
+
+新增覆盖：配置与 Codable 校验、来源根和子目录、系统凭据约束、list/stat/status、文件读写/复制/移动/删除、无分页、根与根别名保护、尚不存在路径的 symlink 越界、目录覆盖保护、source/part symlink 或 hardlink 身份冲突、本地复制取消、占位下载触发一次并等待 current、超时、断开/重连隔离、续传偏移/长度/ETag、冲突拒绝与 partial coverage、旧式隐藏占位标记、未知或缺失元数据。
+
+12 项安全回归先记录行为失败再修复通过；最初 10 项测试发现目录覆盖删除、后台取消不传播、symlink 越界/part 安全、配置解码绕过校验及名称路径别名等问题，随后另补根别名与 symlink copy/move 的失败→通过记录。状态与轮询测试是实现后的补充验证，不能宣称每项新增测试均独立经历红绿闭环。首轮全包 359 项通过，追加两项安全回归与实现后，最终全包 361 项通过；不是把定向测试与全包结果相加。
+
+测试中的移动通知曾出现 Foundation `NSFileSandboxingRequestRelatedItemExtension` 的不存在目标扩展诊断，测试断言和退出码通过；未通过关闭协调或忽略失败断言隐藏它。平台检查脚本初次缺少 package-name / 依赖链接参数，修正脚本后四目标通过；这些脚本错误不是平台实现缺陷或测试红灯。既有 WebDAV 并行短 deadline 风险仍保留，本轮串行通过不证明其已消除。
+
+本轮未完成：真实 entitlement/ubiquitous container、Apple 账号/账号切换、真正云端占位内容、断网与双设备、真实系统冲突版本、其他进程文件 presenter 协调及四平台实机运行。状态模拟和临时目录不构成上述验收。Catalog iCloud provider、递归目录 copy、NSMetadataQuery 变更/百分比、NSFileVersion 选版或合并、CloudKit 与自动同步均未实现，详见 [iCloud 指南](ICloudDrive.md)。
+
+原始日志、独立消费端与平台脚本位于开发会话工作台 `74fc24c1-0635-4eeb-b7b4-18393242010b/`，未作为仓库资源分发。
 
 ## 当前未发布错误日志验证
 
@@ -103,6 +144,7 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 
 | 范围 | 已完成 | 尚未完成 |
 | --- | --- | --- |
+| iCloud Drive（未发布） | 临时目录及注入状态测试；平台编译 | 真实 entitlement、占位文件、账号切换、离线、双设备、冲突版本和真机 |
 | 本地目录 | 临时目录中的功能与安全测试 | 所有磁盘类型、外部并发攻击、断电持久性等穷尽验证 |
 | WebDAV 真实飞牛 | 有限只读：账号可见非隐藏树、3 个小样本下载、条件续传 | 写入、真实 NAS 故障恢复、大文件公网性能、其他厂商与移动端运行 |
 | WebDAV 写入 | localhost：PUT、MKCOL、DELETE、MOVE、COPY；覆盖竞争、取消、重连、错误映射等 | 真实 NAS 写权限、ETag 与方法兼容性 |
@@ -123,11 +165,13 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 
 ## 未实现与后续方向
 
+完整的未支持来源路线图见[未支持来源开发计划](CloudDriveRoadmap.md)，其中区分 API 网盘、网络文件系统、共性 Core 合同和真实服务验收门槛。
+
 以下是候选方向，不是已发布能力、承诺日期或既定开发顺序：
 
 1. 完成 WebDAV 与 OneDrive 的真实服务读写及异常验收。
 2. OneDrive Upload Session：大文件分片、会话过期与恢复。
-3. iCloud Drive 文件协调及云端占位文件处理；SMB 或其他来源按产品需求选择。
+3. iCloud Drive 已有文件来源实现；继续真实宿主验收、NSFileVersion/元数据观察与 Catalog 账号绑定设计。SMB 或其他来源按产品需求选择。
 4. 独立同步层：快照、差异、可预览计划、执行与状态存储，再考虑双向冲突策略。
 
 当前没有自动同步、后台传输、变更流、通用上传续传或统一跨来源事务。尚未实现的来源不得通过空实现或能力声明伪装为可用。

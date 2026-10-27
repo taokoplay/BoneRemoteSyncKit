@@ -11,6 +11,9 @@ extension LocalFileSource {
         options: RemoteUploadOptions = .init()
     ) async throws -> RemoteEntry {
         try requireConnected()
+        guard options.expectedETag == nil else {
+            throw RemoteSyncError.unsupported(operation: "本地来源不支持条件上传")
+        }
         let normalized = RemotePath.normalize(path)
         guard localURL.isFileURL else { throw RemoteSyncError.unsupported(operation: "上传非本地文件") }
         return try withFileErrors(path: normalized) {

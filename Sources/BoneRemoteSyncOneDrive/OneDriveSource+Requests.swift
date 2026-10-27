@@ -93,7 +93,8 @@ extension OneDriveSource {
         let url = ODLocation.item(itemID, drive: context.drive, base: endpoints.graph)
         let response = try await graph(url, generation: context.generation, client: context.client, path: path ?? "/")
         let value = try decode(ODItem.self, response.data)
-        try value.validate(drive: context.drive, path: path ?? "/")
+        // A missing path is not proof this is the root. Validate its name normally.
+        try value.validate(drive: context.drive, path: path ?? "")
         guard value.id == itemID else { throw RemoteSyncError.conflict(path: path ?? "/") }
         return value
     }

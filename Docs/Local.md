@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [通用 API](API.md)
 
-`LocalFileSource(root:)` 将已有本地目录作为来源根，使用 `.anonymous` 连接。通过 `import BoneRemoteSyncKit` 可访问所有类型。根目录须已存在且获得宿主授权；该适配器不是 iCloud Drive 实现，不处理云端占位文件或 `NSFileCoordinator`。
+`LocalFileSource(root:)` 将已有本地目录作为来源根，使用 `.anonymous` 连接。通过 `import BoneRemoteSyncKit` 可访问所有类型。根目录须已存在且获得宿主授权；该适配器不是 iCloud Drive 实现，不处理云端占位文件或 `NSFileCoordinator`；需要这些能力时使用独立的 [ICloudDriveSource](ICloudDrive.md)（未发布）。
 
 ## 操作语义
 

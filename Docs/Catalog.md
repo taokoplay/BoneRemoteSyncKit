@@ -91,7 +91,7 @@ struct AppFolderResolver: RemoteLocalAccessResolver {
 }
 ```
 
-bookmark 更新、stale 检测、start/stopAccessingSecurityScopedResource 和用户重新选择 UI 归宿主。resolver 应响应取消；SDK 无法强制中断一个不返回的宿主闭包。缓存不授予文件权限，也不增加 iCloud 文件协调。
+bookmark 更新、stale 检测、start/stopAccessingSecurityScopedResource 和用户重新选择 UI 归宿主。resolver 应响应取消；SDK 无法强制中断一个不返回的宿主闭包。缓存不授予文件权限，也不增加 iCloud 文件协调。新增 [ICloudDriveSource](ICloudDrive.md) 为独立来源，当前 Catalog 的 provider/configuration 与默认 session factory 尚未集成它，不应使用 `.local` 绕过其云端语义。
 
 ## 选择目录、刷新与离线查询
 

@@ -5,6 +5,7 @@ import BoneRemoteSyncCore
 public actor OneDriveSource: RemoteSource {
     public nonisolated let kind: RemoteSourceKind = .cloudAPI
     public nonisolated let capabilities = RemoteCapabilities(
+        idAddressing: true,
         rangedDownload: false,
         upload: true,
         resumableUpload: false,
@@ -80,8 +81,18 @@ struct ODContext: Sendable {
     let client: ODHTTPClient
     let drive: String
 }
+enum ODListAddress: Equatable {
+    case path(String)
+    case id(String)
+
+    var path: String? {
+        if case .path(let path) = self { return path }
+        return nil
+    }
+}
+
 struct ODCursor {
-    let path: String
+    let address: ODListAddress
     let limit: Int?
     let includeHidden: Bool
     let url: URL

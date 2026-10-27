@@ -10,6 +10,9 @@ extension OneDriveSource: RemoteWritableSource {
     public func upload(from localURL: URL, to path: String, options: RemoteUploadOptions) async throws -> RemoteEntry {
         do {
             let ctx = try context()
+            guard options.expectedETag == nil else {
+                throw RemoteSyncError.unsupported(operation: "OneDrive 当前不支持条件上传")
+            }
             let contentType = options.contentType ?? "application/octet-stream"
             guard !contentType.isEmpty, contentType.utf8.count <= 1024,
                   !contentType.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }) else {

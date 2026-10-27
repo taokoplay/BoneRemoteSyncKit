@@ -7,7 +7,7 @@ import BoneRemoteSyncCore
 public actor WebDAVSource: RemoteSource {
     public nonisolated let kind: RemoteSourceKind = .webdav
     public nonisolated let capabilities = RemoteCapabilities(
-        rangedDownload: true, upload: true, makeDirectory: true, remove: true, move: true, copy: true
+        rangedDownload: true, upload: true, conditionalUpload: true, makeDirectory: true, remove: true, move: true, copy: true
     )
 
     let location: WebDAVLocation

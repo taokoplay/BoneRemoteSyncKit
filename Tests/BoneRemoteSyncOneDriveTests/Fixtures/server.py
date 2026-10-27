@@ -69,6 +69,8 @@ class Handler(BaseHTTPRequestHandler):
             if scenario=='connect-slow': time.sleep(.4)
             return self.reply(200,dict(id='D',driveType='business' if scenario=='business' else 'personal'))
         if path.endswith('/children'):
+            if scenario=='renamed' and '/items/file/' not in path:
+                return self.reply(404,dict(error=dict(code='itemNotFound')))
             if scenario=='walk' and '/items/folder/' in path: return self.reply(200,dict(value=[]))
             if 'skiptoken=cycle' in parsed.query: return self.reply(200,dict(value=[], **{'@odata.nextLink':self.base+path+'?skiptoken=cycle'}))
             if 'skiptoken=page3' in parsed.query: return self.reply(200,dict(value=[self.item('last','last.txt')]))
@@ -87,8 +89,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200,value)
         if path.endswith('/root') or '/root:/' in path or '/items/' in path:
             if 'missing' in path: return self.reply(404,dict(error=dict(code='itemNotFound')))
-            folder=path.endswith('/root') or path.endswith('/folder') or '子目录' in urllib.parse.unquote(path)
+            folder=path.endswith('/root') or path.endswith('/items/root') or path.endswith('/folder') or '子目录' in urllib.parse.unquote(path)
             item=self.item('root' if path.endswith('/root') else ('folder' if folder else ('empty' if 'empty' in path else 'file')),folder=folder,size=0 if 'empty' in path else len(PAYLOAD))
+            if scenario=='renamed' and '/items/file' in path: item['name']='renamed.bin'
             if scenario=='unsafe-url': item['@microsoft.graph.downloadUrl']='http://evil.invalid/leak?secret=xxx'
             if scenario=='changed' or getattr(self.server,'changed',False): item['eTag']='"v2"'
             return self.reply(200,item)

@@ -11,6 +11,11 @@ extension WebDAVSource: RemoteCopyingSource {
             let path = RemotePath.normalize(path)
             guard path != "/" else { throw RemoteSyncError.unsupported(operation: "WebDAV 不能用文件覆盖根目录") }
             _ = try location.url(for: path)
+            if let expected = options.expectedETag {
+                guard options.overwrite, expected.utf8.count <= 4096, Self.isStrongETag(expected) else {
+                    throw RemoteSyncError.unsupported(operation: "WebDAV 条件上传需要 overwrite=true 和强 ETag")
+                }
+            }
             if let type = options.contentType,
                type.isEmpty || type.utf8.count > 1024 || type.unicodeScalars.contains(where: { $0.value < 32 || $0.value == 127 }) {
                 throw RemoteSyncError.unsupported(operation: "WebDAV Content-Type 无效")
@@ -21,7 +26,14 @@ extension WebDAVSource: RemoteCopyingSource {
                 var request = try ctx.request(path, method: "PUT")
                 request.setValue(options.contentType ?? "application/octet-stream", forHTTPHeaderField: "Content-Type")
                 request.setValue(String(snapshot.size), forHTTPHeaderField: "Content-Length")
-                if !options.overwrite {
+                if let expected = options.expectedETag {
+                    guard let existing = try await ctx.optionalStat(path), !existing.isDirectory, existing.etag == expected else {
+                        throw RemoteSyncError.conflict(path: path)
+                    }
+                    // Never replace the caller's version with the later preflight version.
+                    // The server must still enforce it if the resource changes after preflight.
+                    request.setValue(expected, forHTTPHeaderField: "If-Match")
+                } else if !options.overwrite {
                     request.setValue("*", forHTTPHeaderField: "If-None-Match")
                 } else if let existing = try await ctx.optionalStat(path) {
                     guard !existing.isDirectory else { throw RemoteSyncError.conflict(path: path) }

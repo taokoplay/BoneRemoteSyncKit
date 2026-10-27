@@ -4,10 +4,9 @@ import BoneRemoteSyncCore
 
 /// 本地目录来源。
 ///
-/// 两个用途：
-/// 1. 测试桩 —— 不依赖任何服务器就能验证契约、下载与续传；
-/// 2. iCloud 的基础 —— iCloud Drive 在 iOS/macOS 上就是"某个特殊目录里的文件"，
-///    后续只需在这层之上补 `NSFileCoordinator` 与未下载占位文件的触发逻辑。
+/// 用于普通本地目录及不依赖服务器的契约/传输测试。
+/// iCloud Drive 请使用独立的 `BoneRemoteSyncICloud.ICloudDriveSource`；
+/// 本来源不提供 ubiquitous-item 状态、占位下载或文件协调。
 public actor LocalFileSource: RemoteCopyingSource {
     public nonisolated let kind: RemoteSourceKind = .local
     public nonisolated let capabilities = RemoteCapabilities(

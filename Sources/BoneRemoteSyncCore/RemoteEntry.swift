@@ -31,6 +31,8 @@ public struct RemoteEntry: Sendable, Hashable, Codable, Identifiable {
     /// 变更检测主依据。缺失时上层必须退化为 size + modifiedAt。
     public let etag: String?
     public let contentType: String?
+    /// 可选的整文件内容校验值；nil 表示来源未提供。独立于 ETag，不代表下载已校验。
+    public let contentChecksums: [RemoteContentChecksum]?
 
     public init(
         id: String,
@@ -41,7 +43,8 @@ public struct RemoteEntry: Sendable, Hashable, Codable, Identifiable {
         modifiedAt: Date? = nil,
         etag: String? = nil,
         contentType: String? = nil,
-        createdAt: Date? = nil
+        createdAt: Date? = nil,
+        contentChecksums: [RemoteContentChecksum]? = nil
     ) {
         self.id = id
         self.path = path
@@ -52,6 +55,7 @@ public struct RemoteEntry: Sendable, Hashable, Codable, Identifiable {
         self.etag = etag
         self.contentType = contentType
         self.createdAt = createdAt
+        self.contentChecksums = contentChecksums
     }
 
     public var isDirectory: Bool { type == .directory }

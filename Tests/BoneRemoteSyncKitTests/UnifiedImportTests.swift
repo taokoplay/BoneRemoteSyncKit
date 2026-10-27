@@ -14,14 +14,21 @@ import BoneRemoteSyncKit
             clientID: "test-client", redirectURI: URL(string: "example-app://oauth/onedrive")!
         )
         let oneDrive = OneDriveSource(configuration: configuration)
-        let sources: [any RemoteSource] = [local, webDAV, oneDrive]
-        #expect(sources.map(\.kind) == [.local, .webdav, .cloudAPI])
-        let copyingSources: [any RemoteCopyingSource] = [local, webDAV]
+        let iCloud = ICloudDriveSource()
+        let sources: [any RemoteSource] = [local, webDAV, oneDrive, iCloud]
+        #expect(sources.map(\.kind) == [.local, .webdav, .cloudAPI, .iCloud])
+        let copyingSources: [any RemoteCopyingSource] = [local, webDAV, iCloud]
         #expect(copyingSources.allSatisfy { $0.capabilities.copy })
         let writable: any RemoteWritableSource = oneDrive
+        #expect(!writable.capabilities.conditionalUpload)
         #expect(writable.capabilities.upload)
         #expect(RemotePath.normalize("folder/../file") == "/file")
         #expect(RemoteUploadOptions(overwrite: false).overwrite == false)
+        #expect(RemoteUploadOptions(expectedETag: "\"v1\"").expectedETag == "\"v1\"")
+        let checksum = try RemoteContentChecksum(algorithm: .sha256, digest: Data(repeating: 0, count: 32))
+        #expect(checksum.digest.count == 32)
+        let idSource: any RemoteIDAddressableSource = oneDrive
+        #expect(idSource.capabilities.idAddressing)
         #expect(RemoteDownloadOptions().verifySize)
         let metadata = RemoteEntry(id: "photo", path: "/photo", name: "photo.HEIC", type: .file,
                                    createdAt: Date(timeIntervalSince1970: 123))

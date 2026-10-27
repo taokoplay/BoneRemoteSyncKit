@@ -1,8 +1,28 @@
 # 更新说明
 
+## 未发布 — 未支持来源开发计划
+
+- 新增[未支持来源开发计划](Docs/CloudDriveRoadmap.md)，按阶段规划 Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 及区域性 API 网盘。
+- 明确稳定 ID、分页、条件写入、内容校验、可恢复传输、认证隔离和真实服务验收等共性门槛；计划文档不代表这些来源已经实现。
+
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
 本文件记录对使用者有影响的功能、修复、版本策略与行为变化。实现完成、测试通过和版本发布是不同状态；标为“未发布”的内容不代表已包含在远程分支或版本标签中。
+
+## 未发布 — 通用文件语义与 OneDrive 稳定 ID
+
+- Core 新增可选 `RemoteIDAddressableSource` 和 `RemoteCapabilities.idAddressing`；OneDrive 支持按稳定条目 ID 查询、目录浏览、分页和下载，ID 分页游标绑定当前会话及寻址模式。
+- `RemoteUploadOptions.expectedETag` 表达调用方读取版本的条件覆盖；WebDAV 用强 ETag 执行 `If-Match`，本地、iCloud Drive、OneDrive 明确拒绝，不静默降级。
+- 新增独立 `RemoteContentChecksum` / `RemoteContentChecksumAlgorithm` 模型，保留摘要原始字节并校验算法长度；不将 ETag 冒充内容哈希，当前各来源仍不自动提供或验证内容摘要。
+- 新增 Core/WebDAV/OneDrive/iCloud 回归测试和接入文档。本轮源码改动尚未提交、推送或发布，真实账号/服务端验收仍待完成。
+
+## 未发布 — iCloud Drive 文件来源
+
+- 新增独立 `BoneRemoteSyncICloud` 产品、`ICloudDriveSource` 和配置/状态/错误模型，统一 Kit 导出；系统账号通过 `.anonymous` 使用，宿主负责 entitlement 与容器。
+- 增加文件协调、占位下载请求及有界轮询、原子 upload/download、手动下载续传、取消/断开隔离、根/链接路径保护及冲突拒绝。
+- 支持 list/stat、文件传输、建目录、删除、移动和仅文件 copy；不支持目录 copy、Catalog iCloud provider、变更流、版本选版、CloudKit 或自动同步。
+- 新增 29 项专项测试和只读宿主示例；最终串行全包 361 项通过，四目标编译/链接通过。真实 iCloud 验收仍待完成，不将本地测试视为云端同步完成证明。
+- 本阶段改动尚未提交、推送或发布。接入与限制见 [iCloud 指南](Docs/ICloudDrive.md)，实际检查见 [验证记录](Docs/Validation.md)。
 
 ## 未发布 — 配置持久化与目录缓存
 

@@ -4,6 +4,7 @@
 // deliberate compatibility boundary without duplicating API types or forwarding methods.
 @_exported import BoneRemoteSyncCore
 @_exported import BoneRemoteSyncLocal
+@_exported import BoneRemoteSyncICloud
 @_exported import BoneRemoteSyncWebDAV
 @_exported import BoneRemoteSyncOneDrive
 
