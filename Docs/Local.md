@@ -35,7 +35,7 @@
 
 - 写操作检查规范路径、根目录保护与父目录符号链接，包括目标文件尚不存在的情况；悬空/循环链接及含 NUL 的非法路径保守拒绝。
 - 这是应用层路径边界检查，**不是安全 sandbox**，不保证抵抗其他进程在检查与执行之间恶意替换目录（TOCTOU）。调用方应使用自己控制的根目录。
-- iOS/macOS sandbox、security-scoped URL 的授权生命周期由调用方管理；目前不封装 bookmark、Keychain 或 iCloud 文件协调。
+- iOS/macOS sandbox、security-scoped URL 的授权生命周期由调用方管理；来源模块不封装 bookmark 或 iCloud 文件协调。未发布 [Catalog](Catalog.md) 支持宿主 resolver/lease 桥接，不把保存路径视为永久授权。
 - 所有测试仅使用各自创建的临时目录，不会删除或改写用户真实文件。
 
 ## 使用方式
@@ -57,3 +57,7 @@ func uploadLocalFile(source: LocalFileSource, input: URL) async throws -> Remote
 ```
 
 `RemoteUploadOptions.contentType` 不会写入本地文件 MIME 元数据；返回值依据扩展名推导。进度回调同步执行，不保证主线程，UI 更新由宿主切换到 `MainActor`。
+
+## 列表与持久化
+
+元数据读取失败会保留可读取项并将 page.coverage 标为 partial；无法无损表示的名称或冲突路径会失败。Catalog 不以部分列表替换旧索引。枚举映射逐项检查取消，但 Foundation 目录 URL 数组物化和排序仍是同步操作；maxEntries 不能限制适配器单页的初始物化内存。

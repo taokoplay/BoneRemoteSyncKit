@@ -44,10 +44,10 @@ public actor WebDAVSource: RemoteSource {
         session = DAVHTTP.session(timeout: timeout)
         let version = generation
         do {
-            let entries = try await propfind(path: "/", depth: 0)
+            let result = try await propfindResponses(path: "/", depth: 0)
             try checkGeneration(version)
-            let entry = try selfEntry(in: entries, path: "/")
-            guard entry.isDirectory else { throw RemoteSyncError.unsupported(operation: "WebDAV 根不是目录") }
+            let root = try DAVPropertyWorker.resource(in: result.responses, path: "/", location: location, requestURL: result.url)
+            guard root.isDirectory else { throw RemoteSyncError.unsupported(operation: "WebDAV 根不是目录") }
             connected = true
         } catch {
             if generation == version { disconnectSession() }
@@ -91,36 +91,51 @@ public actor WebDAVSource: RemoteSource {
         guard request.cursor == nil else { throw RemoteSyncError.unsupported(operation: "WebDAV 游标分页") }
         let path = RemotePath.normalize(path)
         do {
-            let entries = try await propfind(path: path, depth: 1)
-            let root = try selfEntry(in: entries, path: path)
+            let result = try await propfindResponses(path: path, depth: 1)
+            let root = try DAVPropertyWorker.resource(in: result.responses, path: path, location: location, requestURL: result.url)
             guard root.isDirectory else { throw RemoteSyncError.unsupported(operation: "列出非目录条目") }
+            var coverage: RemoteListingCoverage = .complete
             var seen: Set<String> = []
-            var children = entries.filter { entry in
-                guard let child = entry.path, child != path, RemotePath.parent(of: child) == path,
-                      request.includeHidden || !entry.name.hasPrefix("."), seen.insert(child).inserted else { return false }
-                return true
+            var children: [RemoteEntry] = []
+            for item in result.responses {
+                guard let itemPath = location.path(for: item.href, relativeTo: result.url) else {
+                    coverage = .partial; continue
+                }
+                guard seen.insert(itemPath).inserted else { coverage = .partial; continue }
+                if itemPath == path { continue }
+                guard RemotePath.parent(of: itemPath) == path else { coverage = .partial; continue }
+                if !request.includeHidden && RemotePath.name(of: itemPath).hasPrefix(".") { continue }
+                guard item.hasProperties, item.status.map({ (200..<300).contains($0) }) ?? true else {
+                    coverage = .partial; continue
+                }
+                children.append(entry(item, path: itemPath))
             }
             children.sort {
                 if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
                 return $0.name.localizedStandardCompare($1.name) == .orderedAscending
             }
-            return RemoteListPage(entries: children)
+            return RemoteListPage(coverage: coverage, entries: children)
         } catch { throw DAVHTTP.mapped(error) }
     }
 
     public func stat(path: String) async throws -> RemoteEntry {
         _ = try context()
         let path = RemotePath.normalize(path)
-        do { return try selfEntry(in: await propfind(path: path, depth: 0), path: path) }
-        catch { throw DAVHTTP.mapped(error) }
+        do {
+            let result = try await propfindResponses(path: path, depth: 0)
+            let item = try DAVPropertyWorker.resource(in: result.responses, path: path, location: location, requestURL: result.url)
+            return entry(item, path: path)
+        } catch { throw DAVHTTP.mapped(error) }
     }
 
-    private func selfEntry(in entries: [RemoteEntry], path: String) throws -> RemoteEntry {
-        guard let entry = entries.first(where: { $0.path == path }) else { throw RemoteSyncError.notFound(path: path) }
-        return entry
+    private func entry(_ item: DAVResponse, path: String) -> RemoteEntry {
+        RemoteEntry(id: RemotePath.relative(path), path: path,
+            name: path == "/" ? location.baseURL.lastPathComponent : RemotePath.name(of: path),
+            type: item.isDirectory ? .directory : .file, size: item.isDirectory ? nil : item.size,
+            modifiedAt: item.modifiedAt, etag: item.etag, contentType: item.contentType, createdAt: item.createdAt)
     }
 
-    private func propfind(path: String, depth: Int) async throws -> [RemoteEntry] {
+    private func propfindResponses(path: String, depth: Int) async throws -> (responses: [DAVResponse], url: URL) {
         guard let session else { throw RemoteSyncError.notConnected }
         let version = generation
         var request = try request(path: path, method: "PROPFIND")
@@ -130,14 +145,7 @@ public actor WebDAVSource: RemoteSource {
         let responses = try await DAVPropertyWorker.fetch(session: session, request: request, path: path, location: location, retryPolicy: retryPolicy)
         try checkGeneration(version)
         _ = try DAVPropertyWorker.resource(in: responses, path: path, location: location, requestURL: request.url!)
-        return responses.compactMap { item in
-            guard item.hasProperties, item.status.map({ (200..<300).contains($0) }) ?? true,
-                  let itemPath = location.path(for: item.href, relativeTo: request.url!) else { return nil }
-            return RemoteEntry(id: RemotePath.relative(itemPath), path: itemPath,
-                name: itemPath == "/" ? location.baseURL.lastPathComponent : RemotePath.name(of: itemPath),
-                type: item.isDirectory ? .directory : .file, size: item.isDirectory ? nil : item.size,
-                modifiedAt: item.modifiedAt, etag: item.etag, contentType: item.contentType, createdAt: item.createdAt)
-        }
+        return (responses, request.url!)
     }
 
     static let propfindBody = """

@@ -13,7 +13,7 @@
 5. 先将首次 token 保存到当前账号 Keychain，再以 `token.credential` 连接。为后续刷新提供同步、线程安全、账号隔离的持久化回调。
 6. 成功、失败或用户退出时等待 `disconnect()`。退出账号后的 Keychain 清理由宿主负责。
 
-上述授权 UI、Keychain 和 URL scheme 注册都不是 SDK 内置能力。可编译的事务管理示例见 [OneDriveExample.swift](../Examples/OneDriveReadOnly/OneDriveExample.swift)。
+上述授权 UI 和 URL scheme 注册不是 SDK 内置能力。来源模块的凭据保存仍由宿主负责；未发布 [Catalog](Catalog.md) 提供可选 Keychain 桥接与固定引用会话。可编译的事务管理示例见 [OneDriveExample.swift](../Examples/OneDriveReadOnly/OneDriveExample.swift)。
 
 ## 使用已取得的凭据
 
@@ -57,7 +57,7 @@ func listOneDriveRoot(
 ## 认证与生命周期
 
 - **只支持 Personal 主盘**，不包含组织/SharePoint、共享 `remoteItem`、package、已删除条目；遇到不支持的 facet 明确报错，不静默漏掉。
-- SDK 提供授权 URL、严格 state/redirect/重复参数校验、PKCE S256、code 兑换和刷新；不包含授权 UI、Keychain、账号选择、回调注册、device code flow 或 app secret。
+- SDK 提供授权 URL、严格 state/redirect/重复参数校验、PKCE S256、code 兑换和刷新；来源模块不包含授权 UI、Keychain、账号选择、回调注册、device code flow 或 app secret。
 - 使用 `Files.ReadWrite offline_access`，`consumers` authority。写入能力（`upload`/`makeDirectory`/`remove`/`move`）要求写权限，`Files.Read` 不包含写权限，写请求可能被服务端以 403 拒绝（不是本项目的真实账号验收结果）；库固定申请写权限，只读宿主也会被要求同意“完全访问文件”。helper 无状态，宿主应一次性消费授权事务；原生 public client 不嵌入 secret。
 - `onTokenRefresh` 是同步 throwing `@Sendable` 提交回调，必须原子保存到所属账号，不能回调 source 或长期阻塞。回调成功才发布新凭据；失败关闭连接且错误不包含宿主异常细节。省略时只更新内存，**不会持久化轮换 token**。
 - 并发请求共享一次刷新。单个等待者取消时，仍会等待刷新收敛并提交当前账号已轮换的凭据，再抛取消；可能等待至该 HTTP 请求的 timeout。`disconnect()` 会取消共享请求。连接代次检查防止旧会话回写新会话。
@@ -130,3 +130,7 @@ print(uploaded.path ?? uploaded.id)
 - [列出子项与分页](https://learn.microsoft.com/en-us/graph/api/driveitem-list-children?view=graph-rest-1.0)
 - [driveItem及预授权下载URL](https://learn.microsoft.com/en-us/graph/api/resources/driveitem?view=graph-rest-1.0)
 - [文件下载、短期URL与Range语义](https://learn.microsoft.com/en-us/graph/api/driveitem-get-content?view=graph-rest-1.0)
+
+## 可选配置与离线索引
+
+未发布 [Catalog](Catalog.md) 保存应用配置、已核对的主盘 ID、选定目录及列表元数据，不保存 nextLink/cursor/预授权下载 URL。`connectedDriveID()` 仅在成功连接期间可用，供宿主初始化绑定，不泄露 token。首次授权与每次轮换都要保存完整凭据，同 reference 的独立 source 不能并发轮换；Catalog 以引用级 lease 协调。根按路径绑定，改名需重新选择，不把旧子树自动改写为新路径。

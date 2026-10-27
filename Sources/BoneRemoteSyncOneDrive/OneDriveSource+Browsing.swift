@@ -58,7 +58,7 @@ extension OneDriveSource {
             }
             // Successful advancement consumes the supplied cursor, bounding active pagination state.
             if let old = request.cursor { cursors.removeValue(forKey: old); cursorOrder.removeAll { $0 == old } }
-            return RemoteListPage(entries: entries, nextCursor: cursor)
+            return RemoteListPage(coverage: .complete, entries: entries, nextCursor: cursor)
         } catch { throw ODHTTPClient.mapped(error) }
     }
 }

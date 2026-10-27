@@ -1,6 +1,8 @@
 # 通用 API 与生命周期
 
-[返回项目首页](../README.md) · [本地目录](Local.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md)
+[返回项目首页](../README.md) · [本地目录](Local.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
+
+> 本页按当前开发源码描述。Catalog、必填列表 coverage 和 `connectedDriveID()` 为未发布改动，不在 `v0.2.0` 中。
 
 ## 统一入口与模块
 
@@ -13,6 +15,7 @@
 | `BoneRemoteSyncLocal` | 本地目录来源 |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
+| `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（未发布，见 [Catalog](Catalog.md)） |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
 
@@ -105,6 +108,8 @@ func describeFile(_ entry: RemoteEntry) -> String {
 
 `RemoteListRequest.all` **不代表自动消费所有 OneDrive 页面**。三个来源均先检查连接上下文，再在操作中校验请求参数，因此未连接时不保证优先返回参数错误。
 
+`RemoteListPage(coverage:entries:nextCursor:)` 必须显式传入 `.complete/.partial/.unknown`，没有默认 complete。`isLastPage` 只表示 cursor 为 nil；所有页 complete 且全部分页完成才有目录发布资格，仍不证明瞬时快照。
+
 以下函数在已连接的来源上逐页读取，不把整个目录累积到数组。visitor 可能在后续分页失败前已经产生副作用。
 
 ```swift
@@ -118,6 +123,9 @@ func visitDirectory(
     var request = RemoteListRequest(limit: 100)
     while true {
         let page = try await source.list(path: path, request: request)
+        guard page.coverage == .complete else {
+            throw RemoteSyncError.unsupported(operation: "目录列表不完整")
+        }
         for entry in page.entries {
             try await visit(entry)
         }
@@ -197,10 +205,18 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 ## 宿主职责
 
-- 登录 UI、Keychain、账号隔离与 token 原子持久化。
+- 登录 UI、账号选择与授权策略。直接使用来源模块时负责安全存储和 token 原子持久化；使用未发布 Catalog 时可选内置 Keychain 桥接，仍须管理 service、账号退出和授权 UI。
 - 系统 sandbox、security-scoped URL／bookmark、ATS 和局域网权限。
 - 多来源实例、多个进程之间的目标文件、part、checkpoint 独占协调。
 - 上传来源在读取期间保持稳定；下载目标位于应用有权且可独占控制的目录。
 - 后台任务、带宽限制、全局并发、应用级重试和同步冲突策略。
 
 应用层路径验证不构成抵抗恶意父目录替换的 sandbox。SDK 不提供跨进程锁、自动垃圾回收或硬件断电持久性保证。
+
+## 列表完整性与缓存消费者
+
+无 options 的 stream `walk` 保留即时部分浏览语义，不能据其缺项清理缓存。带 `RemoteWalkOptions` 的 visitor 遍历遇到 partial/unknown 页会失败，在访问该页条目前拒绝；之前完整页的 visitor 副作用不会回滚。需要跨启动保存列表、失败保留旧版本与目录级发布时使用未发布 [Catalog](Catalog.md)，不要把 visitor 逐条回调直接当作完整目录事务。
+
+## 错误诊断日志
+
+Core 提供 `RemoteLogger` 与白名单结构化事件，默认关闭输出；Catalog 可通过 `SQLiteRemoteCatalogStore(databaseURL:logger:)` 注入并继承使用。原始错误描述可能含路径或底层消息，不应直接写普通日志。级别、固定错误码、自动覆盖位置与 OSLog 接入见[错误日志规范](Logging.md)。

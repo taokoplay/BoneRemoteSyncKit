@@ -18,7 +18,7 @@ public struct RemoteListRequest: Sendable, Equatable {
         self.includeHidden = includeHidden
     }
 
-    /// 一次取完（来源不支持分页时等价于 limit = nil）。
+    /// 默认分页请求，不自动消费下一页；调用方仍须循环读取 `nextCursor`。
     public static let all = RemoteListRequest()
 
     public func nextPage(cursor: String) -> RemoteListRequest {
@@ -38,14 +38,23 @@ public struct RemoteListRequest: Sendable, Equatable {
     }
 }
 
-/// 一页结果。`nextCursor` 为 nil 表示目录已读完。
+/// 该页在请求的过滤规则下是否存在已知遗漏；不代表远端瞬时一致快照。
+public enum RemoteListingCoverage: String, Sendable, Equatable, Codable {
+    case complete
+    case partial
+    case unknown
+}
+
+/// 一页结果。没有下一页不等于目录完整；必须同时检查所有页的 `coverage`。
 public struct RemoteListPage: Sendable, Equatable {
     public let entries: [RemoteEntry]
     public let nextCursor: String?
+    public let coverage: RemoteListingCoverage
 
-    public init(entries: [RemoteEntry], nextCursor: String? = nil) {
+    public init(coverage: RemoteListingCoverage, entries: [RemoteEntry], nextCursor: String? = nil) {
         self.entries = entries
         self.nextCursor = nextCursor
+        self.coverage = coverage
     }
 
     public var isLastPage: Bool { nextCursor == nil }

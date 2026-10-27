@@ -53,6 +53,11 @@ public actor OneDriveSource: RemoteSource {
             throw ODHTTPClient.mapped(error)
         }
     }
+    /// 当前连接的 Personal 主盘身份，用于持久化绑定核对；断开后不可读取。
+    public func connectedDriveID() throws -> String {
+        try context().drive
+    }
+
     public func disconnect() async { invalidate() }
     func invalidate() {
         generation = UUID(); client?.cancel(); refreshing?.task.cancel()

@@ -71,21 +71,10 @@ public actor LocalFileSource: RemoteCopyingSource {
         let keys: [URLResourceKey] = [
             .isDirectoryKey, .fileSizeKey, .contentModificationDateKey, .creationDateKey, .contentTypeKey,
         ]
-        let parentPath = normalized
-        var entries = try fileManager
-            .contentsOfDirectory(at: directory, includingPropertiesForKeys: keys, options: [])
-            .compactMap { url -> RemoteEntry? in
-                guard request.includeHidden || !url.lastPathComponent.hasPrefix(".") else { return nil }
-                return try? makeEntry(for: url, at: RemotePath.join(parentPath, url.lastPathComponent))
-            }
-
-        entries.sort { lhs, rhs in
-            if lhs.isDirectory != rhs.isDirectory { return lhs.isDirectory }
-            return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
+        let urls = try fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: keys, options: [])
+        return try Self.listing(urls: urls, parent: normalized, includeHidden: request.includeHidden) { url, path in
+            try makeEntry(for: url, at: path)
         }
-
-        // 本地来源一次性返回全部；仍保留游标字段以兼容契约。
-        return RemoteListPage(entries: entries, nextCursor: nil)
     }
 
     public func stat(path: String) async throws -> RemoteEntry {
@@ -129,6 +118,38 @@ public actor LocalFileSource: RemoteCopyingSource {
     }
 
     // MARK: - 内部
+
+    /// Keep omissions observable without converting a valid partial browser page into a complete index.
+    static func listing(
+        urls: [URL], parent: String, includeHidden: Bool,
+        makeEntry: (URL, String) throws -> RemoteEntry
+    ) throws -> RemoteListPage {
+        var entries: [RemoteEntry] = []
+        var coverage: RemoteListingCoverage = .complete
+        var seen: Set<String> = []
+        for url in urls {
+            try Task.checkCancellation()
+            let name = url.lastPathComponent
+            guard includeHidden || !name.hasPrefix(".") else { continue }
+            guard !name.contains("\\"), !name.utf8.contains(0) else {
+                throw RemoteSyncError.unsupported(operation: "本地文件名无法表示为来源路径")
+            }
+            let path = RemotePath.join(parent, name)
+            guard RemotePath.parent(of: path) == parent, seen.insert(path).inserted else {
+                throw RemoteSyncError.unsupported(operation: "本地目录包含冲突路径")
+            }
+            do { entries.append(try makeEntry(url, path)) }
+            catch is CancellationError { throw CancellationError() }
+            catch { coverage = .partial }
+        }
+        try Task.checkCancellation()
+        entries.sort {
+            if $0.isDirectory != $1.isDirectory { return $0.isDirectory }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+        try Task.checkCancellation()
+        return RemoteListPage(coverage: coverage, entries: entries)
+    }
 
     func requireConnected() throws {
         guard isConnected else { throw RemoteSyncError.notConnected }

@@ -135,7 +135,14 @@ class Handler(BaseHTTPRequestHandler):
                 is_dir = name in ["folder", "资料"]
                 entries.append(response("/%s/" % base + quote(name, safe="/") + ("/" if is_dir else ""), is_dir, None if is_dir else len(FILES[name])))
             # Bad hrefs and failures must not become visible traversable items.
-            entries += [response("https://evil.example/%s/steal" % base, True), response("/%s/%s/injected/grandchild" % (base, quote(item, safe="/")), True), response("/%s/failed" % base, failed=True), response("/%s/../escape" % base), response("/%s/a%%2fb" % base)]
+            if base not in ["coverage-complete", "coverage-duplicate", "coverage-missing", "coverage-hidden-failed"]:
+                entries += [response("https://evil.example/%s/steal" % base, True), response("/%s/%s/injected/grandchild" % (base, quote(item, safe="/")), True), response("/%s/failed" % base, failed=True), response("/%s/../escape" % base), response("/%s/a%%2fb" % base)]
+            if base == "coverage-duplicate":
+                entries.append(response("/%s/hello.txt" % base, size=999))
+            if base == "coverage-missing":
+                entries.append(response("/%s/missing-props" % base).replace("<d:resourcetype></d:resourcetype>", ""))
+            if base == "coverage-hidden-failed":
+                entries.append(response("/%s/.hidden-failure" % base, failed=True))
         if base == "no-creation":
             entries = [entry.replace("<d:creationdate>2026-10-19T01:02:03.125Z</d:creationdate>", "") for entry in entries]
         xml = '<?xml version="1.0" encoding="utf-8"?><d:multistatus xmlns:d="DAV:">' + "".join(entries) + "</d:multistatus>"

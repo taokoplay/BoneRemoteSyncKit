@@ -15,11 +15,13 @@ final class OneDriveWriteServer: @unchecked Sendable {
     )
     private let process = Process()
     private let logURL: URL
+    private let terminated = DispatchSemaphore(value: 0)
 
     init(_ scenario: String = "normal") throws {
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneODWriteTests-\(UUID())")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         logURL = workspace.appendingPathComponent("requests.jsonl")
+        process.terminationHandler = { [terminated] _ in terminated.signal() }
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
         process.arguments = [
             "-u",
@@ -47,7 +49,9 @@ final class OneDriveWriteServer: @unchecked Sendable {
     }
 
     func cleanUp() {
-        if process.isRunning { process.terminate(); process.waitUntilExit() }
+        if process.isRunning { process.terminate() }
+        // Match the read fixture: bounded callback-based cleanup, not a cooperative-thread run loop.
+        #expect(terminated.wait(timeout: .now() + 10) == .success, "OneDrive write fixture did not terminate")
         try? FileManager.default.removeItem(at: workspace)
     }
 

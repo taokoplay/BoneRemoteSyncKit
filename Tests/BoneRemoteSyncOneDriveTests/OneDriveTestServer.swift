@@ -1,5 +1,6 @@
 #if os(macOS)
 import Foundation
+import Testing
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
@@ -11,9 +12,11 @@ final class OneDriveTestServer: @unchecked Sendable {
     // Keep the production default (60s) unchanged.
     let configuration = try! OneDriveConfiguration(clientID: "fixture-client", redirectURI: URL(string: "bonetest://oauth/onedrive")!, timeout: 30)
     private let process = Process()
+    private let terminated = DispatchSemaphore(value: 0)
     init(_ scenario: String = "normal") throws {
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneODTests-\(UUID())")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        process.terminationHandler = { [terminated] _ in terminated.signal() }
         process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
         process.arguments = ["-u", Bundle.module.url(forResource: "server", withExtension: "py", subdirectory: "Fixtures")!.path,
                              workspace.appendingPathComponent("requests.jsonl").path, scenario]
@@ -24,7 +27,13 @@ final class OneDriveTestServer: @unchecked Sendable {
         endpoints = ODEndpoints(graph: URL(string: "http://127.0.0.1:\(port)/v1.0/")!,
             authority: URL(string: "http://127.0.0.1:\(port)/oauth/")!, allowsLoopback: true)
     }
-    func cleanUp() { if process.isRunning { process.terminate(); process.waitUntilExit() }; try? FileManager.default.removeItem(at: workspace) }
+    func cleanUp() {
+        if process.isRunning { process.terminate() }
+        // waitUntilExit can remain in a cooperative thread's run loop after the child exits.
+        // Register before launch, then bound cleanup rather than silently hanging the test run.
+        #expect(terminated.wait(timeout: .now() + 10) == .success, "OneDrive fixture did not terminate")
+        try? FileManager.default.removeItem(at: workspace)
+    }
     func file(_ name: String = "output.bin") -> URL { workspace.appendingPathComponent(name) }
     func requests() throws -> [[String: Any]] {
         let url = file("requests.jsonl")

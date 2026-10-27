@@ -8,12 +8,12 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
         entered.expectedFulfillmentCount = 3
         let gate = WalkGate()
         let directories = (0..<9).map { directory("/d\($0)") }
-        var pages: [WalkKey: RemoteListPage] = [.init("/"): .init(entries: directories)]
+        var pages: [WalkKey: RemoteListPage] = [.init("/"): .init(coverage: .complete, entries: directories)]
         var gates: [WalkKey: WalkGate] = [:]
         var starts: [WalkKey: XCTestExpectation] = [:]
         for index in 0..<9 {
             let key = WalkKey("/d\(index)")
-            pages[key] = .init(entries: [file("/d\(index)/f")])
+            pages[key] = .init(coverage: .complete, entries: [file("/d\(index)/f")])
             gates[key] = gate
             if index < 3 { starts[key] = entered }
         }
@@ -49,8 +49,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
         requestsEntered.expectedFulfillmentCount = 3
         let phase = WalkPhase()
         let directories = (0..<12).map { directory("/d\($0)") }
-        var pages: [WalkKey: RemoteListPage] = [.init("/"): .init(entries: directories)]
-        for index in 0..<12 { pages[.init("/d\(index)")] = .init(entries: [file("/d\(index)/f")]) }
+        var pages: [WalkKey: RemoteListPage] = [.init("/"): .init(coverage: .complete, entries: directories)]
+        for index in 0..<12 { pages[.init("/d\(index)")] = .init(coverage: .complete, entries: [file("/d\(index)/f")]) }
         let source = WalkSource(
             pages: pages,
             gates: [.init("/d0"): requestGate, .init("/d1"): requestGate, .init("/d2"): requestGate],
@@ -91,8 +91,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
         unexpectedPage.isInverted = true
         let gate = WalkGate()
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [file("/a")], nextCursor: "next"),
-            .init("/", "next"): .init(entries: [file("/b")]),
+            .init("/"): .init(coverage: .complete, entries: [file("/a")], nextCursor: "next"),
+            .init("/", "next"): .init(coverage: .complete, entries: [file("/b")]),
         ], starts: [.init("/", "next"): unexpectedPage])
         let task = Task {
             try await source.walk(path: "/", options: .init()) { entry in
@@ -114,8 +114,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
     func testPaginationIsSequentialAndPreservesSourceEntriesAndHiddenOption() async throws {
         let original = RemoteEntry(id: "opaque-id", path: "/root/a/../visible", name: "Display name", type: .file, size: 12, etag: "tag")
         let source = WalkSource(pages: [
-            .init("/root"): .init(entries: [original], nextCursor: "page-2"),
-            .init("/root", "page-2"): .init(entries: [file("/root/.hidden")]),
+            .init("/root"): .init(coverage: .complete, entries: [original], nextCursor: "page-2"),
+            .init("/root", "page-2"): .init(coverage: .complete, entries: [file("/root/.hidden")]),
         ])
         let sink = WalkSink()
         let summary = try await source.walk(path: "//root/.", options: .init(includeHidden: true)) {
@@ -131,7 +131,7 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
     }
 
     func testDefaultHiddenRequestDoesNotChangeConnectionIdentity() async throws {
-        let source = WalkSource(pages: [.init("/"): .init(entries: [file("/visible")])])
+        let source = WalkSource(pages: [.init("/"): .init(coverage: .complete, entries: [file("/visible")])])
         try await source.connect(.anonymous)
         _ = try await source.walk(path: "/", options: .init()) { _ in }
         let state = await source.snapshot()
@@ -142,9 +142,9 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
 
     func testCursorCycleFailsInsteadOfRepeatingRequests() async throws {
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [], nextCursor: "a"),
-            .init("/", "a"): .init(entries: [], nextCursor: "b"),
-            .init("/", "b"): .init(entries: [], nextCursor: "a"),
+            .init("/"): .init(coverage: .complete, entries: [], nextCursor: "a"),
+            .init("/", "a"): .init(coverage: .complete, entries: [], nextCursor: "b"),
+            .init("/", "b"): .init(coverage: .complete, entries: [], nextCursor: "a"),
         ])
         await assertUnsupported {
             _ = try await source.walk(path: "/", options: .init()) { _ in }
@@ -155,8 +155,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
 
     func testNormalizedDuplicateAcrossPagesFailsBeforeSecondVisit() async throws {
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [file("/a")], nextCursor: "second"),
-            .init("/", "second"): .init(entries: [file("//a/.")]),
+            .init("/"): .init(coverage: .complete, entries: [file("/a")], nextCursor: "second"),
+            .init("/", "second"): .init(coverage: .complete, entries: [file("//a/.")]),
         ])
         let sink = WalkSink()
         await assertUnsupported {
@@ -173,7 +173,7 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
             RemoteEntry(id: "opaque", path: nil, name: "no path", type: .file),
         ]
         for entry in invalid {
-            let source = WalkSource(pages: [.init("/root"): .init(entries: [entry])])
+            let source = WalkSource(pages: [.init("/root"): .init(coverage: .complete, entries: [entry])])
             let sink = WalkSink()
             await assertUnsupported {
                 _ = try await source.walk(path: "/root", options: .init()) { await sink.append($0) }
@@ -186,19 +186,19 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
     }
 
     func testDepthZeroReadsRootFilesButRejectsDirectoryDescent() async throws {
-        let files = WalkSource(pages: [.init("/"): .init(entries: [file("/a")])])
+        let files = WalkSource(pages: [.init("/"): .init(coverage: .complete, entries: [file("/a")])])
         let summary = try await files.walk(path: "/", options: .init(maxDepth: 0)) { _ in }
         XCTAssertEqual(summary.entryCount, 1)
         XCTAssertEqual(summary.directoryCount, 1)
-        let noDescent = WalkSource(pages: [.init("/"): .init(entries: [directory("/a")])])
+        let noDescent = WalkSource(pages: [.init("/"): .init(coverage: .complete, entries: [directory("/a")])])
         await assertUnsupported {
             _ = try await noDescent.walk(path: "/", options: .init(maxDepth: 0)) { _ in }
         }
         let rootCalls = await noDescent.snapshot().calls
         XCTAssertEqual(rootCalls.map(\.key), [.init("/")])
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [directory("/a")]),
-            .init("/a"): .init(entries: [directory("/a/b")]),
+            .init("/"): .init(coverage: .complete, entries: [directory("/a")]),
+            .init("/a"): .init(coverage: .complete, entries: [directory("/a/b")]),
         ])
         await assertUnsupported {
             _ = try await source.walk(path: "/", options: .init(maxDepth: 1)) { _ in }
@@ -208,7 +208,7 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
     }
 
     func testEntryLimitRejectsOversizedDiscoveryBeforeQueueingOrVisitingPage() async throws {
-        let source = WalkSource(pages: [.init("/"): .init(entries: [directory("/a"), directory("/b"), directory("/c")])])
+        let source = WalkSource(pages: [.init("/"): .init(coverage: .complete, entries: [directory("/a"), directory("/b"), directory("/c")])])
         let sink = WalkSink()
         await assertUnsupported {
             _ = try await source.walk(path: "/", options: .init(maxEntries: 2)) { await sink.append($0) }
@@ -221,9 +221,9 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
 
     func testEntryLimitIncludesDiscoveredDirectoriesAndDescendantFiles() async throws {
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [directory("/a"), directory("/b")]),
-            .init("/a"): .init(entries: [file("/a/1"), file("/a/2")]),
-            .init("/b"): .init(entries: [file("/b/1")]),
+            .init("/"): .init(coverage: .complete, entries: [directory("/a"), directory("/b")]),
+            .init("/a"): .init(coverage: .complete, entries: [file("/a/1"), file("/a/2")]),
+            .init("/b"): .init(coverage: .complete, entries: [file("/b/1")]),
         ])
         let sink = WalkSink()
         await assertUnsupported {
@@ -239,13 +239,13 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
     }
 
     func testEmptyRootIsCountedAndSingleRequestModeStaysSerial() async throws {
-        let empty = try await WalkSource(pages: [.init("/"): .init(entries: [])])
+        let empty = try await WalkSource(pages: [.init("/"): .init(coverage: .complete, entries: [])])
             .walk(path: "/", options: .init(maxConcurrentRequests: 16, maxDepth: 0, maxEntries: 1)) { _ in }
         XCTAssertEqual(empty.entryCount, 0)
         XCTAssertEqual(empty.directoryCount, 1)
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [directory("/a"), directory("/b")]),
-            .init("/a"): .init(entries: []), .init("/b"): .init(entries: []),
+            .init("/"): .init(coverage: .complete, entries: [directory("/a"), directory("/b")]),
+            .init("/a"): .init(coverage: .complete, entries: []), .init("/b"): .init(coverage: .complete, entries: []),
         ])
         let serial = try await source.walk(path: "/", options: .init(maxConcurrentRequests: 1, maxDepth: 1)) { _ in }
         let state = await source.snapshot()
@@ -256,8 +256,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
 
     func testEntryLimitAppliesAcrossPagesAndAcceptsExactBoundary() async throws {
         let pages: [WalkKey: RemoteListPage] = [
-            .init("/"): .init(entries: [file("/a")], nextCursor: "next"),
-            .init("/", "next"): .init(entries: [file("/b")]),
+            .init("/"): .init(coverage: .complete, entries: [file("/a")], nextCursor: "next"),
+            .init("/", "next"): .init(coverage: .complete, entries: [file("/b")]),
         ]
         let source = WalkSource(pages: pages)
         let sink = WalkSink()
@@ -289,9 +289,9 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
         let releaseFirst = WalkGate()
         let holdSiblings = WalkGate()
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [directory("/a"), directory("/b"), directory("/c")]),
-            .init("/a"): .init(entries: [file("/a/f")]),
-            .init("/b"): .init(entries: []), .init("/c"): .init(entries: []),
+            .init("/"): .init(coverage: .complete, entries: [directory("/a"), directory("/b"), directory("/c")]),
+            .init("/a"): .init(coverage: .complete, entries: [file("/a/f")]),
+            .init("/b"): .init(coverage: .complete, entries: []), .init("/c"): .init(coverage: .complete, entries: []),
         ], gates: [.init("/a"): releaseFirst, .init("/b"): holdSiblings, .init("/c"): holdSiblings],
            starts: [.init("/a"): siblingsStarted, .init("/b"): siblingsStarted, .init("/c"): siblingsStarted])
         let task = Task {
@@ -315,8 +315,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
         let releaseError = WalkGate()
         let holdSibling = WalkGate()
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [directory("/a"), directory("/b")]),
-            .init("/b"): .init(entries: []),
+            .init("/"): .init(coverage: .complete, entries: [directory("/a"), directory("/b")]),
+            .init("/b"): .init(coverage: .complete, entries: []),
         ], gates: [.init("/a"): releaseError, .init("/b"): holdSibling],
            starts: [.init("/a"): entered, .init("/b"): entered], failures: [.init("/a"): .listing])
         let task = Task { try await source.walk(path: "/", options: .init(maxConcurrentRequests: 2)) { _ in } }
@@ -334,8 +334,8 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
         entered.expectedFulfillmentCount = 3
         let gate = WalkGate()
         let source = WalkSource(pages: [
-            .init("/"): .init(entries: [directory("/a"), directory("/b"), directory("/c")]),
-            .init("/a"): .init(entries: []), .init("/b"): .init(entries: []), .init("/c"): .init(entries: []),
+            .init("/"): .init(coverage: .complete, entries: [directory("/a"), directory("/b"), directory("/c")]),
+            .init("/a"): .init(coverage: .complete, entries: []), .init("/b"): .init(coverage: .complete, entries: []), .init("/c"): .init(coverage: .complete, entries: []),
         ], gates: [.init("/a"): gate, .init("/b"): gate, .init("/c"): gate],
            starts: [.init("/a"): entered, .init("/b"): entered, .init("/c"): entered])
         let task = Task { try await source.walk(path: "/", options: .init(maxConcurrentRequests: 3)) { _ in } }
@@ -351,7 +351,7 @@ final class RemoteWalkTests: XCTestCase, @unchecked Sendable {
     func testCancellationDuringVisitorStopsRemainingEntries() async throws {
         let entered = expectation(description: "visitor entered")
         let gate = WalkGate()
-        let source = WalkSource(pages: [.init("/"): .init(entries: [file("/a"), file("/b")])])
+        let source = WalkSource(pages: [.init("/"): .init(coverage: .complete, entries: [file("/a"), file("/b")])])
         let sink = WalkSink()
         let task = Task {
             try await source.walk(path: "/", options: .init()) { entry in

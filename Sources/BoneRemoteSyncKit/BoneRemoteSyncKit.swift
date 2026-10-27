@@ -6,3 +6,5 @@
 @_exported import BoneRemoteSyncLocal
 @_exported import BoneRemoteSyncWebDAV
 @_exported import BoneRemoteSyncOneDrive
+
+@_exported import BoneRemoteSyncCatalog

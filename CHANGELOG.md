@@ -4,6 +4,16 @@
 
 本文件记录对使用者有影响的功能、修复、版本策略与行为变化。实现完成、测试通过和版本发布是不同状态；标为“未发布”的内容不代表已包含在远程分支或版本标签中。
 
+## 未发布 — 配置持久化与目录缓存
+
+- 新增 Core 结构化错误日志规范与 `RemoteLogger`：固定分类/级别/操作、默认关闭、宿主注入输出，Catalog 初始化/恢复/关闭及高层操作自动接入。丢弃原始错误文本，sink 抛错不替换业务错误，刷新失败按类别聚合；详见[日志规范](Docs/Logging.md)。
+- 新增可选 `BoneRemoteSyncCatalog`，由统一 Kit 导出：系统 SQLite 配置/根选择/离线分页，显式 children/subtree 刷新、目录级原子发布、失败保留旧缓存与中断恢复。
+- 新增可替换同步凭据 store 和 Apple Keychain 桥接，固定引用轮换回调、引用级会话互斥、Local 宿主访问 lease。没有真实 Keychain/账号验收。
+- `RemoteListPage` 构造必须显式指定 coverage；Local/WebDAV 不再把已知漏项报告为完整目录。visitor walk 拒绝 partial/unknown，stream walk 仍仅用于部分浏览。
+- 细化 `RemoteCatalogFailureReason`：保留未连接、不支持、限流、冲突、完整性不匹配及取消分类，不再统一折叠成 network/other；宿主的穷尽 switch 需同步更新。
+- 新增 OneDrive `connectedDriveID()` 以核对持久账号绑定；不保存 token 到 SQLite、不持久化远端 cursor。
+- 本次没有发布新版本、移动旧 tag 或创建 GitHub Release。API 与行为边界见 [Catalog](Docs/Catalog.md)，实际检查结果见 [验证记录](Docs/Validation.md)。
+
 ## v0.2.0 — 2026-10-26
 
 本版本以 Git 附注标签 `v0.2.0` 发布，包含实现提交 `0579c64` 及发布文档更新，不另外创建 GitHub Release。以下为相对 `v0.1.0`（`ae52fe9`）的变化；原 `v0.1.0` 标签保持不变，不包含下列更新。

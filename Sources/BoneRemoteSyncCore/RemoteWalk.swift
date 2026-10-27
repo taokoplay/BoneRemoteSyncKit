@@ -128,6 +128,9 @@ public extension RemoteSource {
                     try Task.checkCancellation()
                     var work = result.request
                     let page = result.page
+                    guard page.coverage == .complete else {
+                        throw RemoteSyncError.unsupported(operation: "遍历目录列表不完整")
+                    }
                     var children: [RemoteWalkRequest] = []
 
                     // Validate a complete page before invoking its visitor or adding children.

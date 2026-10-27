@@ -19,19 +19,24 @@ let package = Package(
         .library(name: "BoneRemoteSyncLocal", targets: ["BoneRemoteSyncLocal"]),
         .library(name: "BoneRemoteSyncWebDAV", targets: ["BoneRemoteSyncWebDAV"]),
         .library(name: "BoneRemoteSyncOneDrive", targets: ["BoneRemoteSyncOneDrive"]),
+        .library(name: "BoneRemoteSyncCatalog", targets: ["BoneRemoteSyncCatalog"]),
     ],
     targets: [
         .target(
             name: "BoneRemoteSyncKit",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"]
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog"]
         ),
+        .target(name: "BoneRemoteSyncCatalog",
+                dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],
+                linkerSettings: [.linkedLibrary("sqlite3"), .linkedFramework("Security")]),
+        .testTarget(name: "BoneRemoteSyncCatalogTests", dependencies: ["BoneRemoteSyncCatalog"]),
         .target(name: "BoneRemoteSyncCore"),
         .target(name: "BoneRemoteSyncLocal", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncWebDAV", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"]),
         .testTarget(name: "BoneRemoteSyncKitTests", dependencies: ["BoneRemoteSyncKit"]),
         .testTarget(name: "BoneRemoteSyncOneDriveTests",
-                    dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive"],
+                    dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog"],
                     resources: [.copy("Fixtures")]),
         .testTarget(
             name: "BoneRemoteSyncWebDAVTests",

@@ -29,6 +29,18 @@ import BoneRemoteSyncKit
         #expect(category == .image)
         #expect(metadata.createdAt == Date(timeIntervalSince1970: 123))
         #expect(WebDAVResumableDownloadOptions(sourceNamespace: "test-account").sourceNamespace == "test-account")
+        let profile = try RemoteSourceProfile(displayName: "Local", configuration: .local(accessReference: "host-bookmark"))
+        #expect(profile.sourceNamespace == profile.bindingID.uuidString)
+        let options = RemoteCatalogRefreshOptions(scope: .subtree)
+        try options.validate()
+        #expect(options.concurrency == 4)
+        let cachedState: RemoteCatalogCacheState = .notInitialized
+        #expect(cachedState.rawValue == "notInitialized")
+        #expect(RemoteListPage(coverage: .unknown, entries: []).coverage == .unknown)
+        let logger = RemoteLogger.disabled
+        logger.record(RemoteCatalogError.unsupportedSchema, component: .sqlite, operation: .databaseOpen)
+        #expect(RemoteCatalogError.database(6922).remoteLogNumericCode == 6922)
+        #expect(RemoteLogCode.cancelled.level == .info)
         let oauth = OneDriveOAuth(configuration: configuration)
         let authorization: OneDriveAuthorization = try oauth.authorize()
         #expect(authorization.url.host == "login.microsoftonline.com")

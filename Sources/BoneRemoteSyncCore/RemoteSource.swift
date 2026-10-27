@@ -67,7 +67,8 @@ public extension RemoteSource {
         return try await download(entry, to: destination, options: options)
     }
 
-    /// 递归遍历整棵子树。大目录请自行控制并发，这里刻意做成顺序流。
+    /// 顺序浏览子树，可产出来源返回的部分列表，不证明完整性。
+    /// 需要完整扫描时使用带 `RemoteWalkOptions` 的 visitor 重载；不要据此流删除缺失条目。
     func walk(
         path: String,
         includeHidden: Bool = false
