@@ -2,11 +2,25 @@
 
 [返回项目首页](../README.md)
 
-本页区分实现、受控测试、平台编译与真实服务验收。已发布版本的结果截至 **2026-10-27（GMT+8）**，对应 `v0.3.0` 所含实现：Catalog、日志、首轮 iCloud、第二轮通用文件语义及 R1/R2 备份接入契约。以 Git 附注标签发布，不另外创建 GitHub Release。原 `v0.1.0` 与 `v0.2.0` 不变，新能力均不在这些标签内。历史元数据结果对应 `0579c64` / `v0.2.0`，各阶段测试数量对应当时源码，不是后续任意版本的保证。
+本页区分实现、受控测试、平台编译与真实服务验收。当前版本为 **`v0.4.0`（2026-10-28，GMT+8）**，以 Git 附注标签发布，不另外创建 GitHub Release。原 `v0.1.0`、`v0.2.0`、`v0.3.0` 标签不变；新能力不写回旧标签。下文保留各阶段的验证快照，各阶段数量不能相加，也不是后续任意源码版本的保证。
 
-## 未发布：统一文件服务第一阶段
+## v0.4.0 发布前验证
 
-截至 **2026-10-28（GMT+8）**，当前工作树新增 Core 引用/版本契约与 `BoneRemoteSyncTransfer`，由单一 Kit 入口导出；同时保留未发布的 iCloud R3 批量状态改动。**以下结果不属于已发布的 `v0.3.0`；本地 Git 提交尚未推送，也未创建新标签。** 用法与生命周期边界见 [Transfer](Transfer.md)。
+实现基线为已推送的 `3cb05c3`。发布准备只更新版本说明、文档与 iCloud 示例注释，不修改生产源码、测试或 Package 配置；已核对与分片最终验证的实现哈希一致。
+
+| 检查 | 结果与范围 |
+| --- | --- |
+| 本轮串行全包 | `swift test --no-parallel`：**506 项通过**，39 XCTest + 467 Swift Testing（WebDAV142、Transfer45、OneDrive92、Kit4、iCloud47、Core/Local81、Catalog56），参数化 case 不重复计数；日志 `release-v040-tests.log`。 |
+| 本轮 Release | `swift build -c release` 通过；日志 `release-v040-build.log`。 |
+| 本轮独立 Kit 消费端 | 仅依赖/导入 Kit，自定义区间来源经 coordinator 读取 8 片、还原 59 字节并清理 lease；合成数据不是实际云端服务，日志 `release-v040-consumer.log`。 |
+| 沿用的编译与流程证据 | 八模块 macOS12、iOS15/tvOS15/visionOS1 Simulator 编译链接、Transfer Swift 示例四目标类型检查，以及恢复下载/上传的受控跨进程验证；来自同一实现的既有记录，本轮未重跑这些检查。 |
+| 文档与包 | 更新 README 安装版本、能力矩阵、各模块引入版本、迁移与验收边界；检查本地链接/标题锚点、包结构、源码哈希及 diff 格式。 |
+
+工具链为 Swift 6.4 / Swift 6 语言模式，不是 Swift 6.0 编译器或最低系统运行验收。真实 NAS 分片与写入、Microsoft 账号/Keychain、iCloud entitlement/双设备、大文件性能、磁盘故障与断电仍未验收。既有 WebDAV 并发短 deadline 风险保留，串行全包通过不证明风险消失。日志位于会话工作台，不作为运行资源分发。
+
+## v0.4.0：统一文件服务第一阶段
+
+本节记录 **2026-10-28（GMT+8）** 第一阶段的验证快照：新增 Core 引用/版本契约与 `BoneRemoteSyncTransfer`，由单一 Kit 入口导出；同时保留 iCloud R3 批量状态改动。**这些实现现纳入 `v0.4.0`，不属于 `v0.3.0`；以下测试数量是当时的阶段结果，不是本次最终全包结果。** 用法与生命周期边界见 [Transfer](Transfer.md)。
 
 | 检查 | 结果与范围 |
 | --- | --- |
@@ -18,13 +32,13 @@
 | 文档/包 | Package dump/describe、15 份 Markdown 的 116 个本地文件链接、Transfer Swift 示例类型检查及 `git diff --check` 通过 |
 | 独立审查 | 中断后续接完成，未确认高严重度问题；提出的 localhost URL guard 优先级问题经精确错误回归无法复现，不修改正确实现。审查不等同真实服务验收 |
 
-工具链仍为 Swift 6.4 / Swift 6 语言模式；不是 Swift 6.0 编译器、最低系统或真机运行验收。该阶段只提供进程内物化和前台有界调度；当时尚未接入通用恢复。后续阶段4结果见下节；OneDrive 专用 Upload Session、可恢复上传与安全 session 持久化在当前未发布工作树已接入，但不自动加入 Transfer coordinator，真实账号/Keychain/设备验收仍待完成。
+工具链仍为 Swift 6.4 / Swift 6 语言模式；不是 Swift 6.0 编译器、最低系统或真机运行验收。该阶段只提供进程内物化和前台有界调度；当时尚未接入通用恢复。后续阶段4结果见下节；OneDrive 专用 Upload Session、可恢复上传与安全 session 持久化在 `v0.4.0` 已接入，但不自动加入 Transfer coordinator，真实账号/Keychain/设备验收仍待完成。
 
 验证中曾遇到主机空间不足（创建临时目录报 ENOSPC），恢复磁盘空间后重跑；这是环境失败，不作行为红灯。OneDrive 新 smoke 初版误用了原始 Graph item ID，来源按合同拒绝；测试改用 stat 返回的完整不透明 ID 后通过，没有放宽来源校验。最终日志位于会话工作台 `transfer-final-*`，不作为仓库资源分发。
 
-## 未发布：阶段4 WebDAV 通用恢复适配
+## v0.4.0：阶段4 WebDAV 通用恢复适配
 
-截至 **2026-10-28（GMT+8）**，新增 Core 可选恢复契约、只读 checkpoint 投影、Transfer 独立恢复服务及显式本地目标互斥，WebDAV 复用原有 provider checkpoint。未将物化队列改成持久任务系统，没有更改发布标签。
+本节保留 **2026-10-28（GMT+8）** 阶段4的验证快照：新增 Core 可选恢复契约、只读 checkpoint 投影、Transfer 独立恢复服务及显式本地目标互斥，WebDAV 复用原有 provider checkpoint。未将物化队列改成持久任务系统；当时未更改发布标签，现随 `v0.4.0` 提供。
 
 | 检查 | 结果与范围 |
 | --- | --- |
@@ -38,9 +52,9 @@
 
 日志保留在会话工作台 `recovery-*.log`，独立消费端及过程驱动为 `recovery-consumer/` 和 `verify-recovery-process.py`。默认恢复下载不覆盖已有目标；跨进程互斥以所有参与者使用同一稳定私有本地锁目录为前提，不约束绕过协议的写入。锁文件不自动删除，不提供分布式锁、断电目录项持久保证或未知已提交结果的无限期幂等识别。读取 checkpoint 只证明本地观察通过，远端版本在实际继续时重验。真实 WebDAV/NAS、大文件吞吐、磁盘故障和权限环境尚未验收。
 
-## 未发布：阶段5 OneDrive Upload Session 验证
+## v0.4.0：阶段5 OneDrive Upload Session 验证
 
-截至 **2026-10-28 17:30 GMT+8**，当前工作树已接入Core上传恢复合同、Transfer显式 `RemoteUploadRecovery` 与OneDrive Personal专用Upload Session。普通OneDrive构造器仍为false，仅专用 `resumableUploadService` 构造器启用。没有自动加入coordinator/Catalog、后台队列或发布版本。
+本节保留 **2026-10-28 17:30 GMT+8** 阶段5的验证快照：接入 Core 上传恢复合同、Transfer 显式 `RemoteUploadRecovery` 与 OneDrive Personal 专用 Upload Session。普通 OneDrive 构造器仍为 false，仅专用 `resumableUploadService` 构造器启用。没有自动加入 coordinator/Catalog 或后台队列；当时尚未发布版本，现随 `v0.4.0` 提供。
 
 | 检查 | 当前结果与证明范围 |
 | --- | --- |
@@ -54,11 +68,11 @@
 
 过程日志位于会话工作台 `upload-*.log`，进程驱动为 `UploadProcessProbe.swift` / `verify-upload-process.py`，外部单产品包为 `upload-consumer/`。这些是开发证据，不作为生产资源分发。15份Markdown的128个本地链接、22个标题锚点、OneDrive恢复上传及两段Transfer示例类型检查、package dump/describe与 `git diff --check` 均通过；包结构确认Transfer只依赖Core。
 
-**仍未验收/未提供：** 真实Microsoft Graph账号与OAuth轮换、真实Keychain entitlement/签名/沙箱、移动设备/最低OS运行、断电/磁盘故障、大文件吞吐与跨设备。当前5 GiB上限、非空普通文件、路径目标、默认非覆盖；最终ETag条件替换仍unsupported。未知创建/提交/abort保留证据，不自动新建/删除，尚无人工归属确认后的通用清扫API。快照目录不得在同步根内，由宿主保证；合作锁不防绕过协议的进程。阶段6 Catalog可选集成尚未实施；截至本阶段验证时尚未提交，后续本地 Git 提交不代表已推送或发布。
+**仍未验收/未提供：** 真实Microsoft Graph账号与OAuth轮换、真实Keychain entitlement/签名/沙箱、移动设备/最低OS运行、断电/磁盘故障、大文件吞吐与跨设备。当前5 GiB上限、非空普通文件、路径目标、默认非覆盖；最终ETag条件替换仍unsupported。未知创建/提交/abort保留证据，不自动新建/删除，尚无人工归属确认后的通用清扫API。快照目录不得在同步根内，由宿主保证；合作锁不防绕过协议的进程。阶段6 Catalog可选集成尚未实施；本节是版本发布前的阶段证据，现有实现纳入 `v0.4.0`，发布不扩大验收范围。
 
-## 未发布：可插拔单文件并行分片下载
+## v0.4.0：可插拔单文件并行分片下载
 
-截至 **2026-10-28（GMT+8）**，Core 新增 `RemoteByteRangeSource` / `RemoteByteRange`，Transfer 通过显式策略复用物化生命周期，首个内置适配为 WebDAV。默认仍顺序下载；这是未发布开发版本的能力，不在 `v0.3.0` 中；本地 Git 提交尚未推送，也未发布。
+截至 **2026-10-28（GMT+8）**，Core 新增 `RemoteByteRangeSource` / `RemoteByteRange`，Transfer 通过显式策略复用物化生命周期，首个内置适配为 WebDAV。默认仍顺序下载；此能力现随 `v0.4.0` 提供，不在 `v0.3.0` 中；本节保留分片实现阶段的验证证据。
 
 | 检查 | 当前结果与证明范围 |
 | --- | --- |

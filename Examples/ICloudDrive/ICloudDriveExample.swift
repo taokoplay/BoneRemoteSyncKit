@@ -56,7 +56,7 @@ public func listICloudBackups(source: ICloudDriveSource) async throws -> [Remote
 }
 
 /// Queries local iCloud preparation states for a backup list without hydration.
-/// This R3 helper is available in the current work tree and is not in v0.3.0.
+/// This R3 helper is available starting with v0.4.0 and is not in v0.3.0.
 /// Missing entries remain item failures; the host can display "unavailable" per row.
 /// This is not an atomic snapshot and does not replace the complete-list safety check.
 public func statusICloudBackups(source: ICloudDriveSource, entries: [RemoteEntry]) async throws -> [ICloudDriveStatusResult] {

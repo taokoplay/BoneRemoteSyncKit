@@ -76,7 +76,7 @@ func browseICloudContainer() async throws -> [RemoteEntry] {
 - `downloadState`：`.notDownloaded`、`.downloading`、`.downloaded`、`.current`、`.unknown` 或 nil。`.downloaded` 只表示已有本地副本，不保证是当前云端版本，因此下载仍等待 `.current`；离线时可能超时。
 - `percentDownloaded`：当前固定 nil；未接入 `NSMetadataQuery`，不虚构百分比进度。`phaseProgress` 提供准备状态变化；原 `progress` 仍只报告本地复制字节数，不是 iCloud 网络下载/上传进度。
 
-当前工作树的 R3 批量读取可使用 `try await source.statuses(paths:)`（尚未随版本标签发布）。它无需先 `connect`，只读取每个路径的本机元数据，不创建目录、不调用 `startDownloading`，返回 `ICloudDriveStatusResult` 数组并保留输入顺序、重复项和每项独立错误。每个结果的 `path` 已归一化；配置根/容器不可用时，每项可得到相同的 unavailable 快照，文件缺失、权限、路径越界和未解决冲突则只失败对应项。空数组不查询系统。它不是原子快照，也不承诺性能提升；取消、断开/重连或查询期间账号变化会使整个调用失败而不返回部分结果。
+自 `v0.4.0` 提供的 R3 批量读取可使用 `try await source.statuses(paths:)`。它无需先 `connect`，只读取每个路径的本机元数据，不创建目录、不调用 `startDownloading`，返回 `ICloudDriveStatusResult` 数组并保留输入顺序、重复项和每项独立错误。每个结果的 `path` 已归一化；配置根/容器不可用时，每项可得到相同的 unavailable 快照，文件缺失、权限、路径越界和未解决冲突则只失败对应项。空数组不查询系统。它不是原子快照，也不承诺性能提升；取消、断开/重连或查询期间账号变化会使整个调用失败而不返回部分结果。
 
 未知路径、元数据读取失败或取消时，status 可能缺少 item 字段；需要精确失败原因请用 `stat`。status 不改变连接状态。
 

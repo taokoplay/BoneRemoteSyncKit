@@ -126,6 +126,8 @@ print(uploaded.path ?? uploaded.id)
 
 ### Upload Session 可恢复上传（显式 opt-in）
 
+此能力自 `v0.4.0` 提供，不包含在 `v0.3.0` 标签中；版本发布不替代真实账号与 Keychain 验收。
+
 使用 `try OneDriveSource(configuration:resumableUploadService:onTokenRefresh:)` 启用；普通初始化器仍为 `resumableUpload == false`。`resumableUploadService` 是宿主选择的独立 Keychain service，不与 Catalog 的账号凭据混用。生产 API 不开放 session store 注入；内部 seam 仅用于测试。构造器本身不访问 Keychain。
 
 #### 准备、持久化句柄与继续

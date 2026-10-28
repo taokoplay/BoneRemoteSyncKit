@@ -2,7 +2,11 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
-## 未发布工作树
+## v0.4.0 — 2026-10-28
+
+本版本以 Git 附注标签 `v0.4.0` 发布，不另外创建 GitHub Release。包含实现提交 `3cb05c3` 与发布文档更新；原 `v0.1.0`、`v0.2.0`、`v0.3.0` 标签不变。以下为相对 `v0.3.0` 的变化。
+
+### 新增
 
 - 新增 `BoneRemoteSyncTransfer`，由统一 `BoneRemoteSyncKit` 导出；Core 增加绑定引用、locator 作用域版本、读写条件值类型与传输快照。
 - 提供通用文件物化、lease/进程内保留缓存、同版本在途合并、独立消费者取消、私有 staging 与排他原子发布；可选大小/SHA-256 校验，不解析文件格式。
@@ -17,7 +21,20 @@
 - 新增Core可恢复上传句柄/状态/回执与Transfer `RemoteUploadRecovery`。OneDrive Personal专用构造器启用设备内非同步Keychain session store；先本地prepare/保存句柄，再创建远端session，默认不覆盖，不支持最终ETag条件替换。
 - Upload Session提供顺序分片、服务端确认进度、独立无bearer请求、有界重试、私有快照分块摘要和合作跨进程锁；区分明确冲突、创建/提交/abort未知、已提交但本地持久化/清理待处理。保留终态回执供重复领取，支持显式终态forget。详见[OneDrive](Docs/OneDrive.md)；不包含真实账号/Keychain/最低系统运行验收。
 
-- R3：`ICloudDriveSource.statuses(paths:)` 批量读取 iCloud 本机条目状态；按输入顺序返回逐项结果，不触发 hydration 或目录创建，取消/断开/账号变化会丢弃整批。该 API 尚未发布为版本标签。
+- R3：`ICloudDriveSource.statuses(paths:)` 批量读取 iCloud 本机条目状态；按输入顺序返回逐项结果，不触发 hydration 或目录创建，取消/断开/账号变化会丢弃整批。该 API 自 `v0.4.0` 提供。
+
+### 接入与迁移
+
+- 继续推荐单产品 `import BoneRemoteSyncKit`；Transfer 只依赖 Core，不依赖 Catalog、SQLite 或具体来源。默认顺序下载，分片和 OneDrive Upload Session 均须显式启用。
+- `RemoteSyncError` 新增 `uploadSessionExpired`、`sourceSnapshotMissing`、`uploadCommitUnknown` 和 `secureStorageUnavailable`；宿主需更新穷尽 switch。恢复上传默认不覆盖，与普通上传默认覆盖不同。
+- 成功提交、清理待处理与结果未知必须分别处理；未知结果不授权重新创建 session 或重放写入。新恢复入口独立于 coordinator，不提供通用后台或跨进程持久任务队列。
+- 继续以当前 API 和数据格式为准，不提供旧接口、旧序列化或检查点的跨版本迁移承诺。阶段6 Catalog/Transfer 可选集成未实施，没有新增网盘适配器。
+
+### 验证与范围
+
+- 发布前重新运行串行全包：**506 项通过**（39 XCTest + 467 Swift Testing），Release 与独立 Kit 分片消费端通过。参数化 case 不重复计数。
+- 八模块四最低目标编译链接、Swift 文档示例类型检查和恢复传输受控跨进程验证沿用同一实现的既有结果。工具链为 Swift 6.4 / Swift 6 模式；不是 Swift 6.0 编译器或最低系统真机验收。
+- 真实 NAS 分片兼容性、Microsoft 账号/Keychain、iCloud 双设备、大文件性能与故障验收仍待完成；已有 WebDAV 并发短 deadline 风险仍保留。版本发布不扩大能力或验证范围，完整证据见 [v0.4.0 发布前验证](Docs/Validation.md#v040-发布前验证)。
 
 本文件记录对使用者有影响的功能、修复、版本策略与行为变化。实现完成、测试通过和版本发布是不同状态；版本标签也不代表真实账号、服务端或全部平台已经验收。
 
@@ -113,6 +130,6 @@
 - 使用 Swift 6.4 / Xcode 27.1；未用 Swift 6.0 编译器重测，最低平台编译不等于设备或旧系统运行验收。
 - 并发全包运行中仍观察到已有 WebDAV 短 deadline 与上传进度最终值断言的间歇失败；单独运行及最终完整复测通过，**不能据此认定该风险已消除**。历史 fixture 清理挂起已调整为预注册退出回调及有界等待，失败和复测记录均保留。
 - 真实 NAS 写入、Microsoft 账号和移动设备验收仍待完成。本轮仅使用临时目录和 localhost fixture，不能据此承诺任意服务端兼容性。
-- `v0.2.0` 没有增加图片尺寸、EXIF、音视频时长、封面、缩略图、转码或真实格式检测，也不包含 iCloud、OneDrive Upload Session、后台传输或同步引擎。后续能力以本文对应版本和“未发布工作树”条目为准。
+- `v0.2.0` 没有增加图片尺寸、EXIF、音视频时长、封面、缩略图、转码或真实格式检测，也不包含 iCloud、OneDrive Upload Session、后台传输或同步引擎。后续能力以本文对应版本条目为准。
 
-完整验证范围、历史失败和未验收项见[构建与验证状态](Docs/Validation.md)。以上为 `v0.2.0` 的历史验证结果，不代表当前未发布能力已包含在该标签中。
+完整验证范围、历史失败和未验收项见[构建与验证状态](Docs/Validation.md)。以上为 `v0.2.0` 的历史验证结果，不代表后续版本新增能力已包含在该标签中。

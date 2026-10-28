@@ -2,7 +2,7 @@
 
 [项目首页](../README.md) · [通用 API](API.md) · [Catalog](Catalog.md) · [Transfer](Transfer.md) · [验证状态](Validation.md)
 
-> 本文按 **2026-10-28 的当前工作树**说明业务适用性，并区分 `v0.3.0` 已发布能力与未发布扩展。“可用于某场景”表示库提供了其中的文件基础能力，不表示已经交付对应 App，也不替代真实账号、权限和设备验收。
+> 本文按 **`v0.4.0`（2026-10-28）**说明业务适用性，并标明各项能力的引入版本。“可用于某场景”表示库提供了其中的文件基础能力，不表示已经交付对应 App，也不替代真实账号、权限和设备验收。
 
 ## 一句话定位
 
@@ -14,8 +14,8 @@
 
 | 范围 | 当前可用内容 | 使用方式与限制 |
 | --- | --- | --- |
-| **已发布：`v0.3.0`** | 四类来源的文件访问；按来源提供的写入、复制、手动下载续传；WebDAV 专用 checkpoint 恢复下载；Catalog 配置和离线目录索引；结构化日志 | 按版本依赖接入。协议能力、权限和真实服务兼容性仍需核对 |
-| **未发布：当前工作树** | Transfer 统一物化、本地文件 lease、前台下载调度、可插拔单文件分片下载（首个适配 WebDAV）；通用 WebDAV 恢复下载入口；OneDrive Upload Session 恢复上传；iCloud 批量状态查询 | 不包含在 `v0.3.0` 标签中。截至本文日期，本地 Git 提交尚未推送，远端分支尚不包含这些扩展 |
+| **`v0.3.0` 已有能力** | 四类来源的文件访问；按来源提供的写入、复制、手动下载续传；WebDAV 专用 checkpoint 恢复下载；Catalog 配置和离线目录索引；结构化日志 | 按版本依赖接入。协议能力、权限和真实服务兼容性仍需核对 |
+| **`v0.4.0` 新增能力** | Transfer 统一物化、本地文件 lease、前台下载调度、可插拔单文件分片下载（首个适配 WebDAV）；通用 WebDAV 恢复下载入口；OneDrive Upload Session 恢复上传；iCloud 批量状态查询 | 使用 `v0.4.0` 版本依赖接入；不包含在 `v0.3.0` 标签中，仍需遵守显式启用和来源限制 |
 | **尚未提供** | 自动双向同步、跨来源事务、持久后台传输队列、Catalog 与 Transfer 的任务/内容缓存集成 | 不应当作当前库的现成功能；需要额外设计与实现 |
 
 统一使用 `import BoneRemoteSyncKit`。声明平台为 iOS 15+、macOS 12+、tvOS 15+、visionOS 1+，Swift tools 6.0+；没有第三方运行依赖。最低系统声明与目标编译不等于真机运行已验收。
@@ -27,11 +27,11 @@
 | 想做的业务 | 库可以承担的部分 | 宿主还需要承担的部分 |
 | --- | --- | --- |
 | 多来源文件管理器、NAS 文件浏览器 | 统一目录、元数据、下载、上传、建目录、移动/删除及可选复制 | 文件 UI、账号/目录授权、操作确认、来源差异与错误展示 |
-| 文档阅读器、笔记附件、媒体导入 | 获取完整本地文件；未发布 Transfer 提供受管理 URL、复用与 lease | PDF/Office/EPUB 等解析、播放、缩略图、编辑、内容搜索 |
+| 文档阅读器、笔记附件、媒体导入 | 获取完整本地文件；Transfer 自 `v0.4.0` 起提供受管理 URL、复用与 lease | PDF/Office/EPUB 等解析、播放、缩略图、编辑、内容搜索 |
 | 离线目录浏览、保存常用来源 | Catalog 持久化来源配置、选定目录和最近完整列表 | 正文离线保存、更新触发、缓存状态展示；当前不含 iCloud Catalog |
 | App 数据备份与恢复 | 上传/下载宿主生成的备份包、列出备份、显式清理宿主选定的旧文件 | 一致性导出、打包/加密、版本规则、保留策略、恢复校验与安装 |
-| 前台批量获取资源 | 未发布 Transfer 的全局/每来源并发限制、任务快照、取消与同版本复用 | 任务选择、UI、网络策略、重启后任务持久化和后台执行 |
-| 网络中断或进程退出后继续传输 | WebDAV checkpoint 恢复下载；未发布 OneDrive Upload Session 恢复上传 | 保存恢复上下文、重新授权/连接、显式继续、未知结果核对 |
+| 前台批量获取资源 | Transfer 自 `v0.4.0` 起提供全局/每来源并发限制、任务快照、取消与同版本复用 | 任务选择、UI、网络策略、重启后任务持久化和后台执行 |
+| 网络中断或进程退出后继续传输 | WebDAV checkpoint 恢复下载；自 `v0.4.0` 提供的 OneDrive Upload Session 恢复上传 | 保存恢复上下文、重新授权/连接、显式继续、未知结果核对 |
 | 跨来源导入、导出或单次搬运 | 从来源 A 获取本地文件，再上传到来源 B | 两端编排、结果核对、失败处理、源文件删除决策；没有原子跨来源 move |
 
 ## 场景一：多来源文件管理器与 NAS 浏览器
@@ -61,7 +61,7 @@
 
 **适合的产品：** 阅读器、笔记附件管理、素材选择器、使用本地文件 URL 的音视频或文档处理应用。
 
-典型流程是“浏览远端 → 选择文件 → 获取完整本地副本 → 交给宿主处理 → 释放或另存”。`v0.3.0` 可直接下载到宿主指定目录；未发布 Transfer 则封装了**文件物化**，即把来源文件准备为可供消费者访问的 SDK 管理本地文件。
+典型流程是“浏览远端 → 选择文件 → 获取完整本地副本 → 交给宿主处理 → 释放或另存”。`v0.3.0` 可直接下载到宿主指定目录；自 `v0.4.0` 提供的 Transfer 则封装了**文件物化**，即把来源文件准备为可供消费者访问的 SDK 管理本地文件。
 
 Transfer 提供：
 
@@ -117,7 +117,7 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 | 本地目录 | 保存到宿主有权限访问的指定目录 | 文件写入不是数据库或整个备份流程的事务 |
 | WebDAV NAS | 上传完整备份包；可用强 ETag 做条件覆盖 | 不支持恢复上传；失败可能已经改变远端，不能盲目重放 |
 | iCloud 容器 | 显式初始化备份目录，协调写入/读取；恢复时等待占位内容就绪 | 上传成功只确认本地提交，不确认云端上传完成或其他设备已收到 |
-| OneDrive Personal | 普通上传上限 250 MiB；未发布 session 上传支持非空普通文件至 5 GiB | 不支持最终 ETag 条件替换；session 需显式启用，非自动后台备份 |
+| OneDrive Personal | 普通上传上限 250 MiB；自 `v0.4.0` 提供的 session 上传支持非空普通文件至 5 GiB | 不支持最终 ETag 条件替换；session 需显式启用，非自动后台备份 |
 
 备份保留数量、命名、过期判断、删除确认和定时执行由宿主实现。iCloud 检测到未解决冲突会拒绝，不自动选择获胜版本。跨设备恢复可作为宿主产品目标，但传播、冲突和真实设备行为仍须单独验证。
 
@@ -127,7 +127,7 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 
 **适合的产品：** 用户选中一批资料后下载、打开页面前准备多个附件、限制同时从多个来源读取文件的 App。
 
-未发布 `RemoteTransferCoordinator` 可以注册多个来源绑定，控制全局与每来源的活动传输数；提供任务 ID、快照、阶段进度、显式取消和 shutdown。返回的是本地文件 lease，既有消费者不因另一个消费者取消就失去文件。
+自 `v0.4.0` 提供的 `RemoteTransferCoordinator` 可以注册多个来源绑定，控制全局与每来源的活动传输数；提供任务 ID、快照、阶段进度、显式取消和 shutdown。返回的是本地文件 lease，既有消费者不因另一个消费者取消就失去文件。
 
 需要获取较大完整文件时，还可显式启用 [单文件分片策略](Transfer.md#可插拔的单文件并行分片下载)。公共层复用调度、合并和发布；其他来源实现强版本有界读取协议即可接入。当前内置只有 WebDAV，要求服务器正确支持 Range/强 ETag，不能承诺一定加速；失败清理片数据，不提供分片持久恢复。
 
@@ -148,8 +148,8 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 
 | 路径 | 当前实现 | 宿主的关键责任 |
 | --- | --- | --- |
-| WebDAV → 本地 | 已有 provider 专用 checkpoint 恢复；未发布 Transfer 增加统一入口与合作进程目标锁。需要强 ETag、已知大小及服务器 Range 支持 | 保持同一账号/根绑定、目标和私有锁目录，保留 part/checkpoint；显式重建连接后继续 |
-| 本地 → OneDrive Personal | 未发布 Upload Session。仅路径目标、非空普通文件 ≤5 GiB；设备内 session 记录与私有快照 | 先本地 prepare，再保存 handle，最后 resume；管理独立 Keychain service、磁盘空间、结果持久化与显式清理 |
+| WebDAV → 本地 | 已有 provider 专用 checkpoint 恢复；自 `v0.4.0` 提供的 Transfer 增加统一入口与合作进程目标锁。需要强 ETag、已知大小及服务器 Range 支持 | 保持同一账号/根绑定、目标和私有锁目录，保留 part/checkpoint；显式重建连接后继续 |
+| 本地 → OneDrive Personal | 自 `v0.4.0` 提供的 Upload Session。仅路径目标、非空普通文件 ≤5 GiB；设备内 session 记录与私有快照 | 先本地 prepare，再保存 handle，最后 resume；管理独立 Keychain service、磁盘空间、结果持久化与显式清理 |
 | Local/iCloud 手动下载续传 | 有 offset/part 接口，无通用 checkpoint 跨进程恢复协议 | 自行核对源版本、偏移与 part，不能将其宣传为自动重启恢复 |
 | OneDrive 下载、WebDAV/Local/iCloud 上传 | 没有对应的恢复适配 | 不能因为另一个方向支持恢复而推断本方向也支持 |
 
@@ -183,10 +183,10 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 | --- | --- |
 | 只浏览、下载或执行明确文件操作 | Kit 中的来源协议与对应 provider；无需初始化 Catalog 或 Transfer |
 | 保存来源、记住根目录、离线展示目录 | 在来源能力之外使用 Catalog；正文下载另行处理 |
-| 获得统一生命周期的本地文件 URL | 未发布 `RemoteFileMaterializer` + lease；多个任务再加入 coordinator |
-| 单文件并行分片获取 | 未发布 materializer 的分片策略；来源需实现 `RemoteByteRangeSource`，当前内置 WebDAV |
-| 恢复 WebDAV 下载 | provider 专用 API，或未发布 `RemoteDownloadRecovery` + 明确的合作目标锁 |
-| 恢复 OneDrive 上传 | 专用 opt-in `OneDriveSource` + 未发布 `RemoteUploadRecovery`；独立于 coordinator/Catalog |
+| 获得统一生命周期的本地文件 URL | 自 `v0.4.0` 提供的 `RemoteFileMaterializer` + lease；多个任务再加入 coordinator |
+| 单文件并行分片获取 | materializer 自 `v0.4.0` 起提供分片策略；来源需实现 `RemoteByteRangeSource`，当前内置 WebDAV |
+| 恢复 WebDAV 下载 | provider 专用 API，或自 `v0.4.0` 提供的 `RemoteDownloadRecovery` + 明确的合作目标锁 |
+| 恢复 OneDrive 上传 | 专用 opt-in `OneDriveSource` + 自 `v0.4.0` 提供的 `RemoteUploadRecovery`；独立于 coordinator/Catalog |
 | iCloud 备份 | 直接持有 `ICloudDriveSource`，由宿主配置 entitlement、目录和备份规则；不要通过 Local 模拟 |
 
 只需要一个入口包，不代表必须启用所有模块。Catalog 刷新不会自动下载正文，Transfer 不会自动连接账号，两者尚未形成统一的持久任务或内容缓存系统。

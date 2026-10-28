@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按 `v0.3.0` 已发布 API 描述；下文标注的 R3 批量状态与 Transfer API 属于当前未发布工作树。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage、阶段进度和 `connectedDriveID()` 自此版本发布，不在 `v0.2.0` 中。
+> 本页按 `v0.4.0` API 描述；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage、阶段进度和 `connectedDriveID()` 自 `v0.3.0` 发布，不在 `v0.2.0` 中。
 
 ## 统一入口与模块
 
@@ -16,7 +16,7 @@
 | `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照 |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
-| `BoneRemoteSyncTransfer` | **未发布**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
+| `BoneRemoteSyncTransfer` | **自 v0.4.0 提供**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
@@ -40,11 +40,11 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 | `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 全部来源 |
 | `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 全部来源 |
 | `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件） |
-| `RemoteByteRangeSource` | **未发布**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
-| `RemoteResumableDownloadSource` | **未发布**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
-| `RemoteResumableUploadSource` | **未发布**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
+| `RemoteByteRangeSource` | **自 v0.4.0 提供**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
+| `RemoteResumableDownloadSource` | **自 v0.4.0 提供**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
+| `RemoteResumableUploadSource` | **自 v0.4.0 提供**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
 
-`walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。低层 `maxConcurrentTransfers` 只是建议值；未发布 `RemoteTransferCoordinator` 将它作为各 binding 的调度上限输入，同时实施自身全局限制，不能限制绕过该 coordinator 的调用。
+`walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。低层 `maxConcurrentTransfers` 只是建议值；`RemoteTransferCoordinator` 将它作为各 binding 的调度上限输入，同时实施自身全局限制，不能限制绕过该 coordinator 的调用。
 
 ## 连接、取消与清理
 
@@ -225,7 +225,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 - 上传来源在读取期间保持稳定；下载目标位于应用有权且可独占控制的目录。
 - 后台任务、带宽限制、全局并发、应用级重试和同步冲突策略。
 
-应用层路径验证不构成抵抗恶意父目录替换的 sandbox。SDK 不提供跨进程锁、自动垃圾回收或硬件断电持久性保证。
+应用层路径验证不构成抵抗恶意父目录替换的 sandbox。普通来源操作不提供通用跨进程锁；显式恢复下载和 OneDrive Upload Session 分别提供要求所有参与者遵循同一协议的本地合作锁，详见 [Transfer](Transfer.md)。SDK 不提供自动垃圾回收或硬件断电持久性保证。
 
 ## 列表完整性与缓存消费者
 
@@ -237,6 +237,6 @@ Core 提供 `RemoteLogger` 与白名单结构化事件，默认关闭输出；Ca
 
 ## 显式可恢复上传
 
-> 本节属于当前未发布工作树，不包含在 `v0.3.0` 标签中。
+> 本节 API 自 `v0.4.0` 提供，不包含在 `v0.3.0` 标签中。
 
 `RemoteResumableUploadSource` 定义本地prepare、resume、checkpoint和abort；`RemoteUploadRecovery`是仅依赖Core的显式通用适配，不自动加入下载coordinator。`RemoteResumableUploadOptions.overwrite`默认**false**，与普通上传不同。宿主先保存prepare返回的非秘密handle，再启动resume；结果区分committed与committedCleanupPending，后者不等于未提交。OneDrive仅在专用构造器启用，条件ETag替换仍unsupported。详见[Transfer恢复上传](Transfer.md#显式恢复上传onedrive)及[OneDrive合同](OneDrive.md#upload-session-可恢复上传显式-opt-in)。

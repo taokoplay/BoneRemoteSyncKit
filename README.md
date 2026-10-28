@@ -4,7 +4,7 @@
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
-> 当前发布版本为 **`v0.3.0`**，包含 [Catalog 配置持久化与目录缓存](Docs/Catalog.md)、结构化日志、[iCloud Drive 来源及备份 R1/R2 契约](Docs/ICloudDrive.md)、OneDrive 稳定 ID 读取和 WebDAV 条件上传。当前工作树另含**尚未发布**的 iCloud R3 批量状态、[Transfer 物化/前台调度/分片下载/显式恢复](Docs/Transfer.md)及 OneDrive Upload Session 可恢复上传。这些未发布能力不在 `v0.3.0` 标签中；业务适用性见[场景指南](Docs/UseCases.md)，版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+> 当前发布版本为 **`v0.4.0`**。在 `v0.3.0` 的 [Catalog 配置与目录缓存](Docs/Catalog.md)、结构化日志、[iCloud Drive 及备份契约](Docs/ICloudDrive.md)、OneDrive 稳定 ID 读取和 WebDAV 条件上传基础上，新增 iCloud R3 批量状态、[Transfer 物化/前台调度/分片下载/显式恢复](Docs/Transfer.md)及 OneDrive Upload Session 可恢复上传。新能力不包含在旧 `v0.3.0` 标签中；业务适用性见[场景指南](Docs/UseCases.md)，版本变化及迁移要求见[更新说明](CHANGELOG.md)。
 
 > 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB 和其他网盘适配器尚未实现；iCloud Drive 来源已新增，真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
 
@@ -17,10 +17,10 @@
 | 业务方向 | 当前能提供什么 | App 仍需实现什么 |
 | --- | --- | --- |
 | 多来源文件管理器 / NAS 浏览器 | 统一浏览、文件信息、读写与目录管理；NAS 通过 WebDAV 接入 | UI、账号和目录授权、破坏性操作确认；不是 SMB 客户端 |
-| 文档阅读 / 笔记附件 / 媒体导入 | 下载完整文件；未发布 Transfer 提供本地 URL、复用与 lease | 解析、预览、播放、缩略图和编辑；不支持通用边下边播 |
+| 文档阅读 / 笔记附件 / 媒体导入 | 下载完整文件；Transfer 提供本地 URL、复用与 lease | 解析、预览、播放、缩略图和编辑；不支持通用边下边播 |
 | 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询 | 正文离线保存、刷新触发与状态展示；Catalog 暂不支持 iCloud |
 | 备份与恢复 | 上传宿主生成的备份包、列出备份、下载及显式删除 | 数据一致性导出、打包/加密、保留策略、恢复安装；iCloud 写成功不等于云端已同步 |
-| 前台批量获取与中断恢复 | 未发布 Transfer 限制下载并发，并提供可插拔单文件分片下载（首个适配 WebDAV）；WebDAV 可恢复下载，未发布 OneDrive 可恢复上传 | 持久任务、后台执行、显式继续与未知结果核对；不是所有来源双向都能续传 |
+| 前台批量获取与中断恢复 | Transfer 限制下载并发，并提供可插拔单文件分片下载（首个适配 WebDAV）；WebDAV 可恢复下载，OneDrive 可恢复上传 | 持久任务、后台执行、显式继续与未知结果核对；不是所有来源双向都能续传 |
 | 跨来源一次性导入 / 导出 | 宿主可组合“下载到本地 → 上传到另一来源” | 两段操作的编排与结果核对；没有跨来源直传、原子移动或回滚 |
 
 完整的业务流程、模块选择、版本范围及宿主职责见 **[业务能力与适用场景](Docs/UseCases.md)**。
@@ -42,7 +42,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ## 能力矩阵
 
-下表按**当前工作树**列出。标记 **「未发布」** 的 Transfer 队列、物化、分片及 OneDrive Upload Session 不包含在 `v0.3.0` 中；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
+下表按 **`v0.4.0`** 列出。标记 **「v0.4.0 新增」** 的 Transfer 队列、物化、分片及 OneDrive Upload Session 不包含在 `v0.3.0` 中；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
 
 | 功能 | 本地目录 | WebDAV | OneDrive Personal | iCloud Drive |
 | --- | --- | --- | --- | --- |
@@ -60,14 +60,14 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 | 重命名 / 移动文件或目录 | 支持，目标须不存在 | 支持，MOVE / 非覆盖 | 支持，先查目标再 PATCH；不保证原子非覆盖 | 支持，协调移动 / 非覆盖 |
 | 删除文件 / 递归删除目录 | 支持 | 支持 | 支持 | 支持；不是仅清理本地缓存 |
 | 来源内复制文件 / 目录 | 均支持 | 均支持，服务端 COPY | 不支持 | 仅普通文件，不支持目录复制 |
-| 多文件下载队列与并发 **「未发布」** | 可批量提交；单实例同步复制仍串行 | 支持多文件并发，受调度上限约束 | 支持多文件并发，受调度上限约束 | 可批量排队；同一 binding 串行调度 |
+| 多文件下载队列与并发 **「v0.4.0 新增」** | 可批量提交；单实例同步复制仍串行 | 支持多文件并发，受调度上限约束 | 支持多文件并发，受调度上限约束 | 可批量排队；同一 binding 串行调度 |
 | 来源声明的传输上限输入¹ | 4 | 3 | 3 | 1 |
-| 单文件并行分片下载 **「未发布」** | 未适配 | 支持，需强 ETag、已知非零大小及正确 Range 响应；显式启用 | 未适配 | 未适配 |
+| 单文件并行分片下载 **「v0.4.0 新增」** | 未适配 | 支持，需强 ETag、已知非零大小及正确 Range 响应；显式启用 | 未适配 | 未适配 |
 | 手动指定 offset 下载续传 | 支持，宿主管理 part 与偏移 | 支持，需强 ETag / Range | 不支持 | 支持，本地启发式指纹；不是云端分片 |
 | checkpoint / 跨进程下载恢复² | 不支持 | 支持，需强 ETag、已知大小及持久 part / checkpoint | 不支持 | 不支持 |
-| 分片上传 / 上传续传 **「未发布」** | 不支持 | 不支持 | Upload Session 顺序分片与恢复；专用构造器 opt-in，0 < 文件大小 ≤5 GiB | 不支持 |
+| 分片上传 / 上传续传 **「v0.4.0 新增」** | 不支持 | 不支持 | Upload Session 顺序分片与恢复；专用构造器 opt-in，0 < 文件大小 ≤5 GiB | 不支持 |
 | 传输字节进度 / 协作式取消 | 支持 | 支持 | 支持 | 支持本地复制进度；不提供云端传输百分比 |
-| 完整文件物化 / lease / 进程内缓存 **「未发布」** | 支持 | 支持 | 支持 | 支持 |
+| 完整文件物化 / lease / 进程内缓存 **「v0.4.0 新增」** | 支持 | 支持 | 支持 | 支持 |
 | Catalog 配置与离线目录索引 | 支持 | 支持 | 支持 | 未接入 |
 | 来源提供内容哈希 / 远端变更流 | 均不支持 | 均不支持 | 均不支持 | 均不支持 |
 
@@ -75,7 +75,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 - **¹ 并发不是线程数。** `capabilities.maxConcurrentTransfers` 在低层是建议值，Transfer 将它作为各 binding 的上限输入，同时受 coordinator 的全局任务上限限制；单 materializer 构造的 coordinator 默认全局上限为 **1**，需要多文件并发时显式调高。同一 materializer 的普通下载和分片请求还共享来源 I/O 上限，但不包含 stat。不同实例或绕过入口的调用不受同一上限约束。本地来源虽声明 4，当前单实例同步复制仍在 actor 内串行执行，不能据此承诺 4 路磁盘复制；iCloud 声明 1，文件 I/O 使用串行协调队列。详见 [Transfer 调度](Docs/Transfer.md#调度进度与取消)。
 - **多文件并发、分片下载与续传是三种能力。** 分片下载默认关闭，WebDAV 可通过 `.segmentedIfSupported()` / `.segmentedRequired()` 启用；默认每片 4 MiB、片并发 3、阈值 8 MiB。它不保存持久分片进度，不能与 checkpoint 恢复混用。其他网盘实现 `RemoteByteRangeSource` 后可复用公共调度与合并，见[分片下载扩展合同](Docs/Transfer.md#可插拔的单文件并行分片下载)。多连接不保证加速。
-- **² 恢复入口有版本区别。** WebDAV 原有 `downloadResumable` 已提供 checkpoint；通用 `RemoteDownloadRecovery`、提交回执与合作进程锁属于未发布扩展。OneDrive Upload Session 是**顺序分片上传，不是并行上传**。当前没有通用上传调度队列；显式恢复入口也不自动加入下载 coordinator。
+- **² 恢复入口有版本区别。** WebDAV 原有 `downloadResumable` 已提供 checkpoint；通用 `RemoteDownloadRecovery`、提交回执与合作进程锁自 `v0.4.0` 提供。OneDrive Upload Session 是**顺序分片上传，不是并行上传**。当前没有通用上传调度队列；显式恢复入口也不自动加入下载 coordinator。
 - **“修改内容”不是在线编辑。** 宿主先取得完整文件、自行编辑，再上传整个文件；SDK 不提供文档编辑器、局部字节写入或增量补丁。重命名与移动走独立接口。取消、超时或丢失写入响应不证明远端操作未发生，不能当作自动回滚。
 - **元数据与缓存有边界。** 列表完整性以 `coverage` 为准；单页或无下一页不证明完整。文件分类只是 MIME / 扩展名提示。Catalog 只存配置和目录元数据，不存文件正文；Transfer 缓存仅在当前 materializer 生命周期内保留。来源不提供内容哈希，但 Transfer 可用宿主提供的可信 SHA-256 验证完整下载；ETag 不是内容哈希。详见 [API](Docs/API.md) 与 [Transfer](Docs/Transfer.md)。
 
@@ -98,15 +98,15 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ### Xcode
 
-添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.3.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
+添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.4.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.3.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.3.0"` 改为 `branch: "main"`。截至 2026-10-28（GMT+8），R3、Transfer 和 OneDrive Upload Session 仅在本地 Git 提交中，尚未推送；切换到远端 `main` 不会取得它们。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.4.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.4.0"` 改为 `branch: "main"`。R3、Transfer 和 OneDrive Upload Session 已包含在 `v0.4.0` 中，无需改用开发分支。
 
 ```swift
 // Package.dependencies
-.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.3.0")
+.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.4.0")
 ```
 
 ```swift
@@ -220,7 +220,7 @@ func transferFile(
 | --- | --- |
 | [业务能力与适用场景](Docs/UseCases.md) | 能构建哪些业务、典型流程、模块选择、宿主职责与不适用范围 |
 | [更新说明](CHANGELOG.md) | 版本功能、缺陷修复、版本策略与行为变化、已知限制 |
-| [文件物化、前台调度与恢复传输](Docs/Transfer.md) | 未发布：本地文件 lease、缓存复用、有界下载队列、可插拔分片下载、WebDAV 恢复下载与 OneDrive 恢复上传 |
+| [文件物化、前台调度与恢复传输](Docs/Transfer.md) | 自 v0.4.0 提供：本地文件 lease、缓存复用、有界下载队列、可插拔分片下载、WebDAV 恢复下载与 OneDrive 恢复上传 |
 | [配置持久化与离线目录索引](Docs/Catalog.md) | 非敏感配置、Keychain 桥接、根选择、目录/子树刷新与恢复 |
 | [通用 API 与生命周期](Docs/API.md) | 模块、协议、路径、分页、遍历、错误、进度与宿主职责 |
 | [本地目录](Docs/Local.md) | 本地读写、落盘、符号链接和权限边界 |
@@ -244,10 +244,10 @@ HTTP 集成测试在 macOS 上运行，需要 `/usr/bin/python3`（Python 3.8+�
 
 截至 **2026-10-27（GMT+8）**，`v0.3.0` 所含实现最终串行全包 **392 项测试通过**，Release、独立 Kit 消费端、七模块及 iCloud 示例的四目标编译/链接检查通过；指南 3 个 Swift 片段四目标类型检查通过。这些结果不等于真实服务兼容性、最低 OS 真机或云端传播验收。
 
-截至 **2026-10-28（GMT+8）**，当前未发布工作树最近一轮分片下载实现验证为 **506 项全包测试通过**，另通过 Release、八模块四目标编译链接及独立 Kit 分片消费端检查；此前恢复传输另有受控跨进程验证。这些是已有实现验证记录，本次介绍表格更新未重跑实现测试，不代表真实账号、Keychain、最低系统运行或大文件性能已验收。
+截至 **2026-10-28（GMT+8）**，`v0.4.0` 发布前重新运行串行全包，**506 项测试通过**，并通过 Release 与独立 Kit 分片消费端检查。八模块四目标编译链接、文档示例类型检查及恢复传输的受控跨进程证据沿用同一实现的既有结果，不代表真实账号、Keychain、最低系统运行或大文件性能已验收。
 
-发布版本结果见 [v0.3.0 验证](Docs/Validation.md#v030-icloud-备份-r1r2-验证)，当前开发能力见[分片下载验证](Docs/Validation.md#未发布可插拔单文件并行分片下载)与[阶段5上传验证](Docs/Validation.md#未发布阶段5-onedrive-upload-session-验证)。历史 WebDAV 并发短 deadline 风险仍保留；旧 `v0.1.0`、`v0.2.0` 标签不变，不包含后续新增功能。
+本次结果见 [v0.4.0 发布前验证](Docs/Validation.md#v040-发布前验证)，详细证据见[分片下载验证](Docs/Validation.md#v040可插拔单文件并行分片下载)与[阶段5上传验证](Docs/Validation.md#v040阶段5-onedrive-upload-session-验证)。[v0.3.0 验证](Docs/Validation.md#v030-icloud-备份-r1r2-验证)保留为历史结果。历史 WebDAV 并发短 deadline 风险仍保留；旧 `v0.1.0`、`v0.2.0`、`v0.3.0` 标签不变，不包含后续新增功能。
 
 ### 错误日志
 
-`v0.3.0` 提供可注入的结构化 `RemoteLogger`，默认不输出、不落盘；数据库初始化与 Catalog 高层操作已接入。直接使用来源模块可在宿主调用边界复用，详见[错误日志规范](Docs/Logging.md)。不要直接记录包含路径或底层消息的原始错误描述。
+自 `v0.3.0` 提供可注入的结构化 `RemoteLogger`，默认不输出、不落盘；数据库初始化与 Catalog 高层操作已接入。直接使用来源模块可在宿主调用边界复用，详见[错误日志规范](Docs/Logging.md)。不要直接记录包含路径或底层消息的原始错误描述。
