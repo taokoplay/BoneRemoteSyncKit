@@ -51,7 +51,7 @@
 
 ## 写入与大文件
 
-SDK 还支持上传、递归建目录、删除和移动，见 [OneDrive 写入能力](../../Docs/OneDrive.md#写入能力与限制)。当前 Simple upload 上限为 250 MiB，没有 Upload Session、上传续传、下载续传或服务端复制。
+SDK 还支持上传、递归建目录、删除和移动，见 [OneDrive 写入能力](../../Docs/OneDrive.md#写入能力与限制)。Simple upload 上限为 250 MiB；Upload Session 可恢复上传需使用专用构造器显式 opt-in，普通构造器不启用。下载续传和服务端复制仍不支持。
 
 ## 真实账号验收清单
 

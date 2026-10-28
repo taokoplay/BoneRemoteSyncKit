@@ -2,7 +2,77 @@
 
 [返回项目首页](../README.md)
 
-本页区分实现、受控测试、平台编译与真实服务验收。当前结果截至 **2026-10-27（GMT+8）**，对应 `v0.3.0` 所含实现：Catalog、日志、首轮 iCloud、第二轮通用文件语义及 R1/R2 备份接入契约。以 Git 附注标签发布，不另外创建 GitHub Release。原 `v0.1.0` 与 `v0.2.0` 不变，新能力均不在这些标签内。历史元数据结果对应 `0579c64` / `v0.2.0`，各阶段测试数量对应当时源码，不是后续任意版本的保证。
+本页区分实现、受控测试、平台编译与真实服务验收。已发布版本的结果截至 **2026-10-27（GMT+8）**，对应 `v0.3.0` 所含实现：Catalog、日志、首轮 iCloud、第二轮通用文件语义及 R1/R2 备份接入契约。以 Git 附注标签发布，不另外创建 GitHub Release。原 `v0.1.0` 与 `v0.2.0` 不变，新能力均不在这些标签内。历史元数据结果对应 `0579c64` / `v0.2.0`，各阶段测试数量对应当时源码，不是后续任意版本的保证。
+
+## 未发布：统一文件服务第一阶段
+
+截至 **2026-10-28（GMT+8）**，当前工作树新增 Core 引用/版本契约与 `BoneRemoteSyncTransfer`，由单一 Kit 入口导出；同时保留未发布的 iCloud R3 批量状态改动。**以下结果不属于已发布的 `v0.3.0`；本地 Git 提交尚未推送，也未创建新标签。** 用法与生命周期边界见 [Transfer](Transfer.md)。
+
+| 检查 | 结果与范围 |
+| --- | --- |
+| 最终串行全包 | **435 项通过**：39 XCTest + 396 Swift Testing（WebDAV 129、Transfer 24、OneDrive 60、Kit 3、iCloud 47、Core/Local 77、Catalog 56）；参数化 case 不另计 |
+| 生命周期行为红绿 | 共享 lease 计数、独立取消/最后消费者取消、无版本不复用、来源并发限制、错误脱敏、Core 解码、SHA-256 校验、并发 release 等待、阶段字节不归零及初始 stat shutdown 有实际失败→通过证据；新增 API 与部分集成为补充验证 |
+| 四来源物化 | Local 临时目录；WebDAV 强 ETag/If-Match localhost fixture；OneDrive 使用来源返回的完整 ID、CDN 不携带 bearer 的 localhost fixture；iCloud 本地容器 seam。没有真实账号验收 |
+| Release/Kit consumer | Release 通过；外部包只依赖/导入 Kit，执行 Local 文件→coordinator→lease→release/shutdown，无分模块 import |
+| 最低目标编译 | macOS12、iOS15/tvOS15/visionOS1 Simulator，Core/Local/ICloud/WebDAV/OneDrive/Catalog/Transfer/Kit 八模块编译链接及 iCloud 示例类型检查通过 |
+| 文档/包 | Package dump/describe、15 份 Markdown 的 116 个本地文件链接、Transfer Swift 示例类型检查及 `git diff --check` 通过 |
+| 独立审查 | 中断后续接完成，未确认高严重度问题；提出的 localhost URL guard 优先级问题经精确错误回归无法复现，不修改正确实现。审查不等同真实服务验收 |
+
+工具链仍为 Swift 6.4 / Swift 6 语言模式；不是 Swift 6.0 编译器、最低系统或真机运行验收。该阶段只提供进程内物化和前台有界调度；当时尚未接入通用恢复。后续阶段4结果见下节；OneDrive 专用 Upload Session、可恢复上传与安全 session 持久化在当前未发布工作树已接入，但不自动加入 Transfer coordinator，真实账号/Keychain/设备验收仍待完成。
+
+验证中曾遇到主机空间不足（创建临时目录报 ENOSPC），恢复磁盘空间后重跑；这是环境失败，不作行为红灯。OneDrive 新 smoke 初版误用了原始 Graph item ID，来源按合同拒绝；测试改用 stat 返回的完整不透明 ID 后通过，没有放宽来源校验。最终日志位于会话工作台 `transfer-final-*`，不作为仓库资源分发。
+
+## 未发布：阶段4 WebDAV 通用恢复适配
+
+截至 **2026-10-28（GMT+8）**，新增 Core 可选恢复契约、只读 checkpoint 投影、Transfer 独立恢复服务及显式本地目标互斥，WebDAV 复用原有 provider checkpoint。未将物化队列改成持久任务系统，没有更改发布标签。
+
+| 检查 | 结果与范围 |
+| --- | --- |
+| 最新串行全包 | **450 项通过**：39 XCTest + 411 Swift Testing（WebDAV 134、Transfer 33、OneDrive 60、Kit 3、iCloud 47、Core/Local 78、Catalog 56），参数化 case 不另计 |
+| 新合同与行为 | 先运行缺失新 API 的编译失败，再接入并通过；不把该编译失败称为行为红灯。锁目录不能作为下载目标有实际断言失败→修复→通过；后补 checkpoint 不变量、祖先别名、取消/进程互斥为补充验证 |
+| 生命周期/安全 | 取消后新来源实例继续；wrong binding/不支持来源提前拒绝；版本、locator、inode/前缀改变无 GET；ready 与 committed-cleanup-pending 分离；通用适配层抛错/取消后释放锁，提交后取消保留回执；残留 checkpoint 清理不重复 GET；锁文件 symlink/hardlink 拒绝，checkpoint 不存原始 binding 路径 |
+| 独立进程 | 同一锁目录下第二个实际 Kit recovery 进程的 checkpoint 与 download 均被锁拒绝，原 part/sidecar 未变；首进程确认 131072 字节后 SIGKILL，新进程从 `Range: bytes=131072-` 恢复，最终 SHA-256 一致、共2 GET；仅 localhost 合成 fixture |
+| Release/平台/Kit | Release、四最低目标八模块编译链接+iCloud示例通过；外部独立消费端仅依赖/导入Kit执行恢复流程；不是最低OS或真实NAS运行验收 |
+| 文档/包 | 15份Markdown的118个本地文件链接、两个Transfer Swift示例类型检查、package dump/describe及diff格式检查通过 |
+| 独立审查 | 已完成；未确认当前合同内的确定性缺陷。补充通用适配释放路径和实际 recovery 进程竞争验证；账号 identity 与当前凭据的关联、已有 checkpoint 权限隔离仍由宿主保证，已明确写入文档 |
+
+日志保留在会话工作台 `recovery-*.log`，独立消费端及过程驱动为 `recovery-consumer/` 和 `verify-recovery-process.py`。默认恢复下载不覆盖已有目标；跨进程互斥以所有参与者使用同一稳定私有本地锁目录为前提，不约束绕过协议的写入。锁文件不自动删除，不提供分布式锁、断电目录项持久保证或未知已提交结果的无限期幂等识别。读取 checkpoint 只证明本地观察通过，远端版本在实际继续时重验。真实 WebDAV/NAS、大文件吞吐、磁盘故障和权限环境尚未验收。
+
+## 未发布：阶段5 OneDrive Upload Session 验证
+
+截至 **2026-10-28 17:30 GMT+8**，当前工作树已接入Core上传恢复合同、Transfer显式 `RemoteUploadRecovery` 与OneDrive Personal专用Upload Session。普通OneDrive构造器仍为false，仅专用 `resumableUploadService` 构造器启用。没有自动加入coordinator/Catalog、后台队列或发布版本。
+
+| 检查 | 当前结果与证明范围 |
+| --- | --- |
+| 最终串行全包 | **486项通过**：39 XCTest + 447 Swift Testing（WebDAV134、Transfer33、OneDrive92、Kit4、iCloud47、Core/Local81、Catalog56）。参数化case不另计；日志 `upload-reviewed-full.log`。 |
+| 上传与安全定向 | 28项Upload Session + 4项URL/Keychain后端替身 + 3项Core合同。覆盖local-only prepare、默认不覆盖/拒绝条件ETag、GET/202省略URL、连续确认前缀、无进展416/202边界、长Retry-After、创建/最终/abort丢响应、明确拒绝/冲突、快照中途变化、回执持久化失败和重复领取、终态forget及核对期间取消/安全存储读失败。Kit另覆盖统一导出/能力/binding拒绝。 |
+| 行为红绿 | 条件ETag、最终意图保存、回执持久化、生命周期、Core解码、创建429与最终冲突错误分类、核对中取消且存储不可读等有实际失败→修复→通过记录；其余补充测试不宣称均经历行为红灯。构建超时/测试编译错误不是有效红灯。 |
+| 实际跨进程 | 原进程确认327680字节后持锁暂停，第二进程checkpoint/resume/abort均被锁拒绝，记录/快照未变；SIGKILL后新进程恢复同一session，900000字节SHA-256一致，仅1次POST与3次顺序PUT。第三进程直接领取持久回执，不再请求session。使用仅接受localhost合成URL的文件store替身，不访问真实Keychain。 |
+| Release/四目标 | 最后实现后的Release通过；macOS12、iOS15/tvOS15/visionOS1 Simulator目标八模块编译链接及iCloud示例通过。工具链Swift6.4/Swift6模式；不是Swift6.0编译器或最低OS运行验收。 |
+| 独立Kit消费端 | 外部包仅依赖/导入Kit，执行通用协议fixture的prepare→保存/解码handle→checkpoint→resume→回执，并构造OneDrive opt-in验证能力；无真实Keychain I/O。实际OneDrive跨进程probe另用内部测试seam，不能混称仅公共API的真实云端测试。 |
+| 独立审查 | 只读审查与增量复核已收敛，确认创建拒绝/最终冲突修复；最后指出的取消时存储读取失败分支由父会话补行为红灯并修复，最终全包通过。审查者未运行测试，最后这项修复未再请求独立复核。 |
+
+过程日志位于会话工作台 `upload-*.log`，进程驱动为 `UploadProcessProbe.swift` / `verify-upload-process.py`，外部单产品包为 `upload-consumer/`。这些是开发证据，不作为生产资源分发。15份Markdown的128个本地链接、22个标题锚点、OneDrive恢复上传及两段Transfer示例类型检查、package dump/describe与 `git diff --check` 均通过；包结构确认Transfer只依赖Core。
+
+**仍未验收/未提供：** 真实Microsoft Graph账号与OAuth轮换、真实Keychain entitlement/签名/沙箱、移动设备/最低OS运行、断电/磁盘故障、大文件吞吐与跨设备。当前5 GiB上限、非空普通文件、路径目标、默认非覆盖；最终ETag条件替换仍unsupported。未知创建/提交/abort保留证据，不自动新建/删除，尚无人工归属确认后的通用清扫API。快照目录不得在同步根内，由宿主保证；合作锁不防绕过协议的进程。阶段6 Catalog可选集成尚未实施；截至本阶段验证时尚未提交，后续本地 Git 提交不代表已推送或发布。
+
+## 未发布：可插拔单文件并行分片下载
+
+截至 **2026-10-28（GMT+8）**，Core 新增 `RemoteByteRangeSource` / `RemoteByteRange`，Transfer 通过显式策略复用物化生命周期，首个内置适配为 WebDAV。默认仍顺序下载；这是未发布开发版本的能力，不在 `v0.3.0` 中；本地 Git 提交尚未推送，也未发布。
+
+| 检查 | 当前结果与证明范围 |
+| --- | --- |
+| 最终串行全包 | **506 项通过**：39 XCTest + 467 Swift Testing（WebDAV 142、Transfer 45、OneDrive 92、Kit 4、iCloud 47、Core/Local 81、Catalog 56）。参数化 case 不另计；日志 `segmented-final-full.log`。 |
+| 新增公共层测试 | 12 项，覆盖非 WebDAV 来源协议复用、首片探测、乱序拼装与尾片、共享来源请求上限、普通/分片混用、进度、取消/shutdown 排空、缓存策略隔离、强版本/阈值、错误摘要与元数据变化、非法配置及溢出。 |
+| 新增 WebDAV 测试 | 8 项，包含参数化场景：精确闭区间/同版本、忽略 Range 的显式降级、坏区间/ETag/长度/编码、412/416、无强版本/空文件、断开不发布、畸形 200 不降级、503 重试保持同 Range/If-Match、无 Content-Length 的 chunked 短读/超额读取。超额后保持连接 5 秒的 fixture 在 3 秒断言内退出。 |
+| 红绿与补充验证 | 公共策略和 WebDAV 适配有实际行为失败→实现→通过记录。审查提出的畸形 200 误降级、Range 忽略已有有限重试也分别复现后修复；chunked 正文检查为首次即通过的补充验证。编译错误不计为行为红灯。 |
+| 独立审查 | 只读对抗审查及增量复核已收敛；两项 P2 修复确认关闭，未发现新增明确阻断。审查者未运行测试，运行证据由主会话取得。 |
+| Release / 最低目标 | 最终实现后 Release 通过；macOS12、iOS15/tvOS15/visionOS1 Simulator 八模块编译链接及 iCloud 示例通过，Transfer 三段完整使用示例四目标类型检查通过。仍为 Swift6.4 / Swift6 模式，不是 Swift6.0 编译器或最低系统实机验收。 |
+| 独立 Kit 消费端 | 外部包只依赖/导入 Kit，自定义 `.cloudAPI` fixture 仅实现公共区间协议，经 coordinator 强制分片与强版本请求，8 片还原 59 字节并验证 lease 清理；未导入内部模块，未调用真实网盘。 |
+
+文档包括 [Transfer 接入与扩展合同](Transfer.md#可插拔的单文件并行分片下载)、WebDAV 行为、业务场景、README 与更新说明。开发证据位于会话工作台 `segmented-*.log`、`segmented-consumer/`、`SegmentedTransferDocExamples.swift`，不是生产资源。
+
+**仍未提供或验收：** 持久分片 bitmap、跨进程分片续传、自动后台调度、自适应测速、分片上传，以及其他内置来源的闭区间适配。真实 NAS/网盘兼容性、公网吞吐、大文件峰值内存、磁盘故障、最低系统及真机运行未验收。并发 gate 只约束同一 materializer 的普通下载/区间请求，不约束 metadata、其他实例或绕过入口的调用；没有进程总内存保证。分片并发不等于必然加速，localhost 通过不能推广为真实服务验收。
 
 ## 本地验证命令
 
@@ -60,7 +130,7 @@ Q1–Q7、显式 `/Documents/Backup` 初始化与恢复/上传/保留清理示�
 | 最低目标 | macOS12、iOS15/tvOS15/visionOS1 四目标，七模块编译/链接与 iCloud 示例类型检查通过 |
 | Package/文档 | `dump-package`、`describe`、Markdown 本地链接、`git diff --check` 通过 |
 
-本轮未进行真实 WebDAV/OneDrive 服务、Microsoft/Apple 账号、跨设备传播或发布验收；OneDrive ID 语义在本地 HTTP fixture 中验证，不能据此声称真实 Graph 行为已验收。未实现 OneDrive Upload Session、ID 写接口、内容摘要自动采集/下载校验、Catalog 稳定 ID 缓存或自动同步引擎。
+本轮未进行真实 WebDAV/OneDrive 服务、Microsoft/Apple 账号、跨设备传播或发布验收；OneDrive ID 与 Upload Session 语义均在本地 HTTP fixture 中验证，不能据此声称真实 Graph 行为已验收。未实现 OneDrive ID 写接口、内容摘要自动采集/下载校验、Catalog 稳定 ID 缓存或自动同步引擎。Upload Session 仍是专用构造器 opt-in，普通 OneDrive 构造器不启用。
 
 ## 历史开发阶段：首轮 iCloud Drive 验证
 
@@ -190,8 +260,8 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 以下是候选方向，不是已发布能力、承诺日期或既定开发顺序：
 
 1. 完成 WebDAV 与 OneDrive 的真实服务读写及异常验收。
-2. OneDrive Upload Session：大文件分片、会话过期与恢复。
+2. 完成 OneDrive Upload Session 的真实 Microsoft 账号、Keychain entitlement、大文件、断电/权限和最低系统验收；实现已在受控 localhost fixture 中覆盖。
 3. iCloud Drive 已有文件来源实现；继续真实宿主验收、NSFileVersion/元数据观察与 Catalog 账号绑定设计。SMB 或其他来源按产品需求选择。
 4. 独立同步层：快照、差异、可预览计划、执行与状态存储，再考虑双向冲突策略。
 
-当前没有自动同步、后台传输、变更流、通用上传续传或统一跨来源事务。尚未实现的来源不得通过空实现或能力声明伪装为可用。
+当前没有自动同步、后台传输、变更流、统一跨来源上传续传或统一跨来源事务。OneDrive 专用 Upload Session 不由 Transfer 自动调度，且只有专用构造器声明可恢复上传；尚未实现的来源不得通过空实现或能力声明伪装为可用。

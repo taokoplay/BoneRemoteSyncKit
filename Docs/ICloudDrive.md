@@ -76,6 +76,8 @@ func browseICloudContainer() async throws -> [RemoteEntry] {
 - `downloadState`：`.notDownloaded`、`.downloading`、`.downloaded`、`.current`、`.unknown` 或 nil。`.downloaded` 只表示已有本地副本，不保证是当前云端版本，因此下载仍等待 `.current`；离线时可能超时。
 - `percentDownloaded`：当前固定 nil；未接入 `NSMetadataQuery`，不虚构百分比进度。`phaseProgress` 提供准备状态变化；原 `progress` 仍只报告本地复制字节数，不是 iCloud 网络下载/上传进度。
 
+当前工作树的 R3 批量读取可使用 `try await source.statuses(paths:)`（尚未随版本标签发布）。它无需先 `connect`，只读取每个路径的本机元数据，不创建目录、不调用 `startDownloading`，返回 `ICloudDriveStatusResult` 数组并保留输入顺序、重复项和每项独立错误。每个结果的 `path` 已归一化；配置根/容器不可用时，每项可得到相同的 unavailable 快照，文件缺失、权限、路径越界和未解决冲突则只失败对应项。空数组不查询系统。它不是原子快照，也不承诺性能提升；取消、断开/重连或查询期间账号变化会使整个调用失败而不返回部分结果。
+
 未知路径、元数据读取失败或取消时，status 可能缺少 item 字段；需要精确失败原因请用 `stat`。status 不改变连接状态。
 
 iCloud 不支持 `RemoteIDAddressableSource` 或 `RemoteUploadOptions.expectedETag`；其 `RemoteEntry.id` 仍是路径相对标识，不应冒充云端稳定 ID。
@@ -180,7 +182,7 @@ func openBackupSource(containerIdentifier: String) async throws -> ICloudDriveSo
 | 编号 | 答复 |
 | --- | --- |
 | Q1 | 已下载文件仍复制到指定目标。非 ubiquitous 或已 current 不调用 startDownloading；downloaded（可能为旧版）仍请求并等待 current。`overwrite=false` 且目标存在为共享 conflict。准备阶段可发生在目标冲突被最终检测之前；失败 part 通常保留，宿主只在确认来源版本、偏移和 part 长度后手动续传。 |
-| Q2 | partial 表示旧 `.name.icloud` 标记、冲突项、越界 symlink 或元数据失败导致漏项；没有逐项失败清单，不能据此认定未列出项被远端删除。不可表示的名称直接报错。1–5 项列表可逐条 status 获取角标，不新增 R3 批量接口。 |
+| Q2 | partial 表示旧 `.name.icloud` 标记、冲突项、越界 symlink 或元数据失败导致漏项；没有逐项失败清单，不能据此认定未列出项被远端删除。不可表示的名称直接报错。列表可用 `statuses(paths:)` 逐项读取准备状态和错误；它不触发 hydration、不是原子快照。 |
 | Q3 | upload 非覆盖且目标存在返回共享 conflict；随机 staging 在调用退出时尽力清理，进程崩溃/断电或清理本身失败不能保证无残留。提交后的返回错误不能证明文件未安装。上传可显式形成父目录。 |
 | Q4 | remove 对非空目录递归删除；只检查操作项冲突，不递归审查所有后代版本。清理备份应只传宿主已选定的文件路径，不能删除来源根。 |
 | Q5 | connect/status 不创建目录，不调用 startDownloading，也不主动读取占位内容；容器解析和元数据查询仍由系统处理，不能承诺系统后台完全零网络流量。 |

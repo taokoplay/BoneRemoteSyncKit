@@ -1,4 +1,4 @@
-import sys, json, re, threading, urllib.parse
+import sys, json, re, threading, urllib.parse, os, time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 log, scenario = sys.argv[1:3]
@@ -12,6 +12,21 @@ def newid():
 
 # id -> {name, parent, folder, content, etag}
 nodes = {'root': dict(name='root', parent=None, folder=True, content=b'', etag='"v1"')}
+sessions = {}
+nextsession = [0]
+
+def new_session(parent, name, behavior):
+    nextsession[0] += 1
+    sid = 's%d' % nextsession[0]
+    sessions[sid] = dict(parent=parent, name=name, content=bytearray(), total=None, behavior=behavior,
+                          put_count=0, committed=False)
+    return sid
+
+def sessionjson(s):
+    n = len(s['content'])
+    ranges = [] if s['committed'] else (["0-"] if n == 0 else ["%d-" % n])
+    return dict(uploadUrl=BASE + str(server.server_port) + '/upload-session/' + s['id'],
+                expirationDateTime='2030-01-01T00:00:00Z', nextExpectedRanges=ranges)
 
 def add(name, parent='root', folder=False, content=b''):
     i = newid()
@@ -49,7 +64,9 @@ class Handler(BaseHTTPRequestHandler):
         with lock, open(log, 'a') as f:
             f.write(json.dumps(dict(method=self.command, path=self.path, body=body,
                                     authorization=self.headers.get('Authorization'),
-                                    contentType=self.headers.get('Content-Type'))) + '\n')
+                                    cookie=self.headers.get('Cookie'),
+                                    contentType=self.headers.get('Content-Type'),
+                                    contentRange=self.headers.get('Content-Range'))) + '\n')
     def reply(self, status, value, headers=None):
         data = value if isinstance(value, bytes) else json.dumps(value).encode()
         self.send_response(status)
@@ -59,7 +76,7 @@ class Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError): pass
     def itemjson(self, i):
         n = nodes[i]
-        value = dict(id=i, name=n['name'], eTag=n['etag'], parentReference=dict(driveId='D'),
+        value = dict(id=i, name=n['name'], eTag=n['etag'], parentReference=dict(driveId='D', id=n['parent']),
                      lastModifiedDateTime='2026-10-20T00:00:00Z')
         if n['folder']:
             value['folder'] = {}
@@ -76,6 +93,35 @@ class Handler(BaseHTTPRequestHandler):
         return p, urllib.parse.unquote(p.path)
     def do_GET(self):
         self.record(); parsed, path = self.target()
+        if path.startswith('/upload-session/'):
+            if os.path.exists(log + '.hold-status'):
+                for _ in range(200):
+                    if not os.path.exists(log + '.hold-status'): break
+                    time.sleep(.025)
+            sid = path.rsplit('/', 1)[-1]
+            if scenario == 'upload-expired' or sid not in sessions:
+                return self.reply(404, dict(error=dict(code='uploadSessionNotFound')))
+            s = sessions[sid]; s['id'] = sid
+            if scenario == 'upload-malformed-ranges':
+                return self.reply(200, dict(uploadUrl=BASE + str(server.server_port) + '/upload-session/' + sid,
+                                           expirationDateTime='2030-01-01T00:00:00Z',
+                                           nextExpectedRanges=['0-10', '10-20']))
+            if scenario == 'upload-noncontiguous-ranges' and s['put_count'] == 0:
+                return self.reply(200, dict(uploadUrl=BASE + str(server.server_port) + '/upload-session/' + sid,
+                                           expirationDateTime='2030-01-01T00:00:00Z',
+                                           nextExpectedRanges=['0-10', '20-']))
+            if scenario == 'upload-session-401':
+                return self.reply(401, dict(error=dict(code='unauthenticated')))
+            if scenario == 'upload-session-409':
+                return self.reply(409, dict(error=dict(code='conflict')))
+            if scenario == 'upload-session-412':
+                return self.reply(412, dict(error=dict(code='preconditionFailed')))
+            if scenario == 'upload-session-500':
+                return self.reply(500, dict(error=dict(code='serverError')))
+            value = sessionjson(s)
+            if scenario == 'upload-no-progress': value['nextExpectedRanges'] = ['0-']
+            if scenario == 'upload-status-without-url': value.pop('uploadUrl')
+            return self.reply(200, value)
         if path.startswith('/download/'):
             i = path.rsplit('/', 1)[-1]
             if i not in nodes: return self.reply(404, b'')
@@ -102,6 +148,20 @@ class Handler(BaseHTTPRequestHandler):
         parsed, path = self.target()
         if path == '/oauth/token':
             return self.reply(200, dict(access_token='REFRESHED', refresh_token='ROTATED', expires_in=3600, token_type='Bearer'))
+        m = re.fullmatch(r'/v1\.0/drives/D/items/([^:]+):/(.+):/createUploadSession', path)
+        if m:
+            payload = json.loads(body)
+            parent, name = m.group(1), urllib.parse.unquote(m.group(2))
+            if parent not in nodes or not nodes[parent]['folder']:
+                return self.reply(404, dict(error=dict(code='itemNotFound')))
+            if scenario == 'upload-create-429':
+                return self.reply(429, dict(error=dict(code='tooManyRequests')), {'Retry-After': '120'})
+            sid = new_session(parent, name, payload.get('item', {}).get('@microsoft.graph.conflictBehavior', 'fail'))
+            sessions[sid]['id'] = sid
+            if scenario == 'upload-create-unknown':
+                self.send_response(200); self.send_header('Content-Length', '100'); self.end_headers()
+                self.close_connection = True; return
+            return self.reply(200, sessionjson(sessions[sid]))
         m = re.fullmatch(r'/v1\.0/drives/D/items/([^/]+)/children', path)
         if not m: return self.reply(404, dict(error=dict(code='itemNotFound')))
         pid = m.group(1)
@@ -115,8 +175,59 @@ class Handler(BaseHTTPRequestHandler):
         i = existing[0] if existing else add(name, pid, folder='folder' in payload)
         return self.reply(201, self.itemjson(i))
     def do_PUT(self):
-        payload = self.body_bytes(); self.record('<%d bytes>' % len(payload))
         parsed, path = self.target()
+        if path.startswith('/upload-session/'):
+            payload = self.body_bytes(); self.record('<%d bytes>' % len(payload))
+            sid = path.rsplit('/', 1)[-1]
+            if sid not in sessions or scenario == 'upload-expired':
+                return self.reply(404, dict(error=dict(code='uploadSessionNotFound')))
+            s = sessions[sid]; s['id'] = sid; s['put_count'] += 1
+            if scenario == 'upload-retry-after':
+                return self.reply(429, dict(error=dict(code='tooManyRequests')), {'Retry-After': '120'})
+            if scenario == 'upload-no-progress':
+                return self.reply(202, sessionjson(s))
+            if scenario == 'upload-429' and s['put_count'] == 1:
+                return self.reply(429, dict(error=dict(code='tooManyRequests')), {'Retry-After': '0'})
+            if scenario == 'upload-416-always' or (scenario == 'upload-416' and s['put_count'] == 1):
+                return self.reply(416, dict(error=dict(code='invalidRange')))
+            if scenario == 'upload-put-409':
+                return self.reply(409, dict(error=dict(code='conflict')))
+            if scenario == 'upload-put-412':
+                return self.reply(412, dict(error=dict(code='preconditionFailed')))
+            if scenario == 'upload-put-500':
+                return self.reply(500, dict(error=dict(code='serverError')))
+            raw_range = self.headers.get('Content-Range', '')
+            match = re.fullmatch(r'bytes (\d+)-(\d+)/(\d+)', raw_range)
+            if not match:
+                return self.reply(416, dict(error=dict(code='invalidRange')))
+            start, end, total = [int(x) for x in match.groups()]
+            if end - start + 1 != len(payload) or start != len(s['content']):
+                return self.reply(416, dict(error=dict(code='invalidRange')))
+            s['total'] = total
+            s['content'].extend(payload)
+            final = end + 1 == total
+            if not final:
+                value = sessionjson(s)
+                if scenario == 'upload-status-without-url': value.pop('uploadUrl')
+                return self.reply(202, value)
+            existing = [c for c in children(s['parent']) if nodes[c]['name'] == s['name']]
+            if existing and s['behavior'] == 'fail':
+                return self.reply(409, dict(error=dict(code='nameAlreadyExists')))
+            if existing:
+                i = existing[0]; nodes[i]['content'] = bytes(s['content']); nodes[i]['etag'] = '"v2"'
+            else:
+                i = add(s['name'], s['parent'], content=bytes(s['content']))
+            s['committed'] = True
+            if scenario == 'upload-commit-unknown':
+                value = self.itemjson(i)
+                self.send_response(201); self.send_header('Connection', 'close')
+                self.send_header('Content-Length', len(json.dumps(value).encode()) + 10); self.end_headers()
+                self.close_connection = True
+                return
+            value = self.itemjson(i)
+            if scenario == 'upload-wrong-target': value['name'] = 'other.bin'
+            return self.reply(201, value)
+        payload = self.body_bytes(); self.record('<%d bytes>' % len(payload))
         m = re.fullmatch(r'/v1\.0/drives/D/items/([^/]+):/(.+):/content', path)
         if not m: return self.reply(404, dict(error=dict(code='itemNotFound')))
         pid, name = m.group(1), m.group(2)
@@ -155,6 +266,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_DELETE(self):
         self.record()
         parsed, path = self.target()
+        if path.startswith('/upload-session/'):
+            sid = path.rsplit('/', 1)[-1]
+            if sid not in sessions: return self.reply(404, dict(error=dict(code='uploadSessionNotFound')))
+            sessions.pop(sid, None)
+            if scenario == 'upload-abort-unknown':
+                self.close_connection = True; self.connection.close(); return
+            self.send_response(204); self.send_header('Content-Length', '0'); self.end_headers(); return
         m = re.fullmatch(r'/v1\.0/drives/D/items/([^/]+)', path)
         if not m or m.group(1) not in nodes:
             return self.reply(404, dict(error=dict(code='itemNotFound')))

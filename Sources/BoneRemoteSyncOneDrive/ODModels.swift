@@ -10,7 +10,7 @@ struct ODPage: Decodable {
 struct ODItem: Decodable {
     struct Empty: Decodable {}
     struct File: Decodable { let mimeType: String? }
-    struct Parent: Decodable { let driveId: String? }
+    struct Parent: Decodable { let driveId: String?; let id: String? }
     let id: String
     let name: String
     let size: Int64?

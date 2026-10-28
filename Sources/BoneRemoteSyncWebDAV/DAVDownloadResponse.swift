@@ -38,7 +38,7 @@ struct DAVDownloadResponse {
         }
     }
 
-    private static func parseRange(_ value: String) -> (start: Int64, end: Int64, total: Int64)? {
+    static func parseRange(_ value: String) -> (start: Int64, end: Int64, total: Int64)? {
         let halves = value.split(separator: " ", omittingEmptySubsequences: false)
         guard halves.count == 2, halves[0].lowercased() == "bytes" else { return nil }
         let totalParts = halves[1].split(separator: "/", omittingEmptySubsequences: false)

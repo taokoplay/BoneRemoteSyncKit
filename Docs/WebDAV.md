@@ -86,6 +86,18 @@ print(uploaded.path ?? uploaded.id)
 
 不实现通用 WebDAV 上传续传、锁管理（LOCK/UNLOCK）、自定义属性写入（PROPPATCH）、ACL、版本管理或同步引擎。受锁保护的资源返回冲突；这里的“完整文件管理”指现有 Core 协议的全部读写/复制操作，而不是所有 WebDAV 扩展标准。
 
+## 单文件并行分片下载（未发布）
+
+`WebDAVSource` 已实现可选 `RemoteByteRangeSource`，可通过 [Transfer 分片策略](Transfer.md#可插拔的单文件并行分片下载) 复用公共调度与文件发布；普通 `download` 默认行为不变，不会因为支持此协议就自动分片。
+
+- 仅适用于非空、大小已知且具有强 ETag 的条目；每次请求发送精确闭区间 `Range: bytes=start-end`、相同 `If-Match` 及 identity 编码要求。
+- 只将正确的 206 作为片结果；精确验证 Content-Range 的起止/总长、ETag、响应声明长度和实际 body 长度，即使调用方关闭普通大小校验也不会跳过。
+- 200 不作为片结果，也不缓冲整文件。只有响应头无 Content-Range、没有不支持的编码、已知长度无矛盾且 ETag 没有变化时，才报告 `.unavailable` 让首片 IfSupported 策略决定是否普通下载。异常 200、版本变化、坏区间或短/超额 body 均失败，不降级。
+- `retryPolicy` 的显式有限重试用于请求/响应头阶段的可重试错误，重复相同 Range/If-Match，共用该片原 deadline；默认 `.none`。body 开始后不重试，失败不会切换版本或从头重建整文件。
+- `readBytes` 本身不管理文件、全局并发或持久检查点；调用 materializer 才复用有界并发、staging、校验和 lease。与 `resumeFrom` 开放区间续传、managed checkpoint 是不同入口。
+
+localhost 已覆盖闭区间与异常服务行为；尚未完成真实 NAS 分片兼容性、吞吐或公网压力验收。`rangedDownload` 或服务端 `Accept-Ranges` 声明本身都不是可用证明。
+
 ## 手动下载续传
 
 此入口必须由调用方把 **该 part 对应的强 ETag** 与任务状态一起保存，再传入 `resumeFrom` 和 `expectedETag`。普通 `download` 不创建续传 sidecar，也不检验 part 已有内容的哈希；不能将其他文件的 part 或 ETag 配对使用。需要 SDK 管理 checkpoint、验证前缀及自动恢复体传输失败时，使用下文的 `downloadResumable`，不要让两种入口交替接管同一个 part。
@@ -127,6 +139,8 @@ let dav = try WebDAVSource(
 
 ## Managed checkpoint 与进程重启恢复
 
+> **未发布工作树补充**：通用层可使用 [Transfer 的 `RemoteDownloadRecovery`](Transfer.md) 与显式本地目标互斥，不再由业务计算 offset。`downloadResumableResult` 返回 `.committed` / `.committedCleanupPending`；两者都表示目标已提交。以下低层 `downloadResumable` 保留原合同，调用者仍须自行协调跨实例/进程访问。
+
 ```swift
 // accountID 由 App 为逻辑账号持久保存，例如账号记录中的 UUID；不要每次下载重新生成。
 let accountID = "account-uuid-stored-by-app"
@@ -150,7 +164,7 @@ print(downloaded.size ?? 0)
 - 文件命名为 `<目标>.part` 和 `<目标>.part.checkpoint.json`。新 part、checkpoint 临时文件使用 `0600`；checkpoint 最多 64 KiB，保存绑定 SHA256、强 ETag、预期总大小、已提交偏移、前缀 SHA256、part dev/inode 和有限 metadata，不保存密码或原 URL。**摘要不是加密或 HMAC；ETag、大小、metadata 仍可能敏感。** 调用方必须控制其目录权限。
 - 每次提交先同步 part，再同步并原子替换 sidecar；恢复在同一文件描述符上以 64 KiB 分块验证已提交前缀，再回滚未提交尾部。间隔默认 8 MiB，合法范围 64 KiB…256 MiB；间隔越小，重传损失通常越小，但同步和 checkpoint 写入越频繁。已有前缀需要重算 SHA256，可能读取两次；恢复模式增加 hash、文件同步和 stat 成本，不保证比普通下载更快。
 - progress 表示当前**写入**字节，不是已提交字节；取消、崩溃或自动重试后可退回最近检查点，不承诺跨重试单调。进度回调同步执行且不保证主线程，阻塞回调会延迟取消/超时返回。
-- 未知旧 part、缺一配对、schema/摘要/身份/账号/路径/版本错配、符号链接、目录、FIFO 或多硬链接会保守拒绝，不自动 adopt、覆盖或删除。首次 part 创建至初始 checkpoint 的极小窗口终止也可能留下 orphan。发生 conflict 时，由调用方确认归属后显式管理/清理；SDK 不提供自动垃圾回收、配额或跨进程锁。
+- 未知旧 part、缺一配对、schema/摘要/身份/账号/路径/版本错配、符号链接、目录、FIFO 或多硬链接会保守拒绝，不自动 adopt、覆盖或删除。首次 part 创建至初始 checkpoint 的极小窗口终止也可能留下 orphan。发生 conflict 时，由调用方确认归属后显式管理/清理；此低层入口不提供自动垃圾回收、配额或跨进程锁；未发布 Transfer 的可选锁实现要求所有参与者使用同一个私有本地锁目录。
 - `readyToInstall` 记录支持安装前恢复；rename 已完成但清理 sidecar 失败时，以目标 dev/inode/大小/hash 与远端版本确认上次安装并幂等返回。rename 成功即逻辑成功，不因后续清理失败返回假失败。完整长度但没有 ready / 已确认 EOF 的 part 不直接安装，而是条件 GET 从零重下。
 - 普通下载仍可使用原手动 part；**不得混用普通与 managed 入口接管同一组持久化文件**。单 source 三路径锁只解决活动调用间冲突，不能代替跨实例/跨进程独占。TOCTOU、恶意同时改写、硬件断电或目录 rename 的断电持久性不在保证内。
 

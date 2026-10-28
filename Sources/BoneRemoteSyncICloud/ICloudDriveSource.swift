@@ -49,48 +49,67 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         let environment = environment
         return (try? await perform { cancellation in
             let account = injected == nil && environment.identityToken() != nil
-            guard account || injected != nil else {
-                return ICloudDriveStatus(availability: .unavailable,
-                                         unavailableReason: .notSignedIn,
-                                         accountIdentifierAvailable: false)
-            }
-            guard let container = injected ?? environment.containerURL(configuration.containerIdentifier) else {
-                let reason: ICloudDriveAvailabilityReason = if configuration.containerIdentifier == nil {
-                    .driveUnavailable
-                } else if environment.containerURL(nil) != nil {
-                    .containerNotFound
-                } else {
-                    .driveUnavailable
-                }
-                return ICloudDriveStatus(availability: .unavailable,
-                                         unavailableReason: reason,
-                                         accountIdentifierAvailable: account)
-            }
-            guard let root = try? Self.containerRoot(container, configuration: configuration) else {
-                return ICloudDriveStatus(availability: .unavailable,
-                                         unavailableReason: .unknown,
-                                         containerURL: container,
-                                         accountIdentifierAvailable: account)
-            }
-            try cancellation.check()
-            do {
-                try Self.requireDirectory(root, path: configuration.directoryPath)
-            } catch {
-                let reason: ICloudDriveAvailabilityReason
-                if case ICloudDriveError.directoryNotFound = error { reason = .directoryNotFound }
-                else { reason = .unknown }
-                return ICloudDriveStatus(availability: .unavailable,
-                                         unavailableReason: reason,
-                                         containerURL: container,
-                                         accountIdentifierAvailable: account)
-            }
+            let availability = try Self.statusAvailability(configuration: configuration, injected: injected,
+                environment: environment, account: account, cancellation: cancellation)
+            guard let root = availability.rootURL else { return availability }
             let item = try? Self.resolve(path ?? "/", root: root)
             let state = item.flatMap { try? environment.itemState($0) }
-            return ICloudDriveStatus(availability: .available,
-                containerURL: container, rootURL: root,
-                accountIdentifierAvailable: account, isUbiquitous: state?.isUbiquitous ?? false,
-                downloadState: state?.downloadState, percentDownloaded: nil)
+            return Self.itemStatus(state, availability: availability)
         }) ?? ICloudDriveStatus(availability: .unavailable, unavailableReason: .unknown)
+    }
+
+    /// Queries local metadata once per input, preserving order and duplicates. No connection required.
+    /// Item failures are independent; root unavailability is a successful unavailable snapshot.
+    /// Cancellation, disconnect/reconnect or an observed account change discards the entire batch.
+    /// Cancellation prevents result publication but cannot interrupt a synchronous Foundation call already running.
+    /// Does not request downloads, create directories, or provide an atomic/cross-device snapshot.
+    public func statuses(paths: [String]) async throws -> [ICloudDriveStatusResult] {
+        guard !Task.isCancelled else { throw RemoteSyncError.cancelled }
+        guard !paths.isEmpty else { return [] }
+        let configuration = configuration
+        let injected = injectedContainerURL
+        let environment = environment
+        let batch: ICloudStatusBatch = try await perform { cancellation in
+            let identity = ICloudStatusIdentity(injected: injected != nil, currentToken: environment.identityToken)
+            let availability = try Self.statusAvailability(configuration: configuration, injected: injected,
+                environment: environment, account: identity.hasAccount, cancellation: cancellation)
+            var results: [ICloudDriveStatusResult] = []
+            for path in paths {
+                try cancellation.check()
+                try identity.check()
+                let normalized = RemotePath.normalize(path)
+                let result: Result<ICloudDriveStatus, any Error>
+                do {
+                    if let root = availability.rootURL {
+                        let url = try Self.resolve(path, root: root)
+                        let status = try Self.read(url, path: normalized, metadataOnly: true) { item in
+                            try cancellation.check()
+                            try Self.validate(item, root: root, path: normalized)
+                            // Verify existence even with an injected metadata reader. Never open content.
+                            _ = try item.resourceValues(forKeys: [.isDirectoryKey])
+                            let state = try environment.itemState(item)
+                            if state.hasUnresolvedConflicts {
+                                throw ICloudDriveError.unresolvedConflict(path: normalized)
+                            }
+                            return Self.itemStatus(state, availability: availability)
+                        }
+                        result = .success(status)
+                    } else {
+                        result = .success(availability)
+                    }
+                } catch { result = .failure(Self.map(error, path: normalized)) }
+                try cancellation.check()
+                try identity.check()
+                results.append(ICloudDriveStatusResult(path: normalized, result: result))
+            }
+            try cancellation.check()
+            try identity.check()
+            return ICloudStatusBatch(results: results, identity: identity)
+        }
+        // An account change during the queue -> actor hop must not publish old snapshots.
+        guard !Task.isCancelled else { throw RemoteSyncError.cancelled }
+        try batch.identity.check()
+        return batch.results
     }
 
     public func connect(_ credential: RemoteCredential) async throws {
@@ -458,6 +477,43 @@ public actor ICloudDriveSource: RemoteCopyingSource {
 
     // MARK: - Paths, metadata and coordination (queue only)
 
+    private static func statusAvailability(
+        configuration: ICloudDriveConfiguration, injected: URL?, environment: ICloudDriveEnvironment,
+        account: Bool, cancellation: ICloudCancellation
+    ) throws -> ICloudDriveStatus {
+        guard account || injected != nil else {
+            return ICloudDriveStatus(availability: .unavailable, unavailableReason: .notSignedIn)
+        }
+        guard let container = injected ?? environment.containerURL(configuration.containerIdentifier) else {
+            let reason: ICloudDriveAvailabilityReason = if configuration.containerIdentifier != nil,
+                environment.containerURL(nil) != nil { .containerNotFound } else { .driveUnavailable }
+            return ICloudDriveStatus(availability: .unavailable, unavailableReason: reason,
+                                     accountIdentifierAvailable: account)
+        }
+        guard let root = try? containerRoot(container, configuration: configuration) else {
+            return ICloudDriveStatus(availability: .unavailable, unavailableReason: .unknown,
+                                     containerURL: container, accountIdentifierAvailable: account)
+        }
+        try cancellation.check()
+        do { try requireDirectory(root, path: configuration.directoryPath) }
+        catch {
+            let reason: ICloudDriveAvailabilityReason
+            if case ICloudDriveError.directoryNotFound = error { reason = .directoryNotFound }
+            else { reason = .unknown }
+            return ICloudDriveStatus(availability: .unavailable, unavailableReason: reason,
+                                     containerURL: container, accountIdentifierAvailable: account)
+        }
+        return ICloudDriveStatus(availability: .available, containerURL: container, rootURL: root,
+                                 accountIdentifierAvailable: account)
+    }
+
+    private static func itemStatus(_ state: ICloudItemState?, availability: ICloudDriveStatus) -> ICloudDriveStatus {
+        ICloudDriveStatus(availability: availability.availability, unavailableReason: availability.unavailableReason,
+            containerURL: availability.containerURL, rootURL: availability.rootURL,
+            accountIdentifierAvailable: availability.accountIdentifierAvailable,
+            isUbiquitous: state?.isUbiquitous ?? false, downloadState: state?.downloadState, percentDownloaded: nil)
+    }
+
     /// Unlike fileExists, preserve permission/IO failures instead of guessing a missing directory.
     private static func requireDirectory(_ url: URL, path: String) throws {
         var info = Darwin.stat()
@@ -588,6 +644,34 @@ public actor ICloudDriveSource: RemoteCopyingSource {
 private struct ICloudConnection: Sendable {
     let root: URL
     let identity: ICloudAccountIdentity?
+}
+
+private struct ICloudStatusBatch: Sendable {
+    let results: [ICloudDriveStatusResult]
+    let identity: ICloudStatusIdentity
+}
+
+/// Immutable Foundation identity snapshot, including the initially signed-out state.
+/// Never serialized or exposed; injected filesystem tests do not claim a real identity.
+private final class ICloudStatusIdentity: @unchecked Sendable {
+    private let injected: Bool
+    private let token: NSObject?
+    private let currentToken: @Sendable () -> NSObject?
+    var hasAccount: Bool { !injected && token != nil }
+
+    init(injected: Bool, currentToken: @escaping @Sendable () -> NSObject?) {
+        self.injected = injected
+        self.currentToken = currentToken
+        token = injected ? nil : currentToken()
+    }
+
+    func check() throws {
+        guard !injected else { return }
+        let current = currentToken()
+        guard token == nil && current == nil || token?.isEqual(current) == true else {
+            throw ICloudDriveError.accountChanged
+        }
+    }
 }
 
 private struct ICloudPreparationSnapshot: Sendable, Equatable {

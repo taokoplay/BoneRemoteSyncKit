@@ -2,6 +2,23 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
+## 未发布工作树
+
+- 新增 `BoneRemoteSyncTransfer`，由统一 `BoneRemoteSyncKit` 导出；Core 增加绑定引用、locator 作用域版本、读写条件值类型与传输快照。
+- 提供通用文件物化、lease/进程内保留缓存、同版本在途合并、独立消费者取消、私有 staging 与排他原子发布；可选大小/SHA-256 校验，不解析文件格式。
+- 新增前台 coordinator：全局和每来源上限、任务 ID/单次结果领取、权威快照、晚到事件过滤、取消与 shutdown。快照不保存原始错误文本；该队列的任务级重试、跨进程恢复和跨来源可恢复上传未实现；OneDrive 专用 Upload Session 另提供显式 opt-in API。
+- 新增可选 `RemoteByteRangeSource` 和有界 `RemoteByteRange`；Transfer 提供显式 IfSupported/Required 分片策略、首片验证、有界窗口、普通下载/分片共享来源上限、乱序合并与原子发布。其他网盘实现强版本区间协议即可复用；首个内置适配为 WebDAV。默认仍顺序下载，不含持久分片恢复或性能保证，详见 [Transfer](Docs/Transfer.md#可插拔的单文件并行分片下载)。
+- WebDAV 分片严格验证闭区间、强 ETag、响应和正文长度；畸形 200 不降级，请求/响应头阶段沿用显式有限重试，不换区间或版本。
+- 新增可选 `RemoteConditionalDownloadSource`；WebDAV 复用强 ETag `If-Match`，其他来源不冒充强条件读取。`.requireVersion` 不支持时显式拒绝，详情见 [Transfer](Docs/Transfer.md)。
+
+- 新增独立 `RemoteDownloadRecovery`、可选 Core 恢复协议与 checkpoint 只读投影，WebDAV 复用既有强 ETag/Range、确认偏移与 part 身份校验；默认不覆盖目标。显式私有本地锁目录提供合作进程间目标互斥，不自动加入物化队列。
+- `WebDAVSource.downloadResumableResult` 区分已提交与已提交但 checkpoint 清理未完成；原 `downloadResumable` 保持返回 `RemoteEntry`。未提供其他来源恢复下载适配或自动后台重试。
+
+- 新增Core可恢复上传句柄/状态/回执与Transfer `RemoteUploadRecovery`。OneDrive Personal专用构造器启用设备内非同步Keychain session store；先本地prepare/保存句柄，再创建远端session，默认不覆盖，不支持最终ETag条件替换。
+- Upload Session提供顺序分片、服务端确认进度、独立无bearer请求、有界重试、私有快照分块摘要和合作跨进程锁；区分明确冲突、创建/提交/abort未知、已提交但本地持久化/清理待处理。保留终态回执供重复领取，支持显式终态forget。详见[OneDrive](Docs/OneDrive.md)；不包含真实账号/Keychain/最低系统运行验收。
+
+- R3：`ICloudDriveSource.statuses(paths:)` 批量读取 iCloud 本机条目状态；按输入顺序返回逐项结果，不触发 hydration 或目录创建，取消/断开/账号变化会丢弃整批。该 API 尚未发布为版本标签。
+
 本文件记录对使用者有影响的功能、修复、版本策略与行为变化。实现完成、测试通过和版本发布是不同状态；版本标签也不代表真实账号、服务端或全部平台已经验收。
 
 ## v0.3.0 — 2026-10-27
@@ -96,6 +113,6 @@
 - 使用 Swift 6.4 / Xcode 27.1；未用 Swift 6.0 编译器重测，最低平台编译不等于设备或旧系统运行验收。
 - 并发全包运行中仍观察到已有 WebDAV 短 deadline 与上传进度最终值断言的间歇失败；单独运行及最终完整复测通过，**不能据此认定该风险已消除**。历史 fixture 清理挂起已调整为预注册退出回调及有界等待，失败和复测记录均保留。
 - 真实 NAS 写入、Microsoft 账号和移动设备验收仍待完成。本轮仅使用临时目录和 localhost fixture，不能据此承诺任意服务端兼容性。
-- 本轮没有增加图片尺寸、EXIF、音视频时长、封面、缩略图、转码或真实格式检测，也未增加 iCloud、Upload Session、后台传输或同步引擎。
+- `v0.2.0` 没有增加图片尺寸、EXIF、音视频时长、封面、缩略图、转码或真实格式检测，也不包含 iCloud、OneDrive Upload Session、后台传输或同步引擎。后续能力以本文对应版本和“未发布工作树”条目为准。
 
-完整验证范围、历史失败和未验收项见[构建与验证状态](Docs/Validation.md)。本次发布准备仅修改文档，没有重新运行全包测试；上述结果引用此前对同一实现完成的验证。
+完整验证范围、历史失败和未验收项见[构建与验证状态](Docs/Validation.md)。以上为 `v0.2.0` 的历史验证结果，不代表当前未发布能力已包含在该标签中。

@@ -4,24 +4,54 @@ import BoneRemoteSyncCore
 /// Personal main drive only. Host owns account selection, authorization UI and secure token storage.
 public actor OneDriveSource: RemoteSource {
     public nonisolated let kind: RemoteSourceKind = .cloudAPI
-    public nonisolated let capabilities = RemoteCapabilities(
-        idAddressing: true,
-        rangedDownload: false,
-        upload: true,
-        resumableUpload: false,
-        makeDirectory: true,
-        remove: true,
-        move: true
-    )
+    public nonisolated let capabilities: RemoteCapabilities
     let configuration: OneDriveConfiguration
     let endpoints: ODEndpoints
     let onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)?
+    let resumableSessionStore: (any ODUploadSessionStore)?
+
+    private static func capabilities(resumableUpload: Bool) -> RemoteCapabilities {
+        RemoteCapabilities(idAddressing: true, rangedDownload: false, upload: true,
+            resumableUpload: resumableUpload, makeDirectory: true, remove: true, move: true)
+    }
+
     public init(configuration: OneDriveConfiguration, onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) {
         self.configuration = configuration; self.endpoints = .production; self.onTokenRefresh = onTokenRefresh
+        self.resumableSessionStore = nil
+        self.capabilities = Self.capabilities(resumableUpload: false)
     }
-    init(configuration: OneDriveConfiguration, endpoints: ODEndpoints, onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) {
+
+    /// Enables provider-owned resumable uploads. The service name is independent
+    /// from Catalog credentials; the implementation uses device-only, non-syncing
+    /// Keychain records and never exposes their values through the public API.
+    public init(configuration: OneDriveConfiguration, resumableUploadService: String,
+                onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) throws {
+        self.configuration = configuration; self.endpoints = .production; self.onTokenRefresh = onTokenRefresh
+        self.resumableSessionStore = try OneDriveUploadSessionStore(service: resumableUploadService)
+        self.capabilities = Self.capabilities(resumableUpload: true)
+    }
+
+    init(configuration: OneDriveConfiguration, endpoints: ODEndpoints,
+         onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) {
         self.configuration = configuration; self.endpoints = endpoints; self.onTokenRefresh = onTokenRefresh
+        self.resumableSessionStore = nil
+        self.capabilities = Self.capabilities(resumableUpload: false)
     }
+
+    init(configuration: OneDriveConfiguration, endpoints: ODEndpoints, resumableUploadService: String,
+         sessionStore: (any ODUploadSessionStore)? = nil,
+         onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) throws {
+        self.configuration = configuration; self.endpoints = endpoints; self.onTokenRefresh = onTokenRefresh
+        self.resumableSessionStore = try sessionStore ?? OneDriveUploadSessionStore(service: resumableUploadService)
+        self.capabilities = Self.capabilities(resumableUpload: true)
+    }
+
+    /// The connected Personal drive identity is a binding hint, not an
+    /// authentication proof. Hosts must still keep credentials and handles scoped.
+    public func connectedBinding() throws -> RemoteSourceBinding {
+        RemoteSourceBinding(kind: .cloudAPI, identity: "onedrive:" + (try context()).drive)
+    }
+
     var generation = UUID()
     var client: ODHTTPClient?
     var token: OneDriveToken?

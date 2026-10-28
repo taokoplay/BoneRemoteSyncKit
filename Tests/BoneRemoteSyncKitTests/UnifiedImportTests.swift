@@ -36,6 +36,9 @@ import BoneRemoteSyncKit
         #expect(progress.fractionCompleted == nil)
         let status = ICloudDriveStatus(availability: .unavailable, unavailableReason: .driveUnavailable)
         #expect(status.unavailableReason == .driveUnavailable)
+        let batch = ICloudDriveStatusResult(path: "/backup.zip", result: .success(status))
+        #expect(batch.path == "/backup.zip")
+        #expect(try batch.result.get() == status)
         #expect(ICloudDriveError.downloadTimedOut(path: "/f").remoteSyncError == .network("iCloud 文件下载超时：/f"))
         let metadata = RemoteEntry(id: "photo", path: "/photo", name: "photo.HEIC", type: .file,
                                    createdAt: Date(timeIntervalSince1970: 123))
@@ -58,6 +61,29 @@ import BoneRemoteSyncKit
         let oauth = OneDriveOAuth(configuration: configuration)
         let authorization: OneDriveAuthorization = try oauth.authorize()
         #expect(authorization.url.host == "login.microsoftonline.com")
+    }
+
+    @Test func materializationAndSchedulingWorkThroughUnifiedImport() async throws {
+        let workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneKitTransfer-\(UUID())")
+        try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let root = workspace.appendingPathComponent("source")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("kit-only".utf8).write(to: root.appendingPathComponent("file"))
+        let source = LocalFileSource(root: root)
+        try await source.connect(.anonymous)
+        let binding = RemoteSourceBinding(kind: .local, identity: "kit-test-session")
+        let materializer = RemoteFileMaterializer(source: source, sourceBinding: binding,
+                                                  cacheDirectory: workspace.appendingPathComponent("cache"))
+        let coordinator = RemoteTransferCoordinator(materializer: materializer)
+        let id = await coordinator.submit(RemoteTransferRequest(reference: .init(source: binding, path: "/file")))
+        let lease: MaterializedFileLease = try await coordinator.wait(for: id)
+        let bytes = try await lease.withAccess { try Data(contentsOf: $0) }
+        #expect(bytes == Data("kit-only".utf8))
+        #expect(await coordinator.snapshot(id)?.phase == .completed)
+        await coordinator.shutdown()
+        await materializer.shutdown()
+        await source.disconnect()
     }
 
     @Test func localReadWriteAndProtocolExtensionsWorkThroughUnifiedImport() async throws {
@@ -100,4 +126,28 @@ import BoneRemoteSyncKit
             throw error
         }
     }
+    @Test func uploadRecoveryValidatesBindingAndCapabilitiesThroughKit() async throws {
+        let local = LocalFileSource(root: FileManager.default.temporaryDirectory)
+        let binding = RemoteSourceBinding(kind: .local, identity: "upload-boundary")
+        let target = RemoteFileReference(source: binding, path: "/file")
+        let recovery = RemoteUploadRecovery(source: local, binding: binding)
+        let handle = try RemoteUploadHandle(source: binding, target: target, sourceSize: 1, sourceFingerprint: "fixture")
+        let options = RemoteResumableUploadOptions(snapshotDirectory: URL(fileURLWithPath: "/must-not-be-created"))
+        #expect(!options.overwrite)
+        await #expect(throws: RemoteSyncError.unsupported(operation: "来源未启用受管理恢复上传")) {
+            try await recovery.prepare(from: URL(fileURLWithPath: "/must-not-be-read"), to: target, options: options)
+        }
+        await #expect(throws: RemoteSyncError.unsupported(operation: "来源未启用受管理恢复上传")) {
+            try await recovery.resume(handle)
+        }
+        let other = RemoteUploadRecovery(source: local, binding: .init(kind: .local, identity: "different"))
+        await #expect(throws: RemoteSyncError.conflict(path: "upload-binding")) { try await other.checkpoint(handle) }
+        await #expect(throws: RemoteSyncError.conflict(path: "upload-binding")) { try await other.abort(handle) }
+        let configuration = try OneDriveConfiguration(clientID: "fixture", redirectURI: URL(string: "fixture://oauth/callback")!)
+        #expect(!OneDriveSource(configuration: configuration).capabilities.resumableUpload)
+        let provider: any RemoteResumableUploadSource = try OneDriveSource(configuration: configuration,
+            resumableUploadService: "BoneRemoteSyncKit.Fixture.OnlyConstructed")
+        #expect(provider.capabilities.resumableUpload)
+    }
+
 }

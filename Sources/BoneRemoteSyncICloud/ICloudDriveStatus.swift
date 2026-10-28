@@ -26,6 +26,18 @@ public enum ICloudDriveDownloadState: String, Sendable, Codable, Equatable {
     case unknown
 }
 
+/// One path's batch-query outcome. Results preserve input order and duplicates.
+/// `path` is source-relative and normalized; failures retain iCloud/shared error types.
+public struct ICloudDriveStatusResult: Sendable {
+    public let path: String
+    public let result: Result<ICloudDriveStatus, any Error>
+
+    public init(path: String, result: Result<ICloudDriveStatus, any Error>) {
+        self.path = path
+        self.result = result
+    }
+}
+
 /// A stable, public snapshot of iCloud Drive state. It describes the local view;
 /// it is not a promise that another device has finished uploading its changes.
 public struct ICloudDriveStatus: Sendable, Codable, Equatable {

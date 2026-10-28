@@ -21,11 +21,13 @@ let package = Package(
         .library(name: "BoneRemoteSyncWebDAV", targets: ["BoneRemoteSyncWebDAV"]),
         .library(name: "BoneRemoteSyncOneDrive", targets: ["BoneRemoteSyncOneDrive"]),
         .library(name: "BoneRemoteSyncCatalog", targets: ["BoneRemoteSyncCatalog"]),
+        // 通用文件物化与传输任务层；不包含文件格式或宿主业务。
+        .library(name: "BoneRemoteSyncTransfer", targets: ["BoneRemoteSyncTransfer"]),
     ],
     targets: [
         .target(
             name: "BoneRemoteSyncKit",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog"]
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"]
         ),
         .target(name: "BoneRemoteSyncCatalog",
                 dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],
@@ -35,14 +37,16 @@ let package = Package(
         .target(name: "BoneRemoteSyncLocal", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncICloud", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncWebDAV", dependencies: ["BoneRemoteSyncCore"]),
-        .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"]),
+        .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"], linkerSettings: [.linkedFramework("Security")]),
+        .target(name: "BoneRemoteSyncTransfer", dependencies: ["BoneRemoteSyncCore"]),
         .testTarget(name: "BoneRemoteSyncKitTests", dependencies: ["BoneRemoteSyncKit"]),
+        .testTarget(name: "BoneRemoteSyncTransferTests", dependencies: ["BoneRemoteSyncTransfer", "BoneRemoteSyncLocal"]),
         .testTarget(name: "BoneRemoteSyncOneDriveTests",
-                    dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog"],
+                    dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
                     resources: [.copy("Fixtures")]),
         .testTarget(
             name: "BoneRemoteSyncWebDAVTests",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncWebDAV"],
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncWebDAV", "BoneRemoteSyncTransfer"],
             resources: [.copy("Fixtures")]
         ),
         .testTarget(
@@ -51,7 +55,7 @@ let package = Package(
         ),
         .testTarget(
             name: "BoneRemoteSyncICloudTests",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncICloud"]
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncICloud", "BoneRemoteSyncTransfer"]
         ),
     ]
 )

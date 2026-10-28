@@ -55,6 +55,21 @@ public func listICloudBackups(source: ICloudDriveSource) async throws -> [Remote
     return page.entries.filter { !$0.isDirectory && $0.name.lowercased().hasSuffix(".zip") }
 }
 
+/// Queries local iCloud preparation states for a backup list without hydration.
+/// This R3 helper is available in the current work tree and is not in v0.3.0.
+/// Missing entries remain item failures; the host can display "unavailable" per row.
+/// This is not an atomic snapshot and does not replace the complete-list safety check.
+public func statusICloudBackups(source: ICloudDriveSource, entries: [RemoteEntry]) async throws -> [ICloudDriveStatusResult] {
+    let paths = try entries.map { entry -> String in
+        guard entry.type == .file, let path = entry.path, path == RemotePath.normalize(path),
+              RemotePath.parent(of: path) == "/" else {
+            throw RemoteSyncError.unsupported(operation: "只查询宿主选定的根层备份文件")
+        }
+        return path
+    }
+    return try await source.statuses(paths: paths)
+}
+
 /// The callback runs synchronously on SDK executors, not necessarily MainActor.
 /// Host UI should use a task identity to discard stale updates and switch executors itself.
 public func downloadICloudBackup(

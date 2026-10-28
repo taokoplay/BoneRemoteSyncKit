@@ -29,7 +29,9 @@ public enum RemoteCatalogFailureReason: String, Sendable, Codable {
             case .notConnected: return .notConnected
             case .unsupported: return .unsupported
             case .conflict: return .conflict
-            case .integrityMismatch: return .integrity
+            case .integrityMismatch, .sourceSnapshotMissing: return .integrity
+            case .uploadSessionExpired, .uploadCommitUnknown: return .conflict
+            case .secureStorageUnavailable: return .storage
             case .cancelled: return .cancelled
             case .underlying: return .other
             }

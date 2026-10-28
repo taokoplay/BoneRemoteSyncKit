@@ -39,7 +39,13 @@ FILES = {
     "folder/child.txt": b"child", ".hidden": b"hidden", "redirect.txt": SMALL,
     "unknown.txt": SMALL, "encoded.txt": SMALL, "wrong-etag.txt": SMALL,
     "cut-once.bin": RECOVERY, "cut-always.bin": RECOVERY, "complete-cut.bin": RECOVERY,
-    "force416.txt": SMALL,
+    "force416.txt": SMALL, "range-short.txt": SMALL, "range-extra.txt": SMALL,
+    "range-total.txt": SMALL, "range-late-change.txt": SMALL,
+    "range-no-etag.txt": SMALL,
+    "range-200-header.txt": SMALL, "range-200-length.txt": SMALL,
+    "range-200-encoding.txt": SMALL, "range-retry.txt": SMALL,
+    "range-chunk-short.txt": SMALL, "range-chunk-extra.txt": SMALL,
+    "range-chunk-hold.txt": SMALL,
 }
 
 
@@ -172,18 +178,58 @@ class Handler(BaseHTTPRequestHandler):
             headers["Content-Encoding"] = "gzip"
         status = 200
         range_header = self.headers.get("Range")
+        # These failures only affect Range; a normal GET succeeds, so tests
+        # cannot accidentally pass because the fallback also fails.
+        if range_header and item.startswith("range-200-"):
+            if item == "range-200-header.txt":
+                headers["Content-Range"] = "bytes 0-7/26"
+            if item == "range-200-encoding.txt":
+                headers["Content-Encoding"] = "gzip"
+            self.send(200, payload[:-1] if item == "range-200-length.txt" else payload, headers)
+            return
+        if range_header and item == "range-retry.txt" and attempt == 1:
+            self.send(503)
+            return
         if range_header and item == "force416.txt":
             self.send(416)
             return
         if range_header and item != "ignore-range.txt":
-            offset = int(range_header.removeprefix("bytes=").removesuffix("-")) if sys.version_info >= (3, 9) else int(range_header[6:-1])
+            bounds = range_header[6:].split("-", 1)
+            offset = int(bounds[0])
+            end = min(int(bounds[1]), len(payload) - 1) if bounds[1] else len(payload) - 1
             if offset >= len(payload):
                 self.send(416, headers={"Content-Range": "bytes */%d" % len(payload)})
                 return
             status = 206
             start = offset + 1 if item == "bad-range.txt" else offset
-            headers["Content-Range"] = "bytes %d-%d/%d" % (start, len(payload) - 1, len(payload))
-            payload = payload[offset:]
+            headers["Content-Range"] = "bytes %d-%d/%d" % (start, end, len(payload) + (1 if item == "range-total.txt" else 0))
+            if item == "range-late-change.txt" and offset > 0:
+                self.send(412)
+                return
+            if item == "range-no-etag.txt":
+                headers.pop("ETag", None)
+            payload = payload[offset:end + 1]
+            if item == "range-short.txt":
+                payload = payload[:-1]
+            if item == "range-extra.txt":
+                payload += b"!"
+        if range_header and item.startswith("range-chunk-"):
+            payload = payload[:-1] if item == "range-chunk-short.txt" else payload + b"!"
+            self.send_response(status)
+            for key, value in headers.items():
+                self.send_header(key, value)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            try:
+                self.wfile.write(("%x\r\n" % len(payload)).encode() + payload + b"\r\n")
+                self.wfile.flush()
+                if item == "range-chunk-hold.txt":
+                    time.sleep(5)
+                self.wfile.write(b"0\r\n\r\n")
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            return
         self.send_response(status)
         for key, value in headers.items():
             self.send_header(key, value)

@@ -1,8 +1,8 @@
 # 通用 API 与生命周期
 
-[返回项目首页](../README.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
+[返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按 `v0.3.0` API 描述。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage、阶段进度和 `connectedDriveID()` 自此版本发布，不在 `v0.2.0` 中。
+> 本页按 `v0.3.0` 已发布 API 描述；下文标注的 R3 批量状态与 Transfer API 属于当前未发布工作树。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage、阶段进度和 `connectedDriveID()` 自此版本发布，不在 `v0.2.0` 中。
 
 ## 统一入口与模块
 
@@ -16,6 +16,7 @@
 | `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照 |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
+| `BoneRemoteSyncTransfer` | **未发布**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
@@ -39,8 +40,11 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 | `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 全部来源 |
 | `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 全部来源 |
 | `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件） |
+| `RemoteByteRangeSource` | **未发布**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
+| `RemoteResumableDownloadSource` | **未发布**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
+| `RemoteResumableUploadSource` | **未发布**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
 
-`walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。`maxConcurrentTransfers` 只是建议值，不是全局调度器。
+`walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。低层 `maxConcurrentTransfers` 只是建议值；未发布 `RemoteTransferCoordinator` 将它作为各 binding 的调度上限输入，同时实施自身全局限制，不能限制绕过该 coordinator 的调用。
 
 ## 连接、取消与清理
 
@@ -114,6 +118,8 @@ func describeFile(_ entry: RemoteEntry) -> String {
 `RemoteListRequest.all` **不代表自动消费所有 OneDrive 页面**。四个来源的 list 均先检查连接上下文，再在操作中校验请求参数，因此未连接时不保证优先返回参数错误。
 
 `RemoteListPage(coverage:entries:nextCursor:)` 必须显式传入 `.complete/.partial/.unknown`，没有默认 complete。`isLastPage` 只表示 cursor 为 nil；所有页 complete 且全部分页完成才有目录发布资格，仍不证明瞬时快照。
+
+iCloud 另提供 `ICloudDriveSource.statuses(paths:)` 批量读取本机条目状态。该 iCloud 专用 API 返回有序的 `ICloudDriveStatusResult`，每项包含归一化路径与 `Result<ICloudDriveStatus, any Error>`；它不扩展 Core、无需连接、不 hydration、不建目录，也不保证原子快照。
 
 以下函数在已连接的来源上逐页读取，不把整个目录累积到数组。visitor 可能在后续分页失败前已经产生副作用。
 
@@ -189,7 +195,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 | MOVE / COPY | 不覆盖；父目录须存在 | `Overwrite: F`；父目录须存在 | MOVE 先查目标再 PATCH；无 COPY |
 | 写入失败 | 按操作保留或清理局部状态 | 远端可能已改变，无回滚 | 远端可能已改变，无回滚 |
 
-`RemoteUploadOptions.overwrite` 和 `RemoteDownloadOptions.overwrite` 默认均为 true；需要保留已有文件时应显式设为 false。递归建目录中途失败可留下已创建父目录；删除目录会递归删除内容。
+普通 `RemoteUploadOptions.overwrite` 和 `RemoteDownloadOptions.overwrite` 默认均为 true；需要保留已有文件时应显式设为 false。递归建目录中途失败可留下已创建父目录；删除目录会递归删除内容。
 
 **OneDrive MOVE 的并发限制：** 当前实现先拒绝已存在目标，再发送 PATCH，没有显式的原子非覆盖请求条件。不能把该预检当成与 WebDAV `Overwrite: F` 相同的竞争保护；真实服务行为尚待验收。
 
@@ -228,3 +234,9 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 ## 错误诊断日志
 
 Core 提供 `RemoteLogger` 与白名单结构化事件，默认关闭输出；Catalog 可通过 `SQLiteRemoteCatalogStore(databaseURL:logger:)` 注入并继承使用。原始错误描述可能含路径或底层消息，不应直接写普通日志。级别、固定错误码、自动覆盖位置与 OSLog 接入见[错误日志规范](Logging.md)。
+
+## 显式可恢复上传
+
+> 本节属于当前未发布工作树，不包含在 `v0.3.0` 标签中。
+
+`RemoteResumableUploadSource` 定义本地prepare、resume、checkpoint和abort；`RemoteUploadRecovery`是仅依赖Core的显式通用适配，不自动加入下载coordinator。`RemoteResumableUploadOptions.overwrite`默认**false**，与普通上传不同。宿主先保存prepare返回的非秘密handle，再启动resume；结果区分committed与committedCleanupPending，后者不等于未提交。OneDrive仅在专用构造器启用，条件ETag替换仍unsupported。详见[Transfer恢复上传](Transfer.md#显式恢复上传onedrive)及[OneDrive合同](OneDrive.md#upload-session-可恢复上传显式-opt-in)。

@@ -17,6 +17,14 @@ public enum RemoteSyncError: Error, Sendable, Equatable {
     case conflict(path: String)
     /// 传输完成但长度或校验值不符。
     case integrityMismatch(path: String)
+    /// A provider-owned upload session no longer exists or has expired.
+    case uploadSessionExpired
+    /// The immutable local upload snapshot is unavailable or changed.
+    case sourceSnapshotMissing
+    /// A final remote write may have committed, but this client cannot prove its outcome.
+    case uploadCommitUnknown
+    /// The configured protected session store could not read or atomically update a record.
+    case secureStorageUnavailable
     case cancelled
     /// 未能归类的底层错误，保留原始描述便于排查。
     case underlying(String)
@@ -48,6 +56,14 @@ extension RemoteSyncError: CustomStringConvertible {
             return "远端内容已变化：\(path)"
         case .integrityMismatch(let path):
             return "文件校验不一致：\(path)"
+        case .uploadSessionExpired:
+            return "远端上传会话已过期"
+        case .sourceSnapshotMissing:
+            return "上传源快照不可用或已变化"
+        case .uploadCommitUnknown:
+            return "远端上传结果需要核对"
+        case .secureStorageUnavailable:
+            return "上传会话安全存储不可用"
         case .cancelled:
             return "任务已取消"
         case .underlying(let detail):
@@ -61,7 +77,8 @@ extension RemoteSyncError: CustomStringConvertible {
         case .network, .rateLimited:
             return true
         case .authenticationFailed, .notFound, .permissionDenied, .unsupported,
-             .conflict, .integrityMismatch, .cancelled, .notConnected, .underlying:
+             .conflict, .integrityMismatch, .uploadSessionExpired, .sourceSnapshotMissing,
+             .uploadCommitUnknown, .secureStorageUnavailable, .cancelled, .notConnected, .underlying:
             return false
         }
     }

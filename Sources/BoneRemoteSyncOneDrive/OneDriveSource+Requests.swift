@@ -49,6 +49,7 @@ extension OneDriveSource {
         json: Data? = nil,
         body: ODUploadBody? = nil,
         contentType: String? = nil,
+        headers: [String: String] = [:],
         uploadProgress: (@Sendable (Int64) -> Void)? = nil
     ) async throws -> ODHTTPResponse {
         do {
@@ -61,6 +62,7 @@ extension OneDriveSource {
                 request.setValue("Bearer " + bearer, forHTTPHeaderField: "Authorization")
                 request.setValue("application/json", forHTTPHeaderField: "Accept")
                 request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+                for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
                 if let json {
                     request.httpBody = json
                     request.setValue("application/json", forHTTPHeaderField: "Content-Type")

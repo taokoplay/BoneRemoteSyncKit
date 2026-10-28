@@ -10,6 +10,17 @@ extension WebDAVSource {
 
     func downloadResumable(path: String, to destination: URL, options: WebDAVResumableDownloadOptions,
                            hooks: DAVRecoveryTestHooks, runtime: DAVRetryRuntime = .live) async throws -> RemoteEntry {
+        try await downloadResumableResult(path: path, to: destination, options: options, hooks: hooks, runtime: runtime).entry
+    }
+
+    /// Returns the local commit outcome separately from checkpoint cleanup.
+    public func downloadResumableResult(path: String, to destination: URL,
+                                        options: WebDAVResumableDownloadOptions) async throws -> RemoteResumableDownloadResult {
+        try await downloadResumableResult(path: path, to: destination, options: options, hooks: .none)
+    }
+
+    func downloadResumableResult(path: String, to destination: URL, options: WebDAVResumableDownloadOptions,
+                                 hooks: DAVRecoveryTestHooks, runtime: DAVRetryRuntime = .live) async throws -> RemoteResumableDownloadResult {
         try options.validate()
         let (session, version) = try context()
         let path = RemotePath.normalize(path)
@@ -40,8 +51,10 @@ extension WebDAVSource {
             do {
                 try hooks.call(.installedBeforeCleanup)
                 try prepared.store.removeIfMatching(prepared.record)
-            } catch { }
-            return prepared.entry
+            } catch {
+                return RemoteResumableDownloadResult(entry: prepared.entry, state: .committedCleanupPending)
+            }
+            return RemoteResumableDownloadResult(entry: prepared.entry, state: .committed)
         } catch { throw DAVHTTP.mapped(error, localPath: destination.path) }
     }
 }

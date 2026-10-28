@@ -112,6 +112,10 @@ public struct RemoteLogger: Sendable {
             case .network: code = .network
             case .conflict: code = .conflict
             case .integrityMismatch: code = .integrity
+            case .uploadSessionExpired: code = .conflict
+            case .sourceSnapshotMissing: code = .integrity
+            case .uploadCommitUnknown: code = .conflict
+            case .secureStorageUnavailable: code = .permission
             case .cancelled: code = .cancelled
             case .underlying: code = .unknown
             }

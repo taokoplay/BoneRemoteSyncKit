@@ -32,6 +32,36 @@ enum ODLocation {
               values.count == 2, values[0] == drive, !values[1].isEmpty else { throw RemoteSyncError.unsupported(operation: "OneDrive 条目标识不属于当前主盘") }
         return values[1]
     }
+    static func validateUploadSessionURL(_ url: URL, endpoints: ODEndpoints) throws {
+        guard url.user == nil, url.password == nil, url.fragment == nil,
+              url.absoluteString.utf8.count <= 32768,
+              let host = url.host?.lowercased(), !host.isEmpty,
+              host != "localhost", !host.hasSuffix("."),
+              !host.hasSuffix(".localhost"), !host.hasSuffix(".local"),
+              !host.hasSuffix(".internal"), !host.contains(":"), !host.contains("[") else {
+            throw RemoteSyncError.unsupported(operation: "OneDrive 上传会话地址不可信")
+        }
+        // Graph may put the pre-authorized secret in the query. Keep it only
+        // in the provider-private record; never expose it in public state/logs.
+        if endpoints.allowsLoopback, url.scheme?.lowercased() == "http", host == "127.0.0.1", url.port == endpoints.graph.port {
+            return
+        }
+        // Reject literal IPv4 forms, including legacy inet_aton spellings.
+        // DNS rebinding cannot be proved without controlling the resolver.
+        var ipv4 = in_addr()
+        let numericIPv4 = host.withCString { inet_aton($0, &ipv4) != 0 }
+        guard url.scheme?.lowercased() == "https", url.port == nil || url.port == 443,
+              !numericIPv4,
+              host.contains("."),
+              host.split(separator: ".").last?.allSatisfy({ $0.isNumber }) == false else {
+            throw RemoteSyncError.unsupported(operation: "OneDrive 上传会话地址不可信")
+        }
+    }
+
+    static func createUploadSession(parent: String, name: String, drive: String, base: URL) -> URL {
+        endpoint("drives/\(encoded(drive))/items/\(encoded(parent)):/\(encoded(name)):/createUploadSession", base: base)
+    }
+
     static func validateGraph(_ url: URL, base: URL) throws {
         guard url.scheme == base.scheme, url.host == base.host, url.port == base.port,
               url.user == nil, url.password == nil, url.fragment == nil,

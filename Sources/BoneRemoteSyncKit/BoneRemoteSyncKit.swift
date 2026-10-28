@@ -9,3 +9,4 @@
 @_exported import BoneRemoteSyncOneDrive
 
 @_exported import BoneRemoteSyncCatalog
+@_exported import BoneRemoteSyncTransfer
