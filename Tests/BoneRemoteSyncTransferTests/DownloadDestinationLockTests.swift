@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncLocal
 @testable import BoneRemoteSyncTransfer
@@ -73,7 +74,8 @@ import BoneRemoteSyncLocal
     }
 
     #if os(macOS)
-    @Test func separateProcessCannotAcquireHeldLockFiles() async throws {
+    @Test(.enabled(if: PythonFixture.isAvailable, "跨进程锁验证需要 Python 3"))
+    func separateProcessCannotAcquireHeldLockFiles() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let directory = root.appendingPathComponent("locks")
@@ -95,7 +97,7 @@ import BoneRemoteSyncLocal
             let process = Process()
             let finished = DispatchSemaphore(value: 0)
             process.terminationHandler = { _ in finished.signal() }
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+            process.executableURL = try PythonFixture.executableURL()
             process.arguments = ["-c", script, directory.path, phase]
             try process.run()
             #expect(finished.wait(timeout: .now() + 10) == .success)

@@ -1,9 +1,10 @@
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct ODMetadataTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct ODMetadataTests {
     @Test(arguments: ["2026-10-19T01:02:03Z", "2026-10-19T01:02:03.125Z", "2026-10-19T09:02:03+08:00", "invalid", ""])
     func mapsDriveItemCreationDateWithoutUsingFileSystemOrModifiedTime(raw: String) throws {
         let json: [String: Any] = ["id": "x", "name": "x", "file": ["mimeType": "image/jpeg"],
@@ -42,7 +43,7 @@ import BoneRemoteSyncCore
 }
 
 #if os(macOS)
-@Suite struct OneDriveMetadataTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveMetadataTests {
     @Test func publicListStatAndDownloadCarryCreationDate() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }
         let source = server.source()

@@ -40,13 +40,14 @@ let package = Package(
         .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"], linkerSettings: [.linkedFramework("Security")]),
         .target(name: "BoneRemoteSyncTransfer", dependencies: ["BoneRemoteSyncCore"]),
         .testTarget(name: "BoneRemoteSyncKitTests", dependencies: ["BoneRemoteSyncKit"]),
-        .testTarget(name: "BoneRemoteSyncTransferTests", dependencies: ["BoneRemoteSyncTransfer", "BoneRemoteSyncLocal"]),
+        .testTarget(name: "BoneRemoteSyncTransferTests", dependencies: ["BoneRemoteSyncTransfer", "BoneRemoteSyncLocal", "BoneRemoteSyncTestSupport"]),
+        .testTarget(name: "BoneRemoteSyncTestSupport"),
         .testTarget(name: "BoneRemoteSyncOneDriveTests",
-                    dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
+                    dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer", "BoneRemoteSyncTestSupport"],
                     resources: [.copy("Fixtures")]),
         .testTarget(
             name: "BoneRemoteSyncWebDAVTests",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncWebDAV", "BoneRemoteSyncTransfer"],
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncWebDAV", "BoneRemoteSyncTransfer", "BoneRemoteSyncTestSupport"],
             resources: [.copy("Fixtures")]
         ),
         .testTarget(

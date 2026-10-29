@@ -2,10 +2,11 @@
 import Foundation
 import CryptoKit
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVRecoveryTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVRecoveryTests {
     @Test func newManagedDownloadAndEmptyFileRemoveCheckpoint() async throws {
         let server = try WebDAVTestServer(); defer { server.cleanUp() }
         let source = try server.source(); try await source.connect(.anonymous)

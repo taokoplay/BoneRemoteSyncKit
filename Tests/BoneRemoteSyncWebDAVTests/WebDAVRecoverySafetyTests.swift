@@ -3,6 +3,7 @@ import Foundation
 import CryptoKit
 import Darwin
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncWebDAV
 
@@ -27,7 +28,7 @@ struct RecoveryPair {
     }
 }
 
-@Suite struct WebDAVRecoverySafetyTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVRecoverySafetyTests {
     var fast: WebDAVRetryPolicy { .init(maxAttempts: 3, initialDelay: 0, maxDelay: 0, totalTimeout: 15) }
 
     @Test func transientBodyFailureResumesFromCommittedPrefix() async throws {

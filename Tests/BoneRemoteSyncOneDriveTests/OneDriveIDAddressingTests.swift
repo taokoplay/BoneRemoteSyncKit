@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct OneDriveIDAddressingTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveIDAddressingTests {
     @Test func stableIDSurvivesRenameAndDownloadsWithoutOldPath() async throws {
         let server = try OneDriveTestServer("renamed"); defer { server.cleanUp() }
         let concrete = server.source(); let source: any RemoteIDAddressableSource = concrete

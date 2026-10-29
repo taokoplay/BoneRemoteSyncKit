@@ -1,11 +1,12 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncTransfer
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct OneDriveMaterializationTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveMaterializationTests {
     @Test func itemIDMaterializationUsesProviderWithoutExposingDownloadURL() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }
         let source = server.source()

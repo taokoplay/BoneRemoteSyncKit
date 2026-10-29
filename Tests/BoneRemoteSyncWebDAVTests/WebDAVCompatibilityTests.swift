@@ -1,12 +1,13 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncWebDAV
 
 // Each case launches a process; serialize this added matrix to avoid overwhelming unrelated
 // short-deadline fixtures. Assertions and production timeout policies remain unchanged.
-@Suite(.serialized) struct WebDAVCompatibilityTests {
+@Suite(.serialized, .enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVCompatibilityTests {
     @Test func collectionSlashWorksForListStatWalkAndWritePreflight() async throws {
         let server = try WebDAVTestServer(fixture: "compat_server")
         defer { server.cleanUp() }

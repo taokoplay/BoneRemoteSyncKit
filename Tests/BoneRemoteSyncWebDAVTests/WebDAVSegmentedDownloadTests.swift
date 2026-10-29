@@ -1,11 +1,12 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncTransfer
 import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVSegmentedDownloadTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVSegmentedDownloadTests {
     private let config = RemoteSegmentedDownloadOptions(segmentSize: 8, maxConcurrentSegments: 3, minimumFileSize: 1)
 
     @Test func exactClosedRangesUseOneVersionAndReturnWholeFile() async throws {

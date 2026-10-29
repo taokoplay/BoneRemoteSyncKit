@@ -1,9 +1,10 @@
 #if os(macOS)
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct OneDriveConnectionIdentityTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveConnectionIdentityTests {
     @Test func connectionIdentityIsAvailableOnlyDuringSuccessfulConnection() async throws {
         let server = try OneDriveTestServer()
         defer { server.cleanUp() }

@@ -1,0 +1,151 @@
+name: CI
+
+# 每次推送到 main 与每个 PR 都跑完整验证；发布标签额外生成公共 API 变更清单。
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# 同一分支的重复推送取消旧任务，避免排队浪费 runner 时间。
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 串行测试是这个仓库的既定做法：fixture 会并发启动本地 HTTP 服务。
+  SWIFT_TEST_FLAGS: "--no-parallel"
+  # 显式跳过依赖真实云端/entitlement 的能力；这些不属于 CI 范围。
+  CI: "true"
+
+jobs:
+  build-and-test:
+    name: Build & Test (macOS)
+    # 必须用 macOS runner：测试硬编码了 Darwin API、Keychain 与本地 HTTP fixture。
+    runs-on: macos-14
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 显示工具链版本
+        run: |
+          swift --version
+          xcodebuild -version
+          /usr/bin/python3 --version || true
+          # 记录 fixture 实际使用的解释器，便于排查环境差异。
+          echo "BONE_PYTHON=${BONE_PYTHON:-<auto>}"
+
+      # 缓存 .build：冷构建约 30s，缓存后增量构建通常 <10s。
+      # key 绑定 Package.swift 与 Swift 工具链版本，依赖或编译器变化即失效。
+      - name: 缓存 SwiftPM 构建目录
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift') }}-${{ hashFiles('Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
+      - name: 构建（debug）
+        run: swift build
+
+      - name: 构建（release）
+        run: swift build -c release
+
+      - name: 测试（串行）
+        run: swift test $SWIFT_TEST_FLAGS
+
+      # 汇总结果写进 job summary，失败时不必翻日志找数量。
+      - name: 测试结果摘要
+        if: always()
+        run: |
+          {
+            echo "### 测试结果"
+            echo
+            echo "- 工具链：$(swift --version | head -1)"
+            echo "- 命令：\`swift test $SWIFT_TEST_FLAGS\`"
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "- 状态：通过"
+            else
+              echo "- 状态：失败"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  api-compat:
+    name: Public API diff
+    runs-on: macos-14
+    timeout-minutes: 30
+    # API 比对只在发布标签与手动触发时需要，PR 上不必重复构建。
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 需要比对上一个标签，必须完整历史。
+          fetch-depth: 0
+
+      - name: 缓存 SwiftPM 构建目录
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: ${{ runner.os }}-spm-api-${{ hashFiles('Package.swift') }}
+
+      - name: 与上一个标签比对公共 API
+        run: |
+          set -euo pipefail
+          current_tag="${GITHUB_REF_NAME}"
+          # 上一个已发布标签；没有则跳过（首次发布）。
+          previous_tag="$(git tag --list 'v*' --sort=-v:refname | grep -v "^${current_tag}$" | head -1 || true)"
+          if [ -z "$previous_tag" ]; then
+            echo "没有上一个标签，跳过 API 比对。"
+            exit 0
+          fi
+          echo "比对基线：$previous_tag"
+
+          # 在临时工作树里导出旧标签的 API，避免污染当前检出。
+          # check 在存在移除或签名变更时返回 2；仓库不承诺向后兼容，因此只告警不阻断。
+          # 注意：旧标签的提交里可能还没有 script/api-baseline.sh，
+          # 因此始终使用当前检出的脚本，只把工作目录指向旧标签源码。
+          worktree="$(mktemp -d)"
+          git worktree add --detach "$worktree" "$previous_tag" >/dev/null
+          BRSK_SOURCE_ROOT="$worktree" "$GITHUB_WORKSPACE/script/api-baseline.sh" dump > /tmp/api-baseline.txt
+          git worktree remove --force "$worktree"
+
+          set +e
+          script/api-baseline.sh check /tmp/api-baseline.txt > /tmp/api-report.md
+          code=$?
+          set -e
+          cat /tmp/api-report.md
+          cat /tmp/api-report.md >> "$GITHUB_STEP_SUMMARY"
+          if [ "$code" -eq 2 ]; then
+            echo "::warning::存在公共 API 移除或签名变更，宿主需同步修改（见 job summary）。"
+          elif [ "$code" -ne 0 ]; then
+            echo "::error::API 比对过程出错（退出码 $code）。"
+            exit "$code"
+          fi
+
+  # runner 是一次性的，真正的磁盘压力在本地开发机；这里只验证夹具没有残留临时目录，
+  # 且明确不删 .build —— 它已被 cache action 保存，删掉会让下一次运行重新冷构建。
+  cleanup:
+    name: Verify no test leftovers
+    runs-on: macos-14
+    needs: [build-and-test]
+    if: always()
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 检查测试夹具是否残留临时目录
+        run: |
+          set -euo pipefail
+          # 报出体积但不删除：这里只作为可观察信号。
+          ./script/clean.sh --dry-run
+          leftovers="$(ls -d "${TMPDIR:-/tmp}"/BoneDAVTests-* "${TMPDIR:-/tmp}"/BoneODTests-* 2>/dev/null | wc -l | tr -d ' ')"
+          echo "夹具临时目录残留：$leftovers"
+          if [ "$leftovers" -ne 0 ]; then
+            # 单个测试被中断时可能留下目录；不阻断 CI，但给出明确警告。
+            echo "::warning::检测到 $leftovers 个残留的测试夹具临时目录。"
+          fi

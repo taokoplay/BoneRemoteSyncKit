@@ -1,9 +1,10 @@
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct OneDriveOAuthTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveOAuthTests {
     let configuration = try! OneDriveConfiguration(clientID: "test-client", redirectURI: URL(string: "bonetest://oauth/onedrive")!)
     let verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
     @Test func pkceUsesRFC7636S256AndReadWriteScopes() throws {
@@ -40,7 +41,7 @@ import BoneRemoteSyncCore
 }
 
 #if os(macOS)
-@Suite struct OneDriveTokenTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveTokenTests {
     @Test func exchangesAndRefreshesWithoutClientSecret() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }
         let auth = try server.oauth.authorize()

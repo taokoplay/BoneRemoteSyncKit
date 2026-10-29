@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
@@ -22,7 +23,16 @@ final class OneDriveWriteServer: @unchecked Sendable {
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         logURL = workspace.appendingPathComponent("requests.jsonl")
         process.terminationHandler = { [terminated] _ in terminated.signal() }
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        guard let interpreter = PythonFixture.path else {
+            // 没有解释器时不启动进程：保持未就绪，由 suite 级 `.enabled(if:)` 跳过。
+            endpoints = ODEndpoints(
+                graph: URL(string: "http://127.0.0.1:9/v1.0/")!,
+                authority: URL(string: "http://127.0.0.1:9/oauth/")!,
+                allowsLoopback: true
+            )
+            return
+        }
+        process.executableURL = URL(fileURLWithPath: interpreter)
         process.arguments = [
             "-u",
             Bundle.module.url(forResource: "server-write", withExtension: "py", subdirectory: "Fixtures")!.path,
@@ -78,7 +88,7 @@ final class OneDriveWriteServer: @unchecked Sendable {
     }
 }
 
-@Suite struct OneDriveWritingTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveWritingTests {
     @Test func uploadCreatesThenReplacesOnlyWhenAllowed() async throws {
         let server = try OneDriveWriteServer(); defer { server.cleanUp() }
         let source = server.source()

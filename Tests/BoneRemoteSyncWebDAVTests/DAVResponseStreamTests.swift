@@ -1,9 +1,10 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 @testable import BoneRemoteSyncWebDAV
 
-@Suite struct DAVResponseStreamTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct DAVResponseStreamTests {
     @Test func largeCallbackIsSplitAndBackpressuredWithoutRejectingValidBody() async throws {
         let state = DAVBodyState()
         let payload = Data(repeating: 0xA5, count: 8 * 1024 * 1024)

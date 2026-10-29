@@ -236,12 +236,38 @@ func transferFile(
 
 ```bash
 swift build
-swift test
+swift test --no-parallel   # 串行：fixture 会启动本地 HTTP 服务
 swift build -c release
 ```
 
-HTTP 集成测试在 macOS 上运行，需要 `/usr/bin/python3`（Python 3.8+，仅标准库），只访问本机临时 fixture。生产模块不依赖 Python。
+HTTP 集成测试在 macOS 上运行，需要一个 **Python 3** 解释器（仅标准库），只访问本机临时 fixture。生产模块不依赖 Python。
 
+解释器按以下顺序自动解析：环境变量 `BONE_PYTHON` → `/usr/bin/python3` → Homebrew / python.org 常见路径 → `PATH` 中的 `python3`。**找不到解释器时，依赖 fixture 的 suite 会被显式跳过并在结果中标注原因，而不是崩溃或静默失败。** 需要指定版本时：
+
+```bash
+BONE_PYTHON=/opt/homebrew/bin/python3 swift test --no-parallel
+```
+
+### CI 与缓存回收
+
+仓库通过 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在 `macos-14` 上自动执行：debug / release 构建、串行全量测试，并在发布标签上生成**公共 API 变更清单**（与上一个标签比对，仅告警不阻断，符合本项目“不承诺向后兼容”的策略）。
+
+构建与测试会在本地产生约 **600–700 MB** 的 `.build` 目录，长期多次构建会持续累积。使用 [script/clean.sh](script/clean.sh) 回收：
+
+```bash
+script/clean.sh --dry-run     # 只报告将删除什么与体积
+script/clean.sh               # 删除 .build 与测试 fixture 临时目录
+script/clean.sh --all         # 额外清理 SwiftPM 全局缓存与本包 DerivedData
+```
+
+该脚本只删除可再生成的产物，不触碰源码、文档或 git 状态。
+
+公共 API 基线可手动导出与比对：
+
+```bash
+script/api-baseline.sh dump > api-baseline.txt
+script/api-baseline.sh check api-baseline.txt   # 存在移除时退出码 2
+```
 截至 **2026-10-27（GMT+8）**，`v0.3.0` 所含实现最终串行全包 **392 项测试通过**，Release、独立 Kit 消费端、七模块及 iCloud 示例的四目标编译/链接检查通过；指南 3 个 Swift 片段四目标类型检查通过。这些结果不等于真实服务兼容性、最低 OS 真机或云端传播验收。
 
 截至 **2026-10-28（GMT+8）**，`v0.4.0` 发布前重新运行串行全包，**506 项测试通过**，并通过 Release 与独立 Kit 分片消费端检查。八模块四目标编译链接、文档示例类型检查及恢复传输的受控跨进程证据沿用同一实现的既有结果，不代表真实账号、Keychain、最低系统运行或大文件性能已验收。

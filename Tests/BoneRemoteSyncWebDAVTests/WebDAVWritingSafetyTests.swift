@@ -2,10 +2,11 @@
 import Foundation
 import Darwin
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVWritingSafetyTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVWritingSafetyTests {
     @Test func snapshotIsPrivateIndependentAndCleanedUp() async throws {
         let server = try WebDAVTestServer(fixture: "write_server"); defer { server.cleanUp() }
         let original = Data("original".utf8)

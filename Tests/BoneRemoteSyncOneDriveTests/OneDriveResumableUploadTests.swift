@@ -2,6 +2,7 @@
 import Foundation
 import CryptoKit
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncTransfer
 @testable import BoneRemoteSyncOneDrive
@@ -43,7 +44,7 @@ private func uploadTarget(_ source: OneDriveSource, path: String) async throws -
     RemoteFileReference(source: try await source.connectedBinding(), path: path)
 }
 
-@Suite struct OneDriveResumableUploadTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveResumableUploadTests {
     @Test func oneDriveAdvertisesAndImplementsManagedResumableUpload() throws {
         let configuration = try OneDriveConfiguration(
             clientID: "fixture-client",

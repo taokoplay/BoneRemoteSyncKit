@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct OneDriveExpectedVersionTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveExpectedVersionTests {
     @Test func unsupportedConditionalUploadDoesNotSendRequests() async throws {
         let server = try OneDriveWriteServer(); defer { server.cleanUp() }
         let source = server.source(); try await source.connect(server.credential)

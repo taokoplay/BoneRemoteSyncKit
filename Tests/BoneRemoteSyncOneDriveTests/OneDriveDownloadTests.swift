@@ -2,6 +2,7 @@
 import Foundation
 import CryptoKit
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
@@ -17,7 +18,7 @@ private final class ODPhaseProbe: @unchecked Sendable {
     func record(_ event: RemoteDownloadProgress) { lock.withLock { events.append(event) } }
     var values: [RemoteDownloadProgress] { lock.withLock { events } }
 }
-@Suite struct OneDriveDownloadTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveDownloadTests {
     @Test(arguments: ["normal", "expired"])
     func downloadsByIDWithoutBearerAtCDN(scenario: String) async throws {
         let server = try OneDriveTestServer(scenario); defer { server.cleanUp() }; let source = server.source()
@@ -101,7 +102,7 @@ private final class ODPhaseProbe: @unchecked Sendable {
         await source.disconnect()
     }
 }
-@Suite struct OneDriveDownloadSafetyTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveDownloadSafetyTests {
     @Test func rejectsSymlinkDirectoryAndHardlinkTargets() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }; let source = server.source()
         try await source.connect(server.credential); let entry = try await source.stat(path: "/file")

@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
@@ -10,7 +11,7 @@ private final class DAVPhaseProbe: @unchecked Sendable {
     func record(_ event: RemoteDownloadProgress) { lock.withLock { events.append(event) } }
     var values: [RemoteDownloadProgress] { lock.withLock { events } }
 }
-@Suite struct WebDAVDownloadTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVDownloadTests {
     @Test func completeDownloadAndEmptyFileUseAtomicTargetAndReportBytes() async throws {
         let server = try WebDAVTestServer()
         defer { server.cleanUp() }

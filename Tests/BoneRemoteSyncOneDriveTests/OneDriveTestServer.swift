@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
@@ -17,7 +18,13 @@ final class OneDriveTestServer: @unchecked Sendable {
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneODTests-\(UUID())")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         process.terminationHandler = { [terminated] _ in terminated.signal() }
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        guard let interpreter = PythonFixture.path else {
+            // 没有解释器时不启动进程：保持未就绪，由 suite 级 `.enabled(if:)` 跳过。
+            endpoints = ODEndpoints(graph: URL(string: "http://127.0.0.1:9/v1.0/")!,
+                authority: URL(string: "http://127.0.0.1:9/oauth/")!, allowsLoopback: true)
+            return
+        }
+        process.executableURL = URL(fileURLWithPath: interpreter)
         process.arguments = ["-u", Bundle.module.url(forResource: "server", withExtension: "py", subdirectory: "Fixtures")!.path,
                              workspace.appendingPathComponent("requests.jsonl").path, scenario]
         let pipe = Pipe(); process.standardOutput = pipe; process.standardError = FileHandle.nullDevice

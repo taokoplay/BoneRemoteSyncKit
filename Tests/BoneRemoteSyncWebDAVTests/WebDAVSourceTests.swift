@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVSourceTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVSourceTests {
     @Test func connectedSourceListsOnlyDirectVisibleChildrenAndCanWalk() async throws {
         let server = try WebDAVTestServer()
         defer { server.cleanUp() }

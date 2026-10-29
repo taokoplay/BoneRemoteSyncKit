@@ -1,11 +1,12 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncTransfer
 @testable import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVGenericRecoveryTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVGenericRecoveryTests {
     @Test func genericRecoveryObservesCheckpointAndResumesWithNewSource() async throws {
         let server = try WebDAVTestServer(); defer { server.cleanUp() }
         let binding = RemoteSourceBinding(kind: .webdav, identity: "opaque-account")

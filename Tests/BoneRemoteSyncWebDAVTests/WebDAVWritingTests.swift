@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVWritingTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVWritingTests {
     @Test func supportsUploadDirectoryCreationMoveCopyAndRecursiveRemove() async throws {
         let server = try WebDAVTestServer(fixture: "write_server")
         defer { server.cleanUp() }

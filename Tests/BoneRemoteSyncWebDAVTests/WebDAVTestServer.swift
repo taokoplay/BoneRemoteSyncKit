@@ -1,23 +1,32 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncWebDAV
 
 /// 仅测试工具拥有 Process；生产模块不依赖 Python，不接触用户文件。
 final class WebDAVTestServer: @unchecked Sendable {
     let workspace: URL
     let baseURL: URL
-    private let process: Process
+    private let process = Process()
     private let logURL: URL
     private let terminated = DispatchSemaphore(value: 0)
+    /// False when no Python interpreter exists, in which case `init` starts nothing.
+    /// Suites that need the fixture declare `.enabled(if: PythonFixture.isAvailable)`.
+    private(set) var ready = false
 
     init(root: String = "dav", fixture: String = "server") throws {
         workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneDAVTests-\(UUID())")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         logURL = workspace.appendingPathComponent("requests.jsonl")
-        process = Process()
         process.terminationHandler = { [terminated] _ in terminated.signal() }
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+
+        guard let interpreter = PythonFixture.path else {
+            // 没有解释器时不尝试启动进程，也不崩溃：保持未就绪，由 suite 级跳过负责。
+            baseURL = URL(string: "http://127.0.0.1:9/\(root)/")!
+            return
+        }
+        process.executableURL = URL(fileURLWithPath: interpreter)
         let script = Bundle.module.url(forResource: fixture, withExtension: "py", subdirectory: "Fixtures")!
         process.arguments = ["-u", script.path, logURL.path]
         let pipe = Pipe()
@@ -31,9 +40,11 @@ final class WebDAVTestServer: @unchecked Sendable {
             throw NSError(domain: "Fixture", code: 1)
         }
         baseURL = URL(string: "http://127.0.0.1:\(port)/\(root)/")!
+        ready = true
     }
 
     func cleanUp() {
+        guard ready else { return }
         if process.isRunning { process.terminate() }
         // waitUntilExit can remain in a run loop after the child has already exited when
         // called on a Swift Testing cooperative thread. Use the pre-registered callback.
@@ -41,7 +52,10 @@ final class WebDAVTestServer: @unchecked Sendable {
         try? FileManager.default.removeItem(at: workspace)
     }
 
-    func source() throws -> WebDAVSource { try WebDAVSource(baseURL: baseURL, timeout: 10) }
+    func source() throws -> WebDAVSource {
+        #expect(ready, "WebDAV fixture was not started: \(PythonFixture.unavailableReason)")
+        return try WebDAVSource(baseURL: baseURL, timeout: 10)
+    }
     func file(_ name: String = "out.bin") -> URL { workspace.appendingPathComponent(name) }
     func requests() throws -> [[String: Any]] {
         guard FileManager.default.fileExists(atPath: logURL.path) else { return [] }

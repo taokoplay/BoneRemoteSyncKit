@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
-@Suite struct WebDAVRetryTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVRetryTests {
     private var fast: WebDAVRetryPolicy { .init(maxAttempts: 3, initialDelay: 0, maxDelay: 0, totalTimeout: 5) }
 
     @Test func optedInConnectStatAndGETRetryOnceEach() async throws {

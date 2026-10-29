@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
-@Suite(.serialized) struct WebDAVListingCoverageTests {
+@Suite(.serialized, .enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVListingCoverageTests {
     @Test(arguments: ["dav", "coverage-missing", "coverage-duplicate"])
     func filteredOrConflictingResponsesAreNotComplete(root: String) async throws {
         let server = try WebDAVTestServer(root: root)

@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 @testable import BoneRemoteSyncCatalog
@@ -18,7 +19,7 @@ private final class TestCredentialMemory: RemoteCredentialStore, @unchecked Send
     }
     func remove(reference: UUID) throws { _ = lock.withLock { values.removeValue(forKey: reference) } }
 }
-@Suite(.serialized) struct OneDriveCatalogCredentialTests {
+@Suite(.serialized, .enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveCatalogCredentialTests {
     // Supplemental integration of the actual OneDrive callback with Catalog's fixed-reference handle.
     // Endpoint injection stays inside the adapter's test target, not in the public session factory.
     @Test func rotationIsPersistedOnceAndSurvivesLaterCatalogFailure() async throws {

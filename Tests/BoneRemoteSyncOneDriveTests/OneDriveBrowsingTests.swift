@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
@@ -15,7 +16,7 @@ final class TokenProbe: @unchecked Sendable {
     func record(_ token: OneDriveToken) { lock.withLock { tokens.append(token.accessToken) } }
     var count: Int { lock.withLock { tokens.count } }
 }
-@Suite struct OneDriveBrowsingTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveBrowsingTests {
     @Test func paginatesWithStableIDsAndHiddenFiltering() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }; let source = server.source()
         try await source.connect(server.credential)
@@ -70,7 +71,7 @@ final class TokenProbe: @unchecked Sendable {
     }
 }
 
-@Suite struct OneDriveLifecycleTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveLifecycleTests {
     @Test func proactiveAndReactiveRefreshAreSingleFlight() async throws {
         for proactive in [true, false] {
             let server = try OneDriveTestServer("refresh-slow"); defer { server.cleanUp() }; let probe = TokenProbe(); let source = server.source { probe.record($0) }
@@ -105,7 +106,7 @@ final class TokenProbe: @unchecked Sendable {
 extension OneDriveSource {
     func expireForTest() { token = OneDriveToken(accessToken: "OLD", refreshToken: "REFRESH", expiresAt: .distantPast) }
 }
-@Suite struct OneDriveRefreshCancellationTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveRefreshCancellationTests {
     @Test func cancellingOneWaiterDoesNotDiscardRotatedToken() async throws {
         let server = try OneDriveTestServer("refresh-slow"); defer { server.cleanUp() }; let probe = TokenProbe(); let source = server.source { probe.record($0) }
         try await source.connect(server.credential); await source.expireForTest()
@@ -122,7 +123,7 @@ extension OneDriveSource {
 #endif
 
 #if os(macOS)
-@Suite struct OneDriveConcurrentLifecycleTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveConcurrentLifecycleTests {
     @Test func simultaneousExpiredRequestsShareOneRefresh() async throws {
         let server = try OneDriveTestServer("refresh-slow"); defer { server.cleanUp() }; let probe = TokenProbe(); let source = server.source { probe.record($0) }
         try await source.connect(server.credential); await source.expireForTest()
@@ -156,7 +157,7 @@ extension OneDriveSource {
 #endif
 
 #if os(macOS)
-@Suite struct OneDriveProtocolBoundaryTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveProtocolBoundaryTests {
     @Test(arguments: ["graph-redirect","large-json", "unknown-large-json"])
     func graphFailuresDoNotRedirectOrExposeBody(scenario: String) async throws {
         let server = try OneDriveTestServer(scenario); defer { server.cleanUp() }; let source = server.source()
@@ -195,7 +196,7 @@ extension OneDriveSource {
 #endif
 
 #if os(macOS)
-@Suite struct OneDriveReviewRegressionTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveReviewRegressionTests {
     @Test func defaultVisitorWalkClampsPageSizeWithoutChangingEntryBudget() async throws {
         let server = try OneDriveTestServer("walk"); defer { server.cleanUp() }; let source = server.source()
         try await source.connect(server.credential)
@@ -227,7 +228,7 @@ extension OneDriveSource {
 #endif
 
 #if os(macOS)
-@Suite struct OneDriveCursorConcurrencyTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveCursorConcurrencyTests {
     @Test func duplicateConcurrentCursorUseHasOneSuccessfulCommit() async throws {
         let server = try OneDriveTestServer("three-pages"); defer { server.cleanUp() }; let source = server.source()
         try await source.connect(server.credential)

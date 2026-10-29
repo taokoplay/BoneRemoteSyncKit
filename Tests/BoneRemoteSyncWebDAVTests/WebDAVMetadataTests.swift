@@ -1,9 +1,10 @@
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncWebDAV
 
-@Suite struct DAVCreationMetadataTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct DAVCreationMetadataTests {
     @Test(arguments: ["2026-10-19T01:02:03Z", "2026-10-19T01:02:03.125Z", "2026-10-19T09:02:03+08:00"])
     func parsesCreationDateOnlyFromSuccessfulDAVProperties(raw: String) throws {
         let xml = """
@@ -61,7 +62,7 @@ private func ISODate(_ raw: String) -> Date? {
 }
 
 #if os(macOS)
-@Suite(.serialized) struct WebDAVMetadataTests {
+@Suite(.serialized, .enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVMetadataTests {
     @Test(arguments: [false, true])
     func downloadingCheckpointRetainsKnownDateWhenServerOmitsIt(legacy: Bool) async throws {
         let server = try WebDAVTestServer(root: "no-creation"); defer { server.cleanUp() }

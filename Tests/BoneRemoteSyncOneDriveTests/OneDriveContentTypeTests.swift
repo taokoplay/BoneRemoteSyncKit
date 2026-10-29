@@ -1,10 +1,11 @@
 #if os(macOS)
 import Foundation
 import Testing
+import BoneRemoteSyncTestSupport
 import BoneRemoteSyncCore
 @testable import BoneRemoteSyncOneDrive
 
-@Suite struct OneDriveContentTypeTests {
+@Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct OneDriveContentTypeTests {
     @Test(arguments: ["normal", "upload-refresh"])
     func explicitAndDefaultMIMEAreSentIncludingAuthReplay(scenario: String) async throws {
         let server = try OneDriveWriteServer(scenario)
