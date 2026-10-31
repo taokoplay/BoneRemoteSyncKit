@@ -4,7 +4,7 @@
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
-> 当前发布版本为 **`v0.4.0`**。在 `v0.3.0` 的 [Catalog 配置与目录缓存](Docs/Catalog.md)、结构化日志、[iCloud Drive 及备份契约](Docs/ICloudDrive.md)、OneDrive 稳定 ID 读取和 WebDAV 条件上传基础上，新增 iCloud R3 批量状态、[Transfer 物化/前台调度/分片下载/显式恢复](Docs/Transfer.md)及 OneDrive Upload Session 可恢复上传。新能力不包含在旧 `v0.3.0` 标签中；业务适用性见[场景指南](Docs/UseCases.md)，版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+> 当前发布版本为 **`v0.5.0`**。在 `v0.4.0` 的 Transfer、恢复传输和 OneDrive Upload Session 基础上，新增 `icon.bundle` 网盘图标资源、来源显示名称、图标读取 API 和网盘类型列表 API。图标目录不代表对应网盘原生适配器已经实现；版本变化及迁移要求见[更新说明](CHANGELOG.md)。
 
 > 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB 和其他网盘适配器尚未实现；iCloud Drive 来源已新增，真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
 
@@ -42,7 +42,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ## 能力矩阵
 
-下表按 **`v0.4.0`** 列出。标记 **「v0.4.0 新增」** 的 Transfer 队列、物化、分片及 OneDrive Upload Session 不包含在 `v0.3.0` 中；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
+下表按 **`v0.5.0`** 列出。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
 
 | 功能 | 本地目录 | WebDAV | OneDrive Personal | iCloud Drive |
 | --- | --- | --- | --- | --- |
@@ -102,7 +102,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.4.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.4.0"` 改为 `branch: "main"`。R3、Transfer 和 OneDrive Upload Session 已包含在 `v0.4.0` 中，无需改用开发分支。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.5.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.5.0"` 改为 `branch: "main"`。图标资源和类型列表已包含在 `v0.5.0` 中。
 
 ```swift
 // Package.dependencies
@@ -121,6 +121,27 @@ import BoneRemoteSyncKit
 ```
 
 **版本策略：** 直接按当前版本 API 和数据格式接入，不将旧 API、旧序列化数据或旧检查点的向后兼容作为维护约束，也不提供跨版本迁移承诺。宿主应同步更新依赖与调用代码；分模块产品用于按需依赖，不是旧版兼容层。文件元数据与传输修复包含在 `v0.2.0`，不属于 `v0.1.0`；使用 `main` 时，其内容可能领先于最新版本标签。
+
+## 图标与网盘类型列表
+
+统一入口提供 6 个 400×400 PNG 图标：Google Drive、阿里云盘、百度网盘、OneDrive、iCloud Drive 和 WebDAV。图标通过 SwiftPM 的 `icon.bundle` 分发，可读取 URL 或 PNG 数据：
+
+```swift
+import BoneRemoteSyncKit
+
+let drives = BoneRemoteSyncIcons.driveTypes()
+for drive in drives {
+    print(drive.id, drive.displayName, drive.icon.url as Any)
+}
+
+let iconURL = BoneRemoteSyncIcons.iconURL(for: .iCloud)
+let iconData = try BoneRemoteSyncIcons.iconData(for: .webdav)
+```
+
+`driveTypes()` 返回 `[BoneRemoteSyncDriveType]`。每一项包含 `id`、`displayName`、`icon` 和对应的 `RemoteSourceKind`；Google Drive、阿里云盘和百度网盘当前是图标目录项，SDK 尚未提供它们的原生来源适配器。`sourceTypes()` 则返回所有 `RemoteSourceKind`，没有内置图标的预留来源会返回 `icon == nil`。
+
+`BoneRemoteSyncIcon.url` 返回 bundle 内 PNG 的 `URL?`；`BoneRemoteSyncIcon.data()` 返回 PNG `Data`，资源不存在时抛出 `BoneRemoteSyncIconError.missingResource`。`RemoteSourceKind.iconResourceName` 和 `displayName` 只提供稳定资源名与默认英文 UI 标签，宿主可自行本地化。
+
 
 ## 快速上手
 

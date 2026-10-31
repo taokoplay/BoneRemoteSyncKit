@@ -2,6 +2,25 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
+## v0.5.0 — 2026-10-31
+
+本版本以 Git 附注标签 `v0.5.0` 发布，新增网盘图标资源与来源类型展示 API；`v0.4.0` 及更早标签保持不变。
+
+### 新增
+
+- `BoneRemoteSyncKit` 将 6 个 400×400 PNG 图标随 SwiftPM 的 `icon.bundle` 分发：Google Drive、阿里云盘、百度网盘、OneDrive、iCloud Drive 和 WebDAV。
+- 新增 `BoneRemoteSyncIcon`、`BoneRemoteSyncDriveType`、`BoneRemoteSyncSourceType` 和 `BoneRemoteSyncIcons`，支持读取图标 URL/PNG 数据，以及输出网盘类型列表。
+- `RemoteSourceKind` 新增稳定的 `iconResourceName` 和 `displayName` 属性，用于来源选择器展示。
+
+### 范围
+
+- 图标目录只描述可展示的网盘类型，不代表 Google Drive、阿里云盘或百度网盘的原生来源适配器已经实现；实际连接能力仍以已实现的来源模块和 `RemoteCapabilities` 为准。
+
+### 验证
+
+- `swift test --no-parallel` 通过；图标资源专项测试验证全部 PNG 可从 `icon.bundle` 读取。
+
+
 ## v0.4.0 — 2026-10-28
 
 本版本以 Git 附注标签 `v0.4.0` 发布，不另外创建 GitHub Release。包含实现提交 `3cb05c3` 与发布文档更新；原 `v0.1.0`、`v0.2.0`、`v0.3.0` 标签不变。以下为相对 `v0.3.0` 的变化。

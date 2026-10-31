@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按 `v0.4.0` API 描述；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。iCloud Drive、通用稳定 ID 读取、条件上传、内容校验值、Catalog、必填列表 coverage、阶段进度和 `connectedDriveID()` 自 `v0.3.0` 发布，不在 `v0.2.0` 中。
+> 本页按 `v0.5.0` API 描述；图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供。R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -20,6 +20,23 @@
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
+
+## 图标与来源类型 API
+
+统一入口 `BoneRemoteSyncKit` 提供以下公开类型：
+
+| API | 参数 | 返回值 / 行为 |
+| --- | --- | --- |
+| `BoneRemoteSyncIcons.sourceTypes()` | 无 | 返回全部 `RemoteSourceKind` 对应的 `[BoneRemoteSyncSourceType]` |
+| `BoneRemoteSyncIcons.driveTypes()` | 无 | 返回 6 个网盘图标目录项的 `[BoneRemoteSyncDriveType]` |
+| `BoneRemoteSyncIcons.icon(for:)` | `kind: RemoteSourceKind` | 返回对应的 `BoneRemoteSyncIcon?`；没有内置图标时为 `nil` |
+| `BoneRemoteSyncIcons.iconURL(for:)` | `kind: RemoteSourceKind` | 返回 bundle 内 PNG 的 `URL?` |
+| `BoneRemoteSyncIcons.iconData(for:)` | `kind: RemoteSourceKind` | 返回 PNG `Data`；资源不存在时抛出 `BoneRemoteSyncIconError.missingResource` |
+| `BoneRemoteSyncIcon.url` | 无 | 当前图标资源的 PNG URL |
+| `BoneRemoteSyncIcon.data()` | 无 | 当前图标的 PNG 数据 |
+
+`BoneRemoteSyncDriveType` 的字段为：`id: String`、`displayName: String`、`icon: BoneRemoteSyncIcon` 和 `kind: RemoteSourceKind`。`BoneRemoteSyncSourceType` 的字段为：`kind`、`displayName` 和可选 `icon`。图标目录只描述 UI 可展示的网盘类型，不声明 Google Drive、阿里云盘或百度网盘的连接、读写和认证能力；实际来源能力仍需检查 `RemoteSource.capabilities`。
+
 
 ```text
 App：import BoneRemoteSyncKit
