@@ -27,7 +27,8 @@ let package = Package(
     targets: [
         .target(
             name: "BoneRemoteSyncKit",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"]
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
+            resources: [.copy("Resources/icon.bundle")]
         ),
         .target(name: "BoneRemoteSyncCatalog",
                 dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],

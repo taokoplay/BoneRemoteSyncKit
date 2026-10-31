@@ -16,7 +16,30 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
     case dlna
 
     /// DLNA 这类"媒体源"要走不同的 UI 路径，不能混进文件浏览器。
-    public var isFileSystemLike: Bool { self != .dlna }
+    /// The bundled icon filename used by the unified SDK. `nil` means this kind has no built-in artwork yet.
+    public var iconResourceName: String? {
+        switch self {
+        case .webdav: "webdav"
+        case .cloudAPI: "onedrive"
+        case .iCloud: "icloud"
+        case .local, .smb, .ftp, .sftp, .nfs, .dlna: nil
+        }
+    }
+
+    /// A stable UI label for source pickers. Hosts may replace it with localized copy.
+    public var displayName: String {
+        switch self {
+        case .local: "Local"
+        case .smb: "SMB"
+        case .webdav: "WebDAV"
+        case .ftp: "FTP"
+        case .sftp: "SFTP"
+        case .nfs: "NFS"
+        case .cloudAPI: "Cloud API"
+        case .iCloud: "iCloud Drive"
+        case .dlna: "DLNA"
+        }
+    }
 }
 
 /// 统一来源契约。

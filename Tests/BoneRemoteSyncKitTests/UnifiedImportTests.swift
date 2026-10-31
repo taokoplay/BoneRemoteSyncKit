@@ -63,6 +63,23 @@ import BoneRemoteSyncKit
         #expect(authorization.url.host == "login.microsoftonline.com")
     }
 
+    @Test func exposesSourceTypesAndBundledIcons() throws {
+        let types = BoneRemoteSyncIcons.sourceTypes()
+        #expect(types.map(\.kind) == RemoteSourceKind.allCases)
+        #expect(types.first(where: { $0.kind == .webdav })?.icon == .webdav)
+        #expect(types.first(where: { $0.kind == .cloudAPI })?.icon == .onedrive)
+        #expect(types.first(where: { $0.kind == .iCloud })?.icon == .icloud)
+        #expect(types.first(where: { $0.kind == .local })?.icon == nil)
+
+        let drives = BoneRemoteSyncIcons.driveTypes()
+        #expect(drives.count == 6)
+        #expect(drives.map(\.id) == ["google-drive", "aliyun", "baidu", "onedrive", "icloud", "webdav"])
+        for drive in drives {
+            #expect(drive.icon.url?.pathExtension == "png")
+            #expect(try drive.icon.data().count > 0)
+        }
+    }
+
     @Test func materializationAndSchedulingWorkThroughUnifiedImport() async throws {
         let workspace = FileManager.default.temporaryDirectory.appendingPathComponent("BoneKitTransfer-\(UUID())")
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
