@@ -1,9 +1,8 @@
 import Foundation
 
-/// Non-secret configuration for an iCloud Drive container.
+/// iCloud Drive 容器的非敏感配置。
 ///
-/// The host application must declare the matching iCloud entitlement and container.
-/// `containerIdentifier == nil` uses the app's default ubiquitous container.
+/// 宿主必须声明匹配的 iCloud entitlement 和容器；containerIdentifier 为空时使用应用默认容器。
 public struct ICloudDriveConfiguration: Sendable, Codable, Equatable, Hashable {
     public static let standard = try! Self()
 
@@ -22,6 +21,7 @@ public struct ICloudDriveConfiguration: Sendable, Codable, Equatable, Hashable {
                       pollInterval: values.decode(TimeInterval.self, forKey: .pollInterval))
     }
 
+    /// 创建并校验 iCloud 容器配置；目录路径会被规范化为来源绝对路径。
     public init(
         containerIdentifier: String? = nil,
         directoryPath: String = "/",

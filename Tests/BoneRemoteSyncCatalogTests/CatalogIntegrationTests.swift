@@ -29,6 +29,11 @@ actor GatedResolver: RemoteLocalAccessResolver {
         let root = try await catalog.selectRoot(sourceID: profile.id, path: "/", defaultScope: .subtree)
         let report = try await catalog.refresh(rootID: root.id)
         #expect(report.state == .success && report.publishedDirectories == 2 && report.publishedEntries == 2)
+        #expect(report.storageSummary?.recursiveFileCount == 1)
+        #expect(report.storageSummary?.recursiveDirectoryCount == 1)
+        #expect(report.storageSummary?.totalBytes == 5)
+        #expect(try await catalog.storageSummary(rootID: root.id)?.isComplete == true)
+        #expect(try await catalog.storageSummary(rootID: root.id)?.isStale == false)
         #expect(try await catalog.listCached(rootID: root.id, directory: "/child").entries.map(\.name) == ["file.txt"])
         let calls = await resolver.calls
         try await store.close()
@@ -37,6 +42,47 @@ actor GatedResolver: RemoteLocalAccessResolver {
         #expect(await resolver.calls == calls)
         try await reopened.close()
     }
+
+    @Test func cacheInvalidationAndClearIndexManageStorageSummary() async throws {
+        let fixture = try CatalogFixture(); defer { withExtendedLifetime(fixture) {} }
+        let upstream = fixture.directory.appendingPathComponent("upstream")
+        try FileManager.default.createDirectory(at: upstream.appendingPathComponent("child"), withIntermediateDirectories: true)
+        try Data("hello".utf8).write(to: upstream.appendingPathComponent("child/file.txt"))
+        let store = try fixture.store()
+        let secrets = try KeychainRemoteCredentialStore(service: "test.\(UUID())", backend: MemorySecurityBackend())
+        let catalog = RemoteCatalog(store: store, sessions: .init(credentials: secrets, localResolver: GatedResolver(upstream)))
+        let profile = try await catalog.saveSource(displayName: "Local", configuration: .local(accessReference: "bookmark"))
+        let root = try await catalog.selectRoot(sourceID: profile.id, path: "/", defaultScope: .subtree)
+        _ = try await catalog.refresh(rootID: root.id)
+        try await catalog.invalidateCache(rootID: root.id)
+        #expect(try await catalog.storageSummary(rootID: root.id)?.isStale == true)
+        #expect(try await catalog.listCached(rootID: root.id, directory: "/").state == .stale)
+        try await store.clearIndex(rootID: root.id)
+        #expect(try await catalog.storageSummary(rootID: root.id) == nil)
+        #expect(try await catalog.listCached(rootID: root.id, directory: "/").state == .notInitialized)
+        try await store.close()
+    }
+
+    @Test func missingSelectedDirectoryFallsBackToSourceRoot() async throws {
+        let fixture = try CatalogFixture(); defer { withExtendedLifetime(fixture) {} }
+        let upstream = fixture.directory.appendingPathComponent("upstream")
+        let selected = upstream.appendingPathComponent("selected")
+        try FileManager.default.createDirectory(at: selected, withIntermediateDirectories: true)
+        try Data("before".utf8).write(to: selected.appendingPathComponent("file.txt"))
+        let store = try fixture.store()
+        let secrets = try KeychainRemoteCredentialStore(service: "test.\(UUID())", backend: MemorySecurityBackend())
+        let resolver = GatedResolver(upstream)
+        let catalog = RemoteCatalog(store: store, sessions: .init(credentials: secrets, localResolver: resolver))
+        let profile = try await catalog.saveSource(displayName: "Local", configuration: .local(accessReference: "bookmark"))
+        let root = try await catalog.selectRoot(sourceID: profile.id, path: "/selected")
+        try FileManager.default.removeItem(at: selected)
+        #expect(try await catalog.refresh(rootID: root.id).state == .success)
+        let recovered = try await store.root(id: root.id)
+        #expect(recovered.path == "/")
+        #expect(recovered.selectionRevision == root.selectionRevision + 1)
+        try await store.close()
+    }
+
     @Test func rootIsSingleFlightAndTimeoutPreservesCache() async throws {
         let fixture = try CatalogFixture(); defer { withExtendedLifetime(fixture) {} }
         let store = try fixture.store()

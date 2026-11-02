@@ -3,6 +3,7 @@ import CryptoKit
 import BoneRemoteSyncCore
 
 extension OneDriveSource: RemoteIDAddressableSource {
+    /// 按 OneDrive 稳定条目 ID 查询条目。
     public func stat(id: String) async throws -> RemoteEntry {
         do {
             let ctx = try context()
@@ -12,10 +13,12 @@ extension OneDriveSource: RemoteIDAddressableSource {
         } catch { throw ODHTTPClient.mapped(error) }
     }
 
+    /// 按父条目 ID 列出子项，游标绑定当前连接和请求参数。
     public func list(parentID: String, request: RemoteListRequest) async throws -> RemoteListPage {
         try await list(address: .id(parentID), request: request)
     }
 
+    /// 按来源路径查询条目。
     public func stat(path: String) async throws -> RemoteEntry {
         do {
             let ctx = try context(); let normalized = RemotePath.normalize(path)
@@ -24,6 +27,7 @@ extension OneDriveSource: RemoteIDAddressableSource {
             return value.entry(drive: ctx.drive, path: normalized)
         } catch { throw ODHTTPClient.mapped(error) }
     }
+    /// 按来源路径列出目录并返回 OneDrive 分页游标。
     public func list(path: String, request: RemoteListRequest) async throws -> RemoteListPage {
         try await list(address: .path(RemotePath.normalize(path)), request: request)
     }

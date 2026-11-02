@@ -51,6 +51,23 @@ final class CatalogFixture: @unchecked Sendable {
         try await reopened.close()
     }
 
+    @Test func v1DatabaseMigratesSummaryTableWithoutDroppingExistingData() async throws {
+        let fixture = try CatalogFixture()
+        let store = try fixture.store()
+        let profile = try RemoteSourceProfile(displayName: "Local", configuration: .local(accessReference: "bookmark"))
+        try await store.saveProfile(profile)
+        let root = try RemoteCatalogRoot(sourceID: profile.id, bindingID: profile.bindingID, path: "/", entryID: "root")
+        try await store.saveRoot(root)
+        try await store.close()
+        try fixture.sql("DROP TABLE catalog_summaries; PRAGMA user_version=1;")
+
+        let migrated = try fixture.store()
+        #expect(try await migrated.profile(id: profile.id) == profile)
+        #expect(try await migrated.root(id: root.id) == root)
+        #expect(try await migrated.storageSummary(rootID: root.id) == nil)
+        try await migrated.close()
+    }
+
     @Test func invalidConfigurationIsRejectedIncludingDecodedValues() throws {
         let invalid: [RemoteSourceConfiguration] = [
             .local(accessReference: ""), .local(accessReference: "bad\0ref"),

@@ -5,6 +5,7 @@ extension WebDAVSource: RemoteCopyingSource {
     /// Full PUT upload. The parent must exist. No upload resumption or remote rollback is promised.
     /// A private disk snapshot requires free space approximately equal to the input file size.
     @discardableResult
+    /// 使用 WebDAV PUT 上传普通文件；父目录必须存在，不提供远端回滚或自动续传。
     public func upload(from localURL: URL, to path: String, options: RemoteUploadOptions = .init()) async throws -> RemoteEntry {
         do {
             let (ctx, version) = try writeContext()
@@ -63,6 +64,7 @@ extension WebDAVSource: RemoteCopyingSource {
     }
 
     /// Recursively creates collections; existing collections succeed, existing files conflict.
+    /// 递归创建 WebDAV collection；已有目录成功，已有文件冲突。
     public func makeDirectory(path: String) async throws {
         do {
             let (ctx, version) = try writeContext()
@@ -74,6 +76,7 @@ extension WebDAVSource: RemoteCopyingSource {
     }
 
     /// DELETE includes the entire collection subtree. Never deletes the configured source root.
+    /// 删除 WebDAV 文件或目录子树；配置的来源根目录不可删除。
     public func remove(path: String) async throws {
         do {
             let (ctx, version) = try writeContext()
@@ -88,10 +91,12 @@ extension WebDAVSource: RemoteCopyingSource {
         } catch { throw DAVHTTP.mapped(error) }
     }
 
+    /// 移动 WebDAV 文件或目录到不存在的目标。
     public func move(from sourcePath: String, to destinationPath: String) async throws {
         try await relocate(from: sourcePath, to: destinationPath, method: "MOVE")
     }
 
+    /// 复制 WebDAV 文件或目录到不存在的目标。
     public func copy(from sourcePath: String, to destinationPath: String) async throws {
         try await relocate(from: sourcePath, to: destinationPath, method: "COPY")
     }

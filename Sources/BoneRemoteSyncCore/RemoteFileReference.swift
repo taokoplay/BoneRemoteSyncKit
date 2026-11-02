@@ -1,9 +1,6 @@
 import Foundation
 
-/// Identifies the namespace in which a remote locator is meaningful.
-///
-/// `identity` is an opaque, non-secret provider/account/root identifier. It must
-/// not contain access tokens, cookies, signed URLs, or other credentials.
+/// 来源绑定标识，限定路径或条目 ID 的账号、主盘和根目录命名空间。
 public struct RemoteSourceBinding: Sendable, Hashable, Codable {
     public let kind: RemoteSourceKind
     public let identity: String
@@ -15,23 +12,23 @@ public struct RemoteSourceBinding: Sendable, Hashable, Codable {
 }
 
 /// A source-specific way to locate one remote item.
+/// 来源内定位条目的方式：路径或来源提供的稳定条目 ID。
 public enum RemoteLocator: Sendable, Hashable, Codable {
     case path(String)
     case itemID(String)
 
+    /// 使用来源路径创建定位器，并自动规范化路径。
     public init(path: String) {
         self = .path(RemotePath.normalize(path))
     }
 
+    /// 使用来源稳定条目 ID 创建定位器。
     public init(itemID: String) {
         self = .itemID(itemID)
     }
 }
 
-/// A remote file identity used by higher-level file services.
-///
-/// The binding prevents a path or provider ID observed in one account/root from
-/// being silently reused against another source session.
+/// 高层文件服务使用的远端文件引用；绑定防止跨账号或跨来源复用定位信息。
 public struct RemoteFileReference: Sendable, Hashable, Codable {
     public let source: RemoteSourceBinding
     public let locator: RemoteLocator
@@ -69,6 +66,7 @@ public struct RemoteFileReference: Sendable, Hashable, Codable {
 }
 
 /// Strength of a source-issued version observation.
+/// 来源返回的版本强度，决定是否可以用于条件读写。
 public enum RemoteVersionStrength: String, Sendable, Hashable, Codable {
     /// The source can use this value as an atomic conditional operation.
     case strongConditional
@@ -78,7 +76,7 @@ public enum RemoteVersionStrength: String, Sendable, Hashable, Codable {
     case observedOnly
 }
 
-/// A source- and locator-scoped opaque version value. It is not a content checksum.
+/// 来源和定位器范围内的不透明版本值，不是内容摘要。
 public struct RemoteVersion: Sendable, Hashable, Codable {
     public let source: RemoteSourceBinding
     public let locator: RemoteLocator
@@ -103,12 +101,14 @@ public struct RemoteVersion: Sendable, Hashable, Codable {
 }
 
 /// Read consistency requested by a higher-level file operation.
+/// 高层文件操作要求的读取一致性。
 public enum RemoteReadConsistency: Sendable, Hashable, Codable {
     case latestObserved
     case requireVersion(RemoteVersion)
 }
 
 /// Write condition for a higher-level upload operation.
+/// 高层上传操作使用的目标写入条件。
 public enum RemoteWriteCondition: Sendable, Hashable, Codable {
     case createOnly
     case replace

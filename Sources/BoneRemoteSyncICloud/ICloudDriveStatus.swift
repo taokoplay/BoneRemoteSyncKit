@@ -1,6 +1,7 @@
 import Foundation
 
 /// Why the configured iCloud Drive view is unavailable.
+/// iCloud Drive 配置视图不可用的具体原因。
 public enum ICloudDriveAvailabilityReason: String, Sendable, Codable, Equatable {
     /// No ubiquity identity is available to this process; not a probe of system Settings.
     case notSignedIn
@@ -12,12 +13,14 @@ public enum ICloudDriveAvailabilityReason: String, Sendable, Codable, Equatable 
 }
 
 /// The local availability state of the configured ubiquitous container.
+/// 配置的 iCloud 容器在本机是否可用。
 public enum ICloudDriveAvailability: String, Sendable, Codable, Equatable {
     case unavailable
     case available
 }
 
 /// Download state reported by Foundation for an iCloud Drive item.
+/// Foundation 报告的 iCloud 文件下载状态。
 public enum ICloudDriveDownloadState: String, Sendable, Codable, Equatable {
     case current
     case downloaded
@@ -28,6 +31,7 @@ public enum ICloudDriveDownloadState: String, Sendable, Codable, Equatable {
 
 /// One path's batch-query outcome. Results preserve input order and duplicates.
 /// `path` is source-relative and normalized; failures retain iCloud/shared error types.
+/// 批量状态查询中的单路径结果；结果顺序和重复项与输入保持一致。
 public struct ICloudDriveStatusResult: Sendable {
     public let path: String
     public let result: Result<ICloudDriveStatus, any Error>
@@ -40,6 +44,7 @@ public struct ICloudDriveStatusResult: Sendable {
 
 /// A stable, public snapshot of iCloud Drive state. It describes the local view;
 /// it is not a promise that another device has finished uploading its changes.
+/// iCloud Drive 本机视图的状态快照，不代表其他设备已完成同步。
 public struct ICloudDriveStatus: Sendable, Codable, Equatable {
     public let availability: ICloudDriveAvailability
     /// Present when `availability == .unavailable`; nil for an available view.
@@ -71,6 +76,7 @@ public struct ICloudDriveStatus: Sendable, Codable, Equatable {
         self.percentDownloaded = percentDownloaded
     }
 
+    /// 当前配置视图是否可用。
     public var isAvailable: Bool { availability == .available }
 
     private enum CodingKeys: String, CodingKey {

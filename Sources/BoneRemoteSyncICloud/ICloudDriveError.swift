@@ -5,6 +5,7 @@ import BoneRemoteSyncCore
 ///
 /// The shared `RemoteSyncError` projection remains available for hosts that only need the
 /// common source vocabulary. iCloud-aware hosts should catch this type first.
+/// iCloud Drive 特有错误；需要来源级恢复策略时应优先处理此类型。
 public enum ICloudDriveError: Error, Sendable, Equatable {
     /// No Apple account identity is available to the process.
     case accountNotSignedIn
@@ -49,7 +50,7 @@ extension ICloudDriveError: CustomStringConvertible {
 }
 
 extension ICloudDriveError {
-    /// Maps iCloud-specific failures into the shared source error vocabulary.
+    /// 将 iCloud 专有错误投影到通用 RemoteSyncError 分类。
     public var remoteSyncError: RemoteSyncError {
         switch self {
         case .accountNotSignedIn:

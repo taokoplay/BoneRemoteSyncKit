@@ -2,6 +2,7 @@ import Foundation
 import BoneRemoteSyncCore
 
 /// Per-file scheduling settings. Values are validated before source I/O.
+/// 单文件分片下载配置；参数会在发起来源 I/O 前校验。
 public struct RemoteSegmentedDownloadOptions: Sendable, Hashable {
     public var segmentSize: Int64
     public var maxConcurrentSegments: Int
@@ -25,6 +26,7 @@ public struct RemoteSegmentedDownloadOptions: Sendable, Hashable {
     }
 }
 
+/// 单文件下载策略：顺序下载、可选分片或强制分片。
 public enum RemoteDownloadStrategy: Sendable, Hashable {
     case sequential
     /// Fall back only for ineligible entries or an unavailable first range.

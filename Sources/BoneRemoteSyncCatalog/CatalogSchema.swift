@@ -6,14 +6,20 @@ extension SQLiteConnection {
         let application = try scalar("PRAGMA application_id")
         let tables = try scalar("SELECT count(*) FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'")
         // Inspect before changing journal mode: never adopt a foreign/unsupported database.
-        guard (version == 0 && application == 0 && tables == 0) || (version == 1 && application == 1112687435) else {
+        guard (version == 0 && application == 0 && tables == 0) ||
+              ([1, 2].contains(version) && application == 1112687435) else {
             throw RemoteCatalogError.unsupportedSchema
         }
         try script("PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA wal_autocheckpoint=1000;")
         if version == 0 {
             try transaction {
                 try script(Self.schema)
-                try script("PRAGMA application_id=1112687435; PRAGMA user_version=1;")
+                try script("PRAGMA application_id=1112687435; PRAGMA user_version=2;")
+            }
+        } else if version == 1 {
+            try transaction {
+                try script(Self.summaryTable)
+                try script("PRAGMA user_version=2;")
             }
         }
     }
@@ -27,6 +33,16 @@ extension SQLiteConnection {
             return interrupted
         }
     }
+
+    private static let summaryTable = """
+    CREATE TABLE IF NOT EXISTS catalog_summaries (
+        root TEXT PRIMARY KEY NOT NULL REFERENCES catalog_roots(id) ON DELETE CASCADE,
+        binding TEXT NOT NULL, selection INTEGER NOT NULL, path TEXT NOT NULL,
+        file_count INTEGER, directory_count INTEGER, total_bytes INTEGER,
+        capacity_bytes INTEGER, used_bytes INTEGER, complete INTEGER NOT NULL,
+        stale INTEGER NOT NULL, measured REAL, quota_measured REAL
+    );
+    """
 
     private static let schema = """
     CREATE TABLE retired_bindings (binding TEXT PRIMARY KEY NOT NULL);
@@ -53,6 +69,13 @@ extension SQLiteConnection {
         PRIMARY KEY(root,parent_epoch,path)
     );
     CREATE INDEX entries_parent_order ON catalog_entries(root,parent,parent_epoch,directory DESC,name COLLATE BINARY,path COLLATE BINARY);
+    CREATE TABLE catalog_summaries (
+        root TEXT PRIMARY KEY NOT NULL REFERENCES catalog_roots(id) ON DELETE CASCADE,
+        binding TEXT NOT NULL, selection INTEGER NOT NULL, path TEXT NOT NULL,
+        file_count INTEGER, directory_count INTEGER, total_bytes INTEGER,
+        capacity_bytes INTEGER, used_bytes INTEGER, complete INTEGER NOT NULL,
+        stale INTEGER NOT NULL, measured REAL, quota_measured REAL
+    );
     CREATE INDEX entries_identity ON catalog_entries(root,provider_id);
     CREATE TABLE refresh_runs (
         id TEXT PRIMARY KEY NOT NULL, root TEXT NOT NULL REFERENCES catalog_roots(id) ON DELETE CASCADE,

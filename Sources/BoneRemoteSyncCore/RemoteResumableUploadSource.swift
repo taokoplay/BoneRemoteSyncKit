@@ -53,6 +53,7 @@ public struct RemoteUploadHandle: Sendable, Hashable, Codable, Identifiable {
 /// Provider-confirmed upload state. Byte progress is never derived from a
 /// local upload callback; it is updated only after a server response or status
 /// query identifies the accepted range.
+/// 来源确认的可恢复上传阶段；字节进度只表示服务端已确认的连续前缀。
 public enum RemoteUploadPhase: String, Sendable, Hashable, Codable {
     case preparing
     case creationUnknown
@@ -69,6 +70,7 @@ public enum RemoteUploadPhase: String, Sendable, Hashable, Codable {
     case unknown
 }
 
+/// 可持久化的可恢复上传检查点，不包含来源私有会话凭据。
 public struct RemoteUploadCheckpoint: Sendable, Hashable, Codable {
     public let handle: RemoteUploadHandle
     public let confirmedBytes: Int64
@@ -104,12 +106,14 @@ public struct RemoteUploadCheckpoint: Sendable, Hashable, Codable {
     }
 }
 
+/// 可恢复上传最终回执状态。
 public enum RemoteUploadCommitState: String, Sendable, Hashable, Codable {
     case committed
     case committedCleanupPending
     case needsReconciliation
 }
 
+/// 可恢复上传结果；`needsReconciliation` 表示远端结果需要继续核对。
 public struct RemoteResumableUploadResult: Sendable {
     public let entry: RemoteEntry?
     public let handle: RemoteUploadHandle
@@ -171,6 +175,7 @@ public struct RemoteResumableUploadOptions: Sendable {
 
 /// Source-specific upload session support. The target reference carries the
 /// host-provided binding so a handle cannot silently move to another account.
+/// 来源专属的可恢复上传协议；句柄绑定来源、账号和目标，不能跨会话复用。
 public protocol RemoteResumableUploadSource: RemoteSource {
     /// Local preparation only. Persist the returned handle before calling uploadResuming.
     func prepareResumableUpload(

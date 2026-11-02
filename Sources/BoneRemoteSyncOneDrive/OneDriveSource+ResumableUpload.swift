@@ -102,6 +102,7 @@ private final class ODUploadSessionLease: @unchecked Sendable {
 }
 
 extension OneDriveSource: RemoteResumableUploadSource {
+    /// 仅在本地准备不可变快照并保存非敏感句柄，不会立即创建远端上传会话。
     public func prepareResumableUpload(
         from localURL: URL,
         to target: RemoteFileReference,
@@ -143,6 +144,7 @@ extension OneDriveSource: RemoteResumableUploadSource {
         }
     }
 
+    /// 使用句柄继续 OneDrive 分片上传；服务端确认的连续字节会写入检查点。
     public func uploadResuming(
         _ handle: RemoteUploadHandle,
         options: RemoteResumableUploadOptions? = nil,
@@ -384,6 +386,7 @@ extension OneDriveSource: RemoteResumableUploadSource {
         }
     }
 
+    /// 读取并校验当前来源确认的可恢复上传检查点。
     public func uploadCheckpoint(_ handle: RemoteUploadHandle) async throws -> RemoteUploadCheckpoint? {
         let context = try context()
         guard let store = resumableSessionStore,
@@ -403,6 +406,7 @@ extension OneDriveSource: RemoteResumableUploadSource {
         )
     }
 
+    /// 显式终止远端上传会话并清理本地快照；未知结果不会被伪造为已回滚。
     public func abortResumableUpload(_ handle: RemoteUploadHandle) async throws {
         do {
             let context = try context()
@@ -441,6 +445,7 @@ extension OneDriveSource: RemoteResumableUploadSource {
 
     /// Explicit local retention cleanup after the caller has durably saved the
     /// terminal receipt. Never discards evidence for an uncertain remote write.
+    /// 删除已持久化的终态回执和本地快照；不接受未核对完成的会话。
     public func forgetResumableUpload(_ handle: RemoteUploadHandle) async throws {
         let context = try context()
         guard let store = resumableSessionStore,

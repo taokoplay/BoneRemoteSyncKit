@@ -4,6 +4,7 @@ import Security
 import BoneRemoteSyncCore
 
 /// A short-lived PKCE transaction. Keep it in memory and discard after handling one callback.
+/// 短生命周期的 PKCE 授权事务；处理一次回调后必须丢弃。
 public struct OneDriveAuthorization: Sendable, CustomStringConvertible {
     public let url: URL
     public let state: String
@@ -11,11 +12,14 @@ public struct OneDriveAuthorization: Sendable, CustomStringConvertible {
     public var description: String { "OneDriveAuthorization(***)" }
 }
 
+/// OneDrive OAuth/PKCE 流程辅助对象。
 public struct OneDriveOAuth: Sendable {
     let configuration: OneDriveConfiguration
     let endpoints: ODEndpoints
+    /// 创建生产环境 OAuth 流程。
     public init(configuration: OneDriveConfiguration) { self.configuration = configuration; endpoints = .production }
     init(configuration: OneDriveConfiguration, endpoints: ODEndpoints) { self.configuration = configuration; self.endpoints = endpoints }
+    /// 生成授权 URL 和随机 PKCE 参数。
     public func authorize() throws -> OneDriveAuthorization {
         func random() throws -> String {
             var bytes = [UInt8](repeating: 0, count: 32)
@@ -42,6 +46,7 @@ public struct OneDriveOAuth: Sendable {
     private static func base64URL(_ data: Data) -> String {
         data.base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
     }
+    /// 校验回调来源、state 和授权码，并提取一次性 code。
     public func authorizationCode(from callback: URL, transaction: OneDriveAuthorization) throws -> String {
         guard var parts = URLComponents(url: callback, resolvingAgainstBaseURL: false), parts.fragment == nil else {
             throw RemoteSyncError.authenticationFailed(reason: "OneDrive 授权回调无效")
@@ -57,11 +62,13 @@ public struct OneDriveOAuth: Sendable {
         }
         return code
     }
+    /// 使用授权码交换 access token 和 refresh token。
     public func exchange(code: String, transaction: OneDriveAuthorization) async throws -> OneDriveToken {
         guard !code.isEmpty else { throw RemoteSyncError.authenticationFailed(reason: "OneDrive 授权码为空") }
         return try await token([("grant_type", "authorization_code"), ("code", code),
             ("redirect_uri", configuration.redirectURI.absoluteString), ("code_verifier", transaction.codeVerifier)])
     }
+    /// 使用 refresh token 获取新的 OneDrive 令牌。
     public func refresh(_ refreshToken: String) async throws -> OneDriveToken {
         let client = ODHTTPClient(timeout: configuration.timeout); defer { client.cancel() }
         return try await refresh(refreshToken, client: client)

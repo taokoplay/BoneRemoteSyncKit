@@ -142,6 +142,18 @@ let iconData = try BoneRemoteSyncIcons.iconData(for: .webdav)
 
 `BoneRemoteSyncIcon.url` 返回 bundle 内 PNG 的 `URL?`；`BoneRemoteSyncIcon.data()` 返回 PNG `Data`，资源不存在时抛出 `BoneRemoteSyncIconError.missingResource`。`RemoteSourceKind.iconResourceName` 和 `displayName` 只提供稳定资源名与默认英文 UI 标签，宿主可自行本地化。
 
+## 路径与存储统计
+
+`driveTypes()` 只返回静态类型和图标。用户实际选定的路径从 Catalog root 读取，递归文件数、目录数和扫描总大小从 `RemoteCatalogStorageSummary` 读取：
+
+```swift
+let root = try await catalog.store.root(id: rootID)
+let summary = try await catalog.storageSummary(rootID: rootID)
+print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
+```
+
+统计只在保存 root 的完整 `subtree` 刷新成功后更新；`children` 刷新不会覆盖递归统计。`totalBytes` 在任何文件大小未知时为 `nil`，`capacityBytes`/`usedBytes` 没有来源 quota 能力时也为 `nil`。宿主完成上传、删除或移动后应调用 `catalog.invalidateCache(rootID:directory:)` 或重新刷新；`isStale` 表示上次统计可能已过期。清理缓存、重新选择路径、账号/端点重绑和删除来源会同步清理统计。
+
 
 ## 快速上手
 
@@ -232,6 +244,7 @@ func transferFile(
 - **授权由宿主管理：** SDK 不包含登录界面或账号选择。Catalog 提供可选 Keychain 桥接；直接使用来源模块时仍由宿主保存凭据。不要记录密码、token、授权回调或预授权下载 URL。
 - **文件信息与分类：** `RemoteEntry.createdAt` 返回来源报告的创建时间，缺失为 nil；`fileCategory` 按 MIME/扩展名给出图片、音频、视频、文档等提示，不解析文件内容、EXIF 或音视频时长。见[元数据 API](Docs/API.md#文件时间与类型分类)。
 - **传输完整性不是内容相同证明：** ETag 是版本标识，不保证为内容哈希；`size`、`modifiedAt` 或 `hasReliableFingerprint` 不能代替内容比对。
+- **网盘实例权限：** Catalog 的 `RemoteSourceProfile.permission` 支持 `.readOnly` 和 `.editor`。只读实例仍可浏览、查询和下载；上传、建目录、删除、移动、复制会在 SDK 内部拦截。该字段只控制当前 SDK 会话，不修改远端账号权限。
 - **文件权限与并发：** sandbox、security-scoped URL 和跨实例／跨进程目标独占由宿主负责；路径校验不构成防恶意 TOCTOU 的文件系统 sandbox。
 - **iCloud 是文件来源而非同步引擎：** 使用独立 `ICloudDriveSource`，不要用本地来源替代；本地写入成功不等于云端上传完成。Catalog 暂未纳入 iCloud，冲突仅检测并拒绝，不自动选版。
 
@@ -242,7 +255,7 @@ func transferFile(
 | [业务能力与适用场景](Docs/UseCases.md) | 能构建哪些业务、典型流程、模块选择、宿主职责与不适用范围 |
 | [更新说明](CHANGELOG.md) | 版本功能、缺陷修复、版本策略与行为变化、已知限制 |
 | [文件物化、前台调度与恢复传输](Docs/Transfer.md) | 自 v0.4.0 提供：本地文件 lease、缓存复用、有界下载队列、可插拔分片下载、WebDAV 恢复下载与 OneDrive 恢复上传 |
-| [配置持久化与离线目录索引](Docs/Catalog.md) | 非敏感配置、Keychain 桥接、根选择、目录/子树刷新与恢复 |
+| [配置持久化与离线目录索引](Docs/Catalog.md) | 非敏感配置、Keychain 桥接、网盘访问权限、根选择、目录/子树刷新与恢复 |
 | [通用 API 与生命周期](Docs/API.md) | 模块、协议、路径、分页、遍历、错误、进度与宿主职责 |
 | [本地目录](Docs/Local.md) | 本地读写、落盘、符号链接和权限边界 |
 | [iCloud Drive](Docs/ICloudDrive.md) | entitlement、容器、占位下载、协调、状态与真机验收边界 |

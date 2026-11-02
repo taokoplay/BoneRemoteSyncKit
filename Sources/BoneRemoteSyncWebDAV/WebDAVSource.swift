@@ -19,6 +19,7 @@ public actor WebDAVSource: RemoteSource {
     var generation: UInt64 = 0
     var activeDestinations: Set<String> = []
 
+    /// 创建 WebDAV 来源并校验根 URL、超时和显式重试策略。
     public init(baseURL: URL, timeout: TimeInterval = 60, retryPolicy: WebDAVRetryPolicy = .none) throws {
         guard timeout.isFinite, timeout > 0 else { throw RemoteSyncError.unsupported(operation: "WebDAV 超时时间") }
         try retryPolicy.validate()
@@ -29,6 +30,7 @@ public actor WebDAVSource: RemoteSource {
 
     deinit { session?.invalidateAndCancel() }
 
+    /// 建立 WebDAV 会话并验证根 collection；只接受匿名或 Basic 凭据。
     public func connect(_ credential: RemoteCredential) async throws {
         disconnectSession()
         switch credential {
@@ -55,6 +57,7 @@ public actor WebDAVSource: RemoteSource {
         }
     }
 
+    /// 断开会话、取消在途请求并使旧会话操作失效。
     public func disconnect() async { disconnectSession() }
 
     private func disconnectSession() {
@@ -85,6 +88,7 @@ public actor WebDAVSource: RemoteSource {
         return request
     }
 
+    /// 使用 Depth:1 列出目录；WebDAV 不提供通用游标分页。
     public func list(path: String, request: RemoteListRequest) async throws -> RemoteListPage {
         _ = try context()
         try request.validate()
@@ -118,6 +122,7 @@ public actor WebDAVSource: RemoteSource {
         } catch { throw DAVHTTP.mapped(error) }
     }
 
+    /// 读取指定路径的 DAV 属性并构造统一条目。
     public func stat(path: String) async throws -> RemoteEntry {
         _ = try context()
         let path = RemotePath.normalize(path)

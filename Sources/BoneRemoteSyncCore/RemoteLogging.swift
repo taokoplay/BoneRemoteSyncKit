@@ -1,16 +1,20 @@
 import Foundation
 
+/// 日志事件严重级别。
 public enum RemoteLogLevel: String, Sendable, Codable {
     case info, warning, error
     var rank: Int { switch self { case .info: 0; case .warning: 1; case .error: 2 } }
 }
+/// 产生日志的 SDK 模块。
 public enum RemoteLogComponent: String, Sendable, Codable { case core, local, webDAV, oneDrive, catalog, sqlite, credentials }
+/// 日志对应的高层操作。
 public enum RemoteLogOperation: String, Sendable, Codable {
     case connect, list, stat, walk, download, upload, makeDirectory, remove, move, copy
     case databaseOpen, databaseRecovery, databaseClose, saveSource, selectRoot, refresh, listCached
     case saveProfile, loadProfile, loadRoots, saveRoot, status, clearIndex, removeProfile
     case credentialRead, credentialInsert, credentialReplace, credentialRemove
 }
+/// SDK 对外暴露的稳定日志分类代码。
 public enum RemoteLogCode: String, Sendable, Codable {
     case notConnected = "source.not_connected"
     case authentication = "source.authentication"
@@ -55,6 +59,7 @@ public enum RemoteLogCode: String, Sendable, Codable {
 }
 
 /// Modules may classify their errors without returning raw descriptions or arbitrary fields.
+/// 允许来源或模块为自定义错误提供稳定日志分类，不暴露原始错误文本。
 public protocol RemoteLogClassifiableError: Error {
     var remoteLogCode: RemoteLogCode { get }
     var remoteLogNumericCode: Int32? { get }

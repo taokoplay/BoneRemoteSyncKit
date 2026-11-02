@@ -29,12 +29,14 @@ public actor LocalFileSource: RemoteCopyingSource {
     let fileManager = FileManager.default
     private var isConnected = false
 
+    /// 创建本地目录来源；root 会被规范化，实际存在性在 connect 时验证。
     public init(root: URL) {
         self.root = root.standardizedFileURL
     }
 
     // MARK: - RemoteSource
 
+    /// 验证本地目录存在并建立匿名会话。
     public func connect(_ credential: RemoteCredential) async throws {
         guard case .anonymous = credential else {
             throw RemoteSyncError.authenticationFailed(reason: "本地目录不接受凭据")
@@ -47,10 +49,12 @@ public actor LocalFileSource: RemoteCopyingSource {
         isConnected = true
     }
 
+    /// 释放本地会话状态。
     public func disconnect() async {
         isConnected = false
     }
 
+    /// 列出本地目录的一层条目；本地来源不支持游标分页。
     public func list(path: String, request: RemoteListRequest) async throws -> RemoteListPage {
         try requireConnected()
         try request.validate()
@@ -76,6 +80,7 @@ public actor LocalFileSource: RemoteCopyingSource {
         }
     }
 
+    /// 读取本地条目元数据。
     public func stat(path: String) async throws -> RemoteEntry {
         try requireConnected()
         let url = try resolve(path)
@@ -86,6 +91,7 @@ public actor LocalFileSource: RemoteCopyingSource {
         return try makeEntry(for: url, at: normalized)
     }
 
+    /// 将本地来源文件复制到调用方目标，并按选项执行版本和原子安装校验。
     public func download(
         _ entry: RemoteEntry,
         to destination: URL,

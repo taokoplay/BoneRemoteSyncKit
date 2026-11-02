@@ -7,6 +7,7 @@ let oneDriveSimpleUploadLimit: Int64 = 250 * 1024 * 1024
 extension OneDriveSource: RemoteWritableSource {
     /// Upload a regular local file. Overwrite is expressed through Graph's conflictBehavior,
     /// so a non-overwrite upload fails at the service instead of racing a local check.
+    /// 上传普通本地文件；大于 250 MiB 时应改用显式可恢复上传会话。
     public func upload(from localURL: URL, to path: String, options: RemoteUploadOptions) async throws -> RemoteEntry {
         do {
             let ctx = try context()
@@ -52,6 +53,7 @@ extension OneDriveSource: RemoteWritableSource {
     }
 
     /// Recursive and idempotent: an existing directory is success, an existing file is a conflict.
+    /// 递归创建 OneDrive 目录；已有目录成功，已有文件冲突。
     public func makeDirectory(path: String) async throws {
         do {
             let ctx = try context()
@@ -92,6 +94,7 @@ extension OneDriveSource: RemoteWritableSource {
     }
 
     /// Deletes a file or a folder subtree. The drive root is never deletable.
+    /// 删除 OneDrive 文件或目录子树；主盘根目录不可删除。
     public func remove(path: String) async throws {
         do {
             let ctx = try context()
@@ -110,6 +113,7 @@ extension OneDriveSource: RemoteWritableSource {
     }
 
     /// Move or rename. The destination must not exist; the destination parent must be a folder.
+    /// 移动或重命名 OneDrive 条目；目标必须不存在且父目录必须是目录。
     public func move(from sourcePath: String, to destinationPath: String) async throws {
         do {
             let ctx = try context()

@@ -156,15 +156,23 @@ extension SQLiteRemoteCatalogStore {
             }
         }
     }
-    func finishRun(_ run: CatalogRun, state: String, failures: [RemoteCatalogDirectoryFailure] = []) async throws {
+    func finishRun(_ run: CatalogRun, state: String, failures: [RemoteCatalogDirectoryFailure] = [],
+                   storageSummary: RemoteCatalogStorageSummary? = nil) async throws {
         guard ["success", "partial", "failed", "cancelled", "interrupted"].contains(state) else { throw RemoteCatalogError.invalidConfiguration }
         try await perform { db in
             try db.transaction {
                 try db.execute("DELETE FROM staged_entries WHERE run=?", [.uuid(run.id)])
                 try db.execute("UPDATE refresh_directories SET state='interrupted' WHERE run=? AND state='staging'", [.uuid(run.id)])
-                if state == "success", run.scope == .subtree, run.path == run.root.path {
+                if run.scope == .subtree, run.path == run.root.path {
                     try db.validate(run)
-                    try db.execute("UPDATE catalog_roots SET full_success=? WHERE id=?", [.real(Date().timeIntervalSince1970), .uuid(run.root.id)])
+                    if state == "success" {
+                        if let storageSummary {
+                            try db.replaceStorageSummary(storageSummary, bindingID: run.root.bindingID, selection: run.root.selectionRevision)
+                        }
+                        try db.execute("UPDATE catalog_roots SET full_success=? WHERE id=?", [.real(Date().timeIntervalSince1970), .uuid(run.root.id)])
+                    } else {
+                        try db.execute("UPDATE catalog_summaries SET stale=1 WHERE root=?", [.uuid(run.root.id)])
+                    }
                 }
                 try db.execute("UPDATE refresh_runs SET state=?,ended=?,failures=? WHERE id=? AND state='running'", [.text(state), .real(Date().timeIntervalSince1970), .blob(try CatalogValidation.encode(failures)), .uuid(run.id)])
             }

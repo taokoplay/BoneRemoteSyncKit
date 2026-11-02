@@ -20,6 +20,10 @@ struct CatalogScannedDirectory: Sendable {
     let depth: Int
     let published: Int?
     let children: [String]
+    let fileCount: Int64
+    let directoryCount: Int64
+    let knownBytes: Int64
+    let hasUnknownSize: Bool
     let failure: RemoteCatalogFailureReason?
 }
 
@@ -41,6 +45,10 @@ struct CatalogDirectoryScanner: Sendable {
             var seenCursors: Set<String> = []
             var pageCount = 0
             var children: [String] = []
+            var fileCount: Int64 = 0
+            var directoryCount: Int64 = 0
+            var knownBytes: Int64 = 0
+            var hasUnknownSize = false
             repeat {
                 try Task.checkCancellation()
                 guard pageCount < options.maxPagesPerDirectory else { throw RemoteCatalogError.budgetExceeded }
@@ -48,6 +56,19 @@ struct CatalogDirectoryScanner: Sendable {
                 pageCount += 1
                 guard page.coverage == .complete else { throw RemoteCatalogError.incompleteListing }
                 try await budget.consume(entries: page.entries.count)
+                for entry in page.entries {
+                    if entry.isDirectory {
+                        directoryCount += 1
+                    } else {
+                        fileCount += 1
+                        guard let size = entry.size, size >= 0, !hasUnknownSize else {
+                            hasUnknownSize = true
+                            continue
+                        }
+                        let (sum, overflow) = knownBytes.addingReportingOverflow(size)
+                        if overflow { hasUnknownSize = true } else { knownBytes = sum }
+                    }
+                }
                 if let next = page.nextCursor {
                     guard !next.isEmpty, next.utf8.count <= 32768, seenCursors.insert(next).inserted else { throw RemoteCatalogError.incompleteListing }
                 }
@@ -55,7 +76,7 @@ struct CatalogDirectoryScanner: Sendable {
                 if options.scope == .subtree {
                     for entry in page.entries where entry.isDirectory {
                         try await budget.reserveDirectory(depth: depth + 1)
-                        children.append(entry.path!) // stage already validated the path.
+                        children.append(entry.path!)
                     }
                 }
                 cursor = page.nextCursor
@@ -65,10 +86,14 @@ struct CatalogDirectoryScanner: Sendable {
             let count = try await withTaskCancellationHandler {
                 try await store.publish(ticket: current, permit: permit)
             } onCancel: { permit.cancel() }
-            return .init(path: path, depth: depth, published: count, children: children, failure: nil)
+            return .init(path: path, depth: depth, published: count, children: children,
+                         fileCount: fileCount, directoryCount: directoryCount,
+                         knownBytes: knownBytes, hasUnknownSize: hasUnknownSize, failure: nil)
         } catch {
             if let ticket { try? await store.failDirectory(ticket: ticket) }
-            return .init(path: path, depth: depth, published: nil, children: [], failure: .map(error))
+            return .init(path: path, depth: depth, published: nil, children: [],
+                         fileCount: 0, directoryCount: 0, knownBytes: 0,
+                         hasUnknownSize: true, failure: .map(error))
         }
     }
 

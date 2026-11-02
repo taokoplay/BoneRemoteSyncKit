@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
 
-> 本页描述自 **`v0.3.0`** 发布的 API，不包含在 `v0.2.0` 中。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
+> 本页描述当前 `v0.5.0` Catalog API；统计快照、缓存失效和 schema v2 迁移已包含。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
 
 ## 能力与层次
 
@@ -16,6 +16,29 @@
 - `RemoteCatalog`：保存来源、验证/保存根选择、显式刷新和查询缓存。
 
 它不是同步引擎、内容缓存或下载队列。刷新不调用远端 mutation，不删除已下载文件，不安装定时器，不提供跨进程扫描调度。
+
+## 路径与存储统计
+
+`RemoteCatalogRoot.path` 是具体账号/来源保存的选定路径；它不属于静态 `driveTypes()` 网盘类型列表。`RemoteCatalog.storageSummary(rootID:)` 返回最近一次完整 subtree 扫描的 `RemoteCatalogStorageSummary`，包含递归文件数、目录数、已知总字节数、完整性/过期状态和测量时间。
+
+统计规则：
+
+- 只有保存 root 的完整 `subtree` 刷新成功后才写入或替换统计；`children` 刷新不会覆盖递归统计。
+- 任意文件缺少可靠 `size` 时，文件数仍统计，但 `totalBytes` 为 `nil`，不会把未知大小当作 0。
+- `capacityBytes` 和 `usedBytes` 只来自来源 quota 能力；Catalog 不用目录扫描推算网盘容量。
+- 刷新失败、取消、超时或宿主调用 `invalidateCache(rootID:directory:)` 后，保留旧统计并标记 `isStale=true`。
+- `clearIndex`、重新选择 root、binding 重绑和 profile 删除会清理对应的文件列表缓存与统计；删除只影响本地 Catalog，不删除远端文件或 Keychain 凭据。
+- 保存 root 路径失效时，root 刷新只对 `notFound` 自动验证并回退到来源 `/`，旧路径统计不会沿用；权限、认证、网络和身份错误原样返回。
+
+```swift
+let root = try await catalog.store.root(id: rootID)
+let summary = try await catalog.storageSummary(rootID: rootID)
+print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
+
+// 在宿主通过来源 API 完成上传、删除或移动后标记缓存过期。
+try await catalog.invalidateCache(rootID: rootID, directory: root.path)
+```
+
 
 ## 数据库位置与所有权
 
@@ -36,7 +59,7 @@ func openCatalogStore(privateDirectory: URL) throws -> SQLiteRemoteCatalogStore 
 - 使用 WAL、外键、3 秒 busy timeout、FULL 同步和自动 checkpoint；显式 `close()` 尝试 TRUNCATE checkpoint。关闭前先取消并等待所有使用者。
 - SQLite **不自行加密**。路径、文件名、账号标识同样是私密数据；目录权限、平台文件保护、设备备份策略及日志脱敏由宿主负责。
 - 活跃 WAL 下不能只复制主 `.sqlite` 文件。首版未提供导出/备份 API；要做文件备份，先停止所有使用者并成功关闭数据库，再由宿主备份。不要独立复制、删改 `-wal` / `-shm`。
-- 未知 schema、外来数据库或初始化期间发现的损坏明确报错，不自动删库重建。当前版本不承诺旧 schema 迁移，也不执行全库 `quick_check`/`integrity_check` 或逐表结构比对。
+- 已支持 v1 → v2 的安全迁移：新增统计表并保留既有 profile/root/列表缓存，旧 root 的 summary 初始为空。未知 schema、外来数据库或初始化期间发现的损坏明确报错，不自动删库重建；不执行全库 `quick_check`/`integrity_check` 或逐表结构比对。
 - 可注入 `logger: RemoteLogger`，自动记录初始化/关闭失败以及成功恢复的中断 run 数量。Catalog 高层操作继承同一 logger；默认关闭、无日志表、不保留错误原文。自动覆盖范围与宿主职责见[错误日志规范](Logging.md)。
 
 ## 配置与秘密分离
@@ -48,6 +71,26 @@ func openCatalogStore(privateDirectory: URL) throws -> SQLiteRemoteCatalogStore 
 | `.local(accessReference:)` | 宿主定义的访问引用 | 已连接状态、security scope、Task |
 | `.webDAV(baseURL:timeout:retry:)` | collection URL、请求与只读重试参数 | URL userinfo、密码、Authorization |
 | `.oneDrive(clientID:redirectURI:driveID:timeout:)` | public-client 应用参数、已核对的 Personal 主盘 ID | token、nextLink、预授权下载 URL |
+
+`RemoteSourceProfile.permission` 保存该网盘实例的文件访问权限：
+
+| 权限 | 允许操作 | 说明 |
+| --- | --- | --- |
+| `.readOnly` | 浏览、查询、下载 | 上传、建目录、删除、移动、复制会在进入来源适配器前被拦截 |
+| `.editor` | 读操作和全部已声明的写操作 | 仍须遵守来源能力、服务端账号权限、冲突和条件版本规则 |
+
+创建或替换来源时通过 `saveSource` 保存权限；不传时默认 `.editor`。`profiles()` 和配置详情返回的 `RemoteSourceProfile` 会包含该字段，旧数据缺失字段时按 `.editor` 解码。Catalog 会话根据保存的权限包装来源，UI 可同时读取受控来源的 `capabilities` 隐藏写入口，运行时拦截仍然有效。
+
+```swift
+let profile = try await catalog.saveSource(
+    displayName: "只读资料盘",
+    configuration: .webDAV(baseURL: url),
+    credential: .basic(username: username, password: password),
+    permission: .readOnly
+)
+```
+
+`permission` 是网盘实例的 SDK 访问控制，不会修改远端账号权限，也不替代 WebDAV、OneDrive、iCloud 或本地系统权限。
 
 `connect()` 不隐式持久化任何内容。`RemoteEntry` 不携带凭据。Keychain 实现以宿主指定的 service 和 UUID account 存完整凭据，使用 generic-password、AfterFirstUnlockThisDeviceOnly，不启用同步、不擅设共享 access group。构造 store 不访问 Keychain，实际 read/insert/replace/remove 才访问。
 
@@ -110,7 +153,8 @@ func indexSelection(catalog: RemoteCatalog, profile: RemoteSourceProfile) async 
 ```
 
 - `children` 只更新该目录直接子项；`subtree` 从入口逐层枚举。省略 options 时使用根保存的默认范围，默认是 children。
-- 省略 directory 时使用选定根。刷新已缓存的子目录可传其规范来源路径；不是任意越过缓存父链的路径查询。
+- 省略 directory 时使用选定根。刷新前会验证保存的 root 路径；如果只确认该路径不存在，Catalog 会自动验证来源 `/`，将 root 持久化回 `/` 并继续刷新。权限、认证、网络和身份错误不会触发回退。显式传入 `directory:` 时不会修改保存的 root。
+- 刷新已缓存的子目录可传其规范来源路径；不是任意越过缓存父链的路径查询。
 - 同根同一时间只接受一轮刷新，重复或冲突请求返回 busy；首版不合并等待。
 - 默认并发 4、最大 16；条目数、目录数、深度、单目录页数和整轮 timeout 均有限。pageSize 是提示，Local/WebDAV 可能一次物化整个大目录。
 - 整轮 timeout 使用单调时钟计时，关闭后续提交资格并取消任务，但仍等待网络/lease 清理。取消是协作式的，不保证精确时间点返回；已提交目录不回滚。

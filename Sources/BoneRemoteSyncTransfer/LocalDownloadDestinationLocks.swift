@@ -7,10 +7,13 @@ import BoneRemoteSyncCore
 /// must use this same directory and protocol. Not a network/distributed lock.
 /// Lock files are retained (never unlink a live lock inode); crash closes fds.
 /// The host must keep ancestors stable and prevent foreign mutation of this root.
+/// 基于私有本地目录的目标协作锁；不是网络锁或分布式锁。
 public struct LocalDownloadDestinationLocks: RemoteDownloadDestinationLocking {
     public let directory: URL
+    /// 创建本地目标锁域；目录应由宿主保持私有且稳定。
     public init(directory: URL) { self.directory = directory }
 
+    /// 为目标文件获取排他锁，锁租约释放时关闭底层文件描述符。
     public func acquire(destination: URL) async throws -> RemoteDownloadDestinationLease {
         try Task.checkCancellation()
         try Self.validateURL(directory, file: false)

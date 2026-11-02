@@ -2,25 +2,42 @@ import Foundation
 
 struct CatalogTreeScanner: Sendable {
     let scanner: CatalogDirectoryScanner
+
     func scan() async -> RemoteCatalogRefreshReport {
         let started = Date()
         return await withTaskCancellationHandler {
             await withTaskGroup(of: CatalogScannedDirectory.self) { group in
                 var queue: [(String, Int)] = [(scanner.run.path, 0)]
-                var cursor = 0; var active = 0
-                var directories = 0; var entries = 0
+                var cursor = 0
+                var active = 0
+                var directories = 0
+                var entries = 0
+                var fileCount: Int64 = 0
+                var directoryCount: Int64 = 0
+                var knownBytes: Int64 = 0
+                var hasUnknownSize = false
                 var failures: [RemoteCatalogDirectoryFailure] = []
+
                 func schedule() {
                     while !Task.isCancelled && active < scanner.options.concurrency && cursor < queue.count {
-                        let (path, depth) = queue[cursor]; cursor += 1; active += 1
+                        let (path, depth) = queue[cursor]
+                        cursor += 1
+                        active += 1
                         group.addTask { await scanner.scan(path: path, depth: depth) }
                     }
                 }
+
                 schedule()
                 while let result = await group.next() {
                     active -= 1
                     if let count = result.published {
-                        directories += 1; entries += count
+                        directories += 1
+                        entries += count
+                        fileCount += result.fileCount
+                        directoryCount += result.directoryCount
+                        let (sum, overflow) = knownBytes.addingReportingOverflow(result.knownBytes)
+                        if overflow { hasUnknownSize = true } else { knownBytes = sum }
+                        hasUnknownSize = hasUnknownSize || result.hasUnknownSize
                         if !Task.isCancelled {
                             queue.append(contentsOf: result.children.map { ($0, result.depth + 1) })
                         }
@@ -31,14 +48,23 @@ struct CatalogTreeScanner: Sendable {
                     if cursor > 1024 { queue.removeFirst(cursor); cursor = 0 }
                     schedule()
                 }
+
                 if Task.isCancelled && !failures.contains(where: { $0.reason == .cancelled }) {
                     failures.append(.init(path: scanner.run.path, reason: .cancelled))
                 }
                 let state: RemoteCatalogRefreshState = Task.isCancelled ? .cancelled :
                     (failures.isEmpty ? .success : (directories == 0 ? .failed : .partial))
+                let summary: RemoteCatalogStorageSummary? =
+                    state == .success && scanner.run.scope == .subtree && scanner.run.path == scanner.run.root.path
+                    ? .init(rootID: scanner.run.root.id, path: scanner.run.root.path,
+                             recursiveFileCount: fileCount, recursiveDirectoryCount: directoryCount,
+                             totalBytes: hasUnknownSize ? nil : knownBytes,
+                             isComplete: true, isStale: false, measuredAt: Date())
+                    : nil
                 return .init(refreshID: scanner.run.id, state: state, startedAt: started, finishedAt: Date(),
                     publishedDirectories: directories, publishedEntries: entries,
-                    failures: failures.sorted { $0.path.utf8.lexicographicallyPrecedes($1.path.utf8) })
+                    failures: failures.sorted { $0.path.utf8.lexicographicallyPrecedes($1.path.utf8) },
+                    storageSummary: summary)
             }
         } onCancel: { scanner.permit.cancel() }
     }

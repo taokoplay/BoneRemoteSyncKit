@@ -4,6 +4,7 @@ import BoneRemoteSyncCore
 extension OneDriveSource {
     /// Complete foreground download. Unlike WebDAV, failures clean up this call's random staging;
     /// resumeFrom and cross-process checkpoints are intentionally unsupported.
+    /// 执行 OneDrive 前台下载；不支持 resumeFrom 或跨进程检查点恢复。
     public func download(_ entry: RemoteEntry, to destination: URL, options: RemoteDownloadOptions) async throws -> RemoteEntry {
         do {
             let ctx = try context()

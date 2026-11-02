@@ -1,6 +1,7 @@
 import Foundation
 
 /// Lifecycle phase of a managed transfer task.
+/// Transfer 协调任务的生命周期阶段。
 public enum RemoteTransferPhase: String, Sendable, Hashable, Codable {
     case preparing
     case transferring
@@ -70,6 +71,7 @@ public struct RemoteTransferSnapshot: Sendable, Hashable, Codable {
         self.materializedFileURL = materializedFileURL
     }
 
+    /// 当前任务是否已经进入不可逆的终态。
     public var isTerminal: Bool {
         switch phase {
         case .completed, .cancelled, .failed:

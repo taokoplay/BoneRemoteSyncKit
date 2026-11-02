@@ -43,6 +43,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
     }
 
     /// Local container/item snapshot only. Does not connect, create a directory, or prove cloud freshness.
+    /// 读取配置容器和指定路径的本机 iCloud 状态；不建立连接、不创建目录。
     public func status(path: String? = nil) async -> ICloudDriveStatus {
         let injected = injectedContainerURL
         let configuration = configuration
@@ -63,6 +64,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
     /// Cancellation, disconnect/reconnect or an observed account change discards the entire batch.
     /// Cancellation prevents result publication but cannot interrupt a synchronous Foundation call already running.
     /// Does not request downloads, create directories, or provide an atomic/cross-device snapshot.
+    /// 批量读取本机 iCloud 条目状态；不触发 hydration、目录创建或远端刷新。
     public func statuses(paths: [String]) async throws -> [ICloudDriveStatusResult] {
         guard !Task.isCancelled else { throw RemoteSyncError.cancelled }
         guard !paths.isEmpty else { return [] }
@@ -112,6 +114,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         return batch.results
     }
 
+    /// 连接系统 iCloud 账号和配置容器；iCloud 使用系统账号，不接受保存的网络凭据。
     public func connect(_ credential: RemoteCredential) async throws {
         guard case .anonymous = credential else {
             throw RemoteSyncError.authenticationFailed(reason: "iCloud Drive 凭据由系统账号管理")
@@ -145,8 +148,10 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         identity = connection.identity
     }
 
+    /// 断开当前会话并取消未完成的协调与传输操作。
     public func disconnect() async { invalidate() }
 
+    /// 列出指定目录的一层条目；结果可能因无法表示的占位文件而标记为 partial。
     public func list(path: String, request: RemoteListRequest) async throws -> RemoteListPage {
         let root = try connectedRoot()
         try request.validate()
@@ -194,6 +199,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         }
     }
 
+    /// 读取单个条目的本机元数据，不主动触发文件下载。
     public func stat(path: String) async throws -> RemoteEntry {
         let root = try connectedRoot()
         let environment = environment
@@ -206,6 +212,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         }
     }
 
+    /// 将 iCloud 条目协调下载到本地目标，并在完成后原子安装目标文件。
     public func download(_ entry: RemoteEntry, to destination: URL, options: RemoteDownloadOptions) async throws -> RemoteEntry {
         guard !entry.isDirectory else { throw RemoteSyncError.unsupported(operation: "下载目录") }
         let path = entry.path ?? "/" + entry.id
@@ -229,6 +236,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
     }
 
     @discardableResult
+    /// 上传本地文件到 iCloud；成功表示本机协调提交完成，不等于其他设备已同步。
     public func upload(from localURL: URL, to path: String, options: RemoteUploadOptions = .init()) async throws -> RemoteEntry {
         let root = try connectedRoot()
         guard options.expectedETag == nil else {
@@ -265,6 +273,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         }
     }
 
+    /// 递归创建 iCloud 目录；目标已经是目录时视为成功。
     public func makeDirectory(path: String) async throws {
         let root = try connectedRoot()
         guard RemotePath.normalize(path) != "/" else { return }
@@ -283,6 +292,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         }
     }
 
+    /// 删除 iCloud 文件或目录；来源根目录不可删除。
     public func remove(path: String) async throws {
         let root = try connectedRoot()
         guard RemotePath.normalize(path) != "/" else { throw RemoteSyncError.unsupported(operation: "iCloud Drive 不能删除来源根目录") }
@@ -299,6 +309,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
         }
     }
 
+    /// 移动 iCloud 文件或目录；目标存在或发生冲突时拒绝覆盖。
     public func move(from sourcePath: String, to destinationPath: String) async throws {
         let root = try connectedRoot()
         guard RemotePath.normalize(sourcePath) != "/", RemotePath.normalize(destinationPath) != "/" else {
@@ -334,6 +345,7 @@ public actor ICloudDriveSource: RemoteCopyingSource {
     }
 
     /// File copy hydrates the source first. Recursive directory copy is deliberately unsupported.
+    /// 复制单个 iCloud 文件；复制目录不受支持，源文件会先准备为本机可读内容。
     public func copy(from sourcePath: String, to destinationPath: String) async throws {
         let root = try connectedRoot()
         guard RemotePath.normalize(sourcePath) != "/", RemotePath.normalize(destinationPath) != "/" else {

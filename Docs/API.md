@@ -37,6 +37,31 @@
 
 `BoneRemoteSyncDriveType` 的字段为：`id: String`、`displayName: String`、`icon: BoneRemoteSyncIcon` 和 `kind: RemoteSourceKind`。`BoneRemoteSyncSourceType` 的字段为：`kind`、`displayName` 和可选 `icon`。图标目录只描述 UI 可展示的网盘类型，不声明 Google Drive、阿里云盘或百度网盘的连接、读写和认证能力；实际来源能力仍需检查 `RemoteSource.capabilities`。
 
+## Catalog 路径与统计
+
+`BoneRemoteSyncIcons.driveTypes()` 只返回静态展示字段，不包含账号路径或容量。具体来源的选定路径和扫描统计由 Catalog 返回：
+
+```swift
+let root = try await catalog.store.root(id: rootID)
+let summary = try await catalog.storageSummary(rootID: rootID)
+print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
+```
+
+`RemoteCatalogStorageSummary` 字段：
+
+| 字段 | 含义 |
+| --- | --- |
+| `rootID` / `path` | 统计绑定的 Catalog root 和当前选定路径 |
+| `recursiveFileCount` | 最近一次完整 subtree 扫描的递归文件数 |
+| `recursiveDirectoryCount` | 最近一次完整 subtree 扫描发现的子目录数，不含 root 自身 |
+| `totalBytes` | 文件大小全部已知时的递归总字节数；存在未知大小时为 `nil` |
+| `capacityBytes` / `usedBytes` | 来源提供 quota 能力时的服务端容量/已用空间，否则为 `nil` |
+| `isComplete` / `isStale` | 是否完成完整扫描、统计是否已被远端 mutation 或失败刷新标旧 |
+| `measuredAt` / `quotaMeasuredAt` | 扫描统计和 quota 的测量时间 |
+
+只有保存 root 的完整 `subtree` 刷新成功后才生成或替换递归统计；`children` 刷新不改递归统计。宿主通过来源的上传、删除或移动接口改变远端内容后，应调用 `catalog.invalidateCache(rootID:directory:)` 或执行刷新。`clearIndex`、root 替换、binding 重绑和 profile 删除会清除对应 summary；路径失效自动回退到 `/` 时旧路径统计也不会沿用。
+
+
 
 ```text
 App：import BoneRemoteSyncKit
@@ -61,6 +86,18 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 | `RemoteResumableDownloadSource` | **自 v0.4.0 提供**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
 | `RemoteResumableUploadSource` | **自 v0.4.0 提供**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
 
+## 网盘访问权限
+
+Catalog 保存的 `RemoteSourceProfile.permission` 控制该网盘实例在 SDK 内的文件操作范围：
+
+| 权限 | 读操作 | 写操作 |
+| --- | --- | --- |
+| `.readOnly` | 浏览、stat、下载、遍历 | 上传、建目录、删除、移动、复制在适配器调用前返回 `RemoteSyncError.permissionDenied` |
+| `.editor` | 支持 | 按来源 `capabilities` 和服务端权限执行 |
+
+使用 `RemoteCatalog.saveSource(..., permission:)` 保存；默认值为 `.editor`。`RemoteCatalog.profiles()` 返回的 `RemoteSourceProfile` 和配置详情都包含 `permission`。权限由 Catalog 会话内部拦截，不能通过直接调用受控来源绕过；它只限制 SDK 当前实例，不会修改远端账号授权。
+
+`RemoteCapabilities` 反映受控来源可展示的操作入口，但调用方仍须处理服务端权限、冲突、条件版本和来源错误。
 `walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。低层 `maxConcurrentTransfers` 只是建议值；`RemoteTransferCoordinator` 将它作为各 binding 的调度上限输入，同时实施自身全局限制，不能限制绕过该 coordinator 的调用。
 
 ## 连接、取消与清理

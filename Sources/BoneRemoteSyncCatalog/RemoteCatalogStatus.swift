@@ -1,5 +1,6 @@
 import Foundation
 
+/// 一次 Catalog 刷新运行的只读状态摘要。
 public struct RemoteCatalogRunStatus: Sendable {
     public let refreshID: UUID
     public let directory: String
@@ -12,13 +13,14 @@ public struct RemoteCatalogRunStatus: Sendable {
     public let publishedEntries: Int
     public let failures: [RemoteCatalogDirectoryFailure]
 }
+/// 指定 Catalog 根目录的最近刷新状态和完整子树成功时间。
 public struct RemoteCatalogStatus: Sendable {
     public let root: RemoteCatalogRoot
     public let lastFullSubtreeSuccessfulAt: Date?
     public let latestRun: RemoteCatalogRunStatus?
 }
 extension SQLiteRemoteCatalogStore {
-    /// Purely local run history summary; does not restore a network cursor or start work.
+    /// 读取本地持久化的刷新历史，不连接网盘、不恢复游标，也不会启动刷新。
     public func status(rootID: UUID) async throws -> RemoteCatalogStatus {
         try await perform { db in
             let root = try db.root(id: rootID)

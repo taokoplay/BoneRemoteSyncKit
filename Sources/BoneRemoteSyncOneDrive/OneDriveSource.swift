@@ -15,6 +15,7 @@ public actor OneDriveSource: RemoteSource {
             resumableUpload: resumableUpload, makeDirectory: true, remove: true, move: true)
     }
 
+    /// 创建普通 OneDrive Personal 来源；默认不启用可恢复上传会话。
     public init(configuration: OneDriveConfiguration, onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) {
         self.configuration = configuration; self.endpoints = .production; self.onTokenRefresh = onTokenRefresh
         self.resumableSessionStore = nil
@@ -24,6 +25,7 @@ public actor OneDriveSource: RemoteSource {
     /// Enables provider-owned resumable uploads. The service name is independent
     /// from Catalog credentials; the implementation uses device-only, non-syncing
     /// Keychain records and never exposes their values through the public API.
+    /// 创建启用了来源私有可恢复上传安全存储的 OneDrive 来源。
     public init(configuration: OneDriveConfiguration, resumableUploadService: String,
                 onTokenRefresh: (@Sendable (OneDriveToken) throws -> Void)? = nil) throws {
         self.configuration = configuration; self.endpoints = .production; self.onTokenRefresh = onTokenRefresh
@@ -48,6 +50,7 @@ public actor OneDriveSource: RemoteSource {
 
     /// The connected Personal drive identity is a binding hint, not an
     /// authentication proof. Hosts must still keep credentials and handles scoped.
+    /// 返回当前连接的 OneDrive 主盘绑定；不替代 OAuth 认证证明。
     public func connectedBinding() throws -> RemoteSourceBinding {
         RemoteSourceBinding(kind: .cloudAPI, identity: "onedrive:" + (try context()).drive)
     }
@@ -62,6 +65,7 @@ public actor OneDriveSource: RemoteSource {
     var destinations: Set<String> = []
     deinit { client?.cancel(); refreshing?.task.cancel() }
 
+    /// 使用 OAuth 凭据连接并核对 Personal 主盘身份。
     public func connect(_ credential: RemoteCredential) async throws {
         invalidate()
         guard case let .oauth(access, refresh, expiry) = credential,
@@ -85,10 +89,12 @@ public actor OneDriveSource: RemoteSource {
         }
     }
     /// 当前连接的 Personal 主盘身份，用于持久化绑定核对；断开后不可读取。
+    /// 返回当前连接的 Personal 主盘 ID，用于持久化绑定核对。
     public func connectedDriveID() throws -> String {
         try context().drive
     }
 
+    /// 断开会话并取消旧代请求。
     public func disconnect() async { invalidate() }
     func invalidate() {
         generation = UUID(); client?.cancel(); refreshing?.task.cancel()

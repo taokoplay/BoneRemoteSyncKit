@@ -96,4 +96,21 @@ actor CatalogSource: RemoteSource {
         #expect(cached.entries.map(\.name) == ["old"] && cached.version == 1 && cached.state == .stale)
         try await store.finishRun(run, state: "failed"); try await store.close()
     }
+
+    @Test func unknownFileSizePreservesCountButNotTotalBytes() async throws {
+        let fixture = try CatalogFixture(); let store = try fixture.store(); let root = try await fixture.selected(store)
+        let source = CatalogSource()
+        await source.configure(pages: ["/|": .init(coverage: .complete, entries: [catalogEntry("/unknown")])])
+        let run = try await store.beginRun(rootID: root.id, path: "/", scope: .subtree)
+        let options = RemoteCatalogRefreshOptions(scope: .subtree)
+        let report = await CatalogTreeScanner(scanner: .init(
+            store: store, source: source, run: run, options: options,
+            budget: .init(options), permit: .init()
+        )).scan()
+        try await store.finishRun(run, state: report.state.rawValue, failures: report.failures, storageSummary: report.storageSummary)
+        #expect(report.storageSummary?.recursiveFileCount == 1)
+        #expect(report.storageSummary?.totalBytes == nil)
+        #expect(try await store.storageSummary(rootID: root.id)?.totalBytes == nil)
+        try await store.close()
+    }
 }

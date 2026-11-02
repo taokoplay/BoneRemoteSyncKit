@@ -2,6 +2,19 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
+## Unreleased
+
+### 网盘访问权限
+
+- `RemoteSourceProfile` 新增 `permission` 字段，支持 `.readOnly` 和 `.editor`；Catalog 会话在上传、建目录、删除、移动和复制进入来源适配器前统一执行只读拦截。
+- `RemoteCatalog.profiles()` 和配置详情返回保存的权限；旧配置缺失该字段时按 `.editor` 兼容读取。
+
+### Catalog 路径与统计
+
+- 新增 `RemoteCatalogStorageSummary`、`RemoteCatalog.storageSummary(rootID:)` 和 `invalidateCache(rootID:directory:)`，将选定路径、递归文件/目录数量、已知总大小、统计新鲜度与可选 quota 字段绑定到具体 Catalog root。
+- 完整 `subtree` 扫描成功后持久化统计；未知文件大小使 `totalBytes` 保持 `nil`，`children` 刷新不覆盖递归统计。
+- root 替换、binding 重绑、缓存清理、profile 删除和失效路径回退会同步清理或标记文件列表缓存与统计；Catalog schema 从 v1 安全迁移到 v2。
+
 ## v0.5.0 — 2026-10-31
 
 本版本以 Git 附注标签 `v0.5.0` 发布，新增网盘图标资源与来源类型展示 API；`v0.4.0` 及更早标签保持不变。

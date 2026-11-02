@@ -31,7 +31,7 @@ let package = Package(
             resources: [.copy("Resources/icon.bundle")]
         ),
         .target(name: "BoneRemoteSyncCatalog",
-                dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],
+                dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],
                 linkerSettings: [.linkedLibrary("sqlite3"), .linkedFramework("Security")]),
         .testTarget(name: "BoneRemoteSyncCatalogTests", dependencies: ["BoneRemoteSyncCatalog"]),
         .target(name: "BoneRemoteSyncCore"),

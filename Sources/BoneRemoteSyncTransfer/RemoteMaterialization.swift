@@ -2,6 +2,7 @@ import Foundation
 import BoneRemoteSyncCore
 
 /// How long a materialized file remains managed by the transfer layer.
+/// 物化文件的保留策略，决定租约释放后是否继续保留缓存文件。
 public enum RemoteMaterializationRetention: Sendable, Hashable, Codable {
     /// Keep the file until the lease is released. The file may be removed later.
     case lease
@@ -11,6 +12,7 @@ public enum RemoteMaterializationRetention: Sendable, Hashable, Codable {
 }
 
 /// Cache reuse policy for a materialization request.
+/// 物化请求的缓存复用策略。
 public enum RemoteMaterializationReuse: Sendable, Hashable, Codable {
     /// Reuse only a cache entry whose source reference and observed version match.
     case matchingVersion
@@ -18,6 +20,7 @@ public enum RemoteMaterializationReuse: Sendable, Hashable, Codable {
     case refresh
 }
 
+/// 远端文件物化选项，包括一致性、校验、分片策略和进度回调。
 public struct RemoteMaterializationOptions: Sendable {
     public var retention: RemoteMaterializationRetention
     public var reuse: RemoteMaterializationReuse
@@ -58,6 +61,7 @@ public struct RemoteMaterializationOptions: Sendable {
 ///
 /// The URL is valid until the lease is released. The lease does not expose the
 /// source's original URL, credentials, temporary download URL, or staging path.
+/// Transfer 层管理的本地文件租约；release 后 URL 不再保证可用。
 public struct MaterializedFileLease: Sendable {
     public let url: URL
     public let reference: RemoteFileReference
@@ -82,10 +86,12 @@ public struct MaterializedFileLease: Sendable {
 
     /// Releases this consumer's lease, including persistent-cache leases.
     /// Copies share one release token. Releasing more than once is harmless.
+    /// 释放当前调用方的文件租约；重复释放安全。
     public func release() async {
         await releaser?.release()
     }
 
+    /// 在闭包执行成功或失败后自动释放租约。
     public func withAccess<T: Sendable>(
         _ body: @Sendable (URL) async throws -> T
     ) async rethrows -> T {

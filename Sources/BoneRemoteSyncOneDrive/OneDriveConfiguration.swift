@@ -1,11 +1,12 @@
 import Foundation
 import BoneRemoteSyncCore
 
-/// OneDrive Personal public-client registration. Secrets must not be embedded in native apps.
+/// OneDrive Personal 公共客户端配置；客户端应用中不得嵌入 client secret。
 public struct OneDriveConfiguration: Sendable {
     public let clientID: String
     public let redirectURI: URL
     public let timeout: TimeInterval
+    /// 创建并校验 OneDrive OAuth 应用参数和请求超时。
     public init(clientID: String, redirectURI: URL, timeout: TimeInterval = 60) throws {
         guard !clientID.isEmpty, !clientID.contains(where: { $0.isWhitespace }),
               let scheme = redirectURI.scheme, !scheme.isEmpty,
@@ -26,7 +27,7 @@ struct ODEndpoints: Sendable {
         authority: URL(string: "https://login.microsoftonline.com/consumers/oauth2/v2.0/")!, allowsLoopback: false)
 }
 
-/// Store atomically in the host's account-scoped Keychain. Never log the token properties.
+/// OneDrive OAuth 令牌的安全内存表示；宿主应保存到账号作用域 Keychain。
 public struct OneDriveToken: Sendable, CustomStringConvertible {
     public let accessToken: String
     public let refreshToken: String?

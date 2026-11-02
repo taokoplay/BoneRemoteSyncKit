@@ -125,7 +125,14 @@ public final class SQLiteRemoteCatalogStore: RemoteCatalogStore, @unchecked Send
                     try db.execute("INSERT INTO source_profiles(binding,revision,credential,payload,id) VALUES(?,?,?,?,?)", values)
                 } else {
                     try db.execute("UPDATE source_profiles SET binding=?,revision=?,credential=?,payload=? WHERE id=?", values)
-                    try db.execute("UPDATE catalog_directories SET stale=1 WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(profile.id)])
+                    if old?.bindingID == profile.bindingID {
+                        try db.execute("UPDATE catalog_directories SET stale=1 WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(profile.id)])
+                        try db.execute("UPDATE catalog_summaries SET stale=1 WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(profile.id)])
+                    } else {
+                        try db.execute("DELETE FROM catalog_summaries WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(profile.id)])
+                        try db.execute("DELETE FROM catalog_entries WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(profile.id)])
+                        try db.execute("DELETE FROM catalog_directories WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(profile.id)])
+                    }
                     let affected = "SELECT id FROM refresh_runs WHERE state='running' AND root IN (SELECT id FROM catalog_roots WHERE source=?)"
                     try db.execute("DELETE FROM staged_entries WHERE run IN (\(affected))", [.uuid(profile.id)])
                     try db.execute("UPDATE refresh_directories SET state='interrupted' WHERE state='staging' AND run IN (\(affected))", [.uuid(profile.id)])
@@ -216,14 +223,21 @@ public final class SQLiteRemoteCatalogStore: RemoteCatalogStore, @unchecked Send
                 try db.execute("DELETE FROM refresh_runs WHERE root=?", [.uuid(rootID)])
                 try db.execute("DELETE FROM catalog_entries WHERE root=?", [.uuid(rootID)])
                 try db.execute("DELETE FROM catalog_directories WHERE root=?", [.uuid(rootID)])
+                try db.execute("DELETE FROM catalog_summaries WHERE root=?", [.uuid(rootID)])
                 try db.execute("UPDATE catalog_roots SET full_success=NULL WHERE id=?", [.uuid(rootID)])
                 try db.insertRootDirectory(root)
             }
         }
     }
-    /// Removes only local records; never removes Keychain items or remote resources.
     public func removeProfile(id: UUID) async throws {
-        try await perform { db in try db.execute("DELETE FROM source_profiles WHERE id=?", [.uuid(id)]); return () }
+        try await perform { db in
+            try db.transaction {
+                try db.execute("DELETE FROM catalog_summaries WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(id)])
+                try db.execute("DELETE FROM catalog_entries WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(id)])
+                try db.execute("DELETE FROM catalog_directories WHERE root IN (SELECT id FROM catalog_roots WHERE source=?)", [.uuid(id)])
+                try db.execute("DELETE FROM source_profiles WHERE id=?", [.uuid(id)])
+            }
+        }
     }
 }
 

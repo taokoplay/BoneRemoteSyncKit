@@ -2,12 +2,14 @@ import Foundation
 import BoneRemoteSyncCore
 
 /// Opt-in managed checkpoint download. Namespace must be a stable opaque ID unique to the logical account.
+/// WebDAV 显式检查点恢复下载选项；sourceNamespace 必须是稳定且不含敏感信息的来源标识。
 public struct WebDAVResumableDownloadOptions: Sendable {
     public let sourceNamespace: String
     public let checkpointIntervalBytes: Int64
     public let overwrite: Bool
     public let progress: (@Sendable (Int64) -> Void)?
 
+    /// 创建检查点恢复选项。
     public init(sourceNamespace: String, checkpointIntervalBytes: Int64 = 8 * 1024 * 1024,
                 overwrite: Bool = true, progress: (@Sendable (Int64) -> Void)? = nil) {
         self.sourceNamespace = sourceNamespace; self.checkpointIntervalBytes = checkpointIntervalBytes

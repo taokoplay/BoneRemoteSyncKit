@@ -2,6 +2,7 @@ import Foundation
 import BoneRemoteSyncCore
 
 /// One generic file materialization request submitted to a coordinator.
+/// 提交给 Transfer 协调器的一次文件物化请求。
 public struct RemoteTransferRequest: Sendable {
     public let reference: RemoteFileReference
     public var options: RemoteMaterializationOptions
@@ -15,6 +16,7 @@ public struct RemoteTransferRequest: Sendable {
     }
 }
 
+/// Transfer 任务的稳定标识类型。
 public typealias RemoteTransferID = UUID
 
 /// Coordinates bounded generic file transfers without knowing the file format.
@@ -22,6 +24,7 @@ public typealias RemoteTransferID = UUID
 /// A submitted task owns its completed lease until `wait(for:)` takes the result,
 /// or until the task is cancelled. Callers should always wait for or cancel a
 /// submitted task so managed files are not retained indefinitely.
+/// 在全局和来源绑定级别限制并发的文件传输协调器。
 public actor RemoteTransferCoordinator {
     private struct Job {
         var snapshot: RemoteTransferSnapshot
@@ -38,6 +41,7 @@ public actor RemoteTransferCoordinator {
     private var tasks: [RemoteTransferID: Task<Void, Never>] = [:]
     private var observers: [RemoteTransferID: [UUID: CheckedContinuation<Void, any Error>]] = [:]
 
+    /// 为单个来源创建协调器。
     public init(materializer: RemoteFileMaterializer, maxConcurrentTransfers: Int = 1) {
         self.materializers = [materializer.sourceBinding: materializer]
         self.globalLimit = max(1, maxConcurrentTransfers)
@@ -45,6 +49,7 @@ public actor RemoteTransferCoordinator {
 
     /// One scheduler owns global and per-binding limits for all supplied sources.
     /// A binding must occur exactly once; providers remain connected by the caller.
+    /// 为多个固定来源创建协调器；每个 binding 必须唯一。
     public init(materializers: [RemoteFileMaterializer], maxConcurrentTransfers: Int = 4) throws {
         var bindings: [RemoteSourceBinding: RemoteFileMaterializer] = [:]
         for materializer in materializers {
@@ -58,6 +63,7 @@ public actor RemoteTransferCoordinator {
     }
 
     /// Enqueues one materialization task and returns immediately with its ID.
+    /// 提交物化任务并立即返回任务 ID。
     public func submit(_ request: RemoteTransferRequest) -> RemoteTransferID {
         let id = RemoteTransferID()
         jobs[id] = Job(
@@ -78,11 +84,13 @@ public actor RemoteTransferCoordinator {
         return id
     }
 
+    /// 读取任务的权威快照；终态快照用于判断任务是否完成。
     public func snapshot(_ id: RemoteTransferID) -> RemoteTransferSnapshot? {
         jobs[id]?.snapshot
     }
 
     /// Waits for and takes the completed materialized-file lease exactly once.
+    /// 等待并领取一次物化文件租约；同一任务结果只能领取一次。
     public func wait(for id: RemoteTransferID) async throws -> MaterializedFileLease {
         guard jobs[id] != nil else { throw RemoteSyncError.notFound(path: id.uuidString) }
         // Waiters are individually cancellable without cancelling the submitted job.
@@ -123,6 +131,7 @@ public actor RemoteTransferCoordinator {
     }
 
     /// Requests cancellation. A completed but not-yet-taken lease is released.
+    /// 请求取消任务；已提交但尚未领取的租约也会被释放。
     public func cancel(_ id: RemoteTransferID) async {
         if let index = queue.firstIndex(where: { $0.0 == id }) {
             queue.remove(at: index)

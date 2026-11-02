@@ -21,6 +21,7 @@ public struct RemoteListRequest: Sendable, Equatable {
     /// 默认分页请求，不自动消费下一页；调用方仍须循环读取 `nextCursor`。
     public static let all = RemoteListRequest()
 
+    /// 使用来源返回的游标创建下一页请求。
     public func nextPage(cursor: String) -> RemoteListRequest {
         var copy = self
         copy.cursor = cursor
@@ -39,6 +40,7 @@ public struct RemoteListRequest: Sendable, Equatable {
 }
 
 /// 该页在请求的过滤规则下是否存在已知遗漏；不代表远端瞬时一致快照。
+/// 目录列表覆盖范围；`partial` 或 `unknown` 不能用于推导远端删除。
 public enum RemoteListingCoverage: String, Sendable, Equatable, Codable {
     case complete
     case partial
@@ -57,5 +59,6 @@ public struct RemoteListPage: Sendable, Equatable {
         self.coverage = coverage
     }
 
+    /// 当前页没有下一页游标时为 `true`；不代表目录内容完整。
     public var isLastPage: Bool { nextCursor == nil }
 }

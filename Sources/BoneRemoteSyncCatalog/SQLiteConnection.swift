@@ -95,6 +95,7 @@ final class SQLiteStatement {
     func date(_ column: Int32) -> Date? {
         sqlite3_column_type(handle, column) == SQLITE_NULL ? nil : Date(timeIntervalSince1970: sqlite3_column_double(handle, column))
     }
+    func isNull(_ column: Int32) -> Bool { sqlite3_column_type(handle, column) == SQLITE_NULL }
     func data(_ column: Int32) -> Data {
         guard let bytes = sqlite3_column_blob(handle, column) else { return Data() }
         return Data(bytes: bytes, count: Int(sqlite3_column_bytes(handle, column)))

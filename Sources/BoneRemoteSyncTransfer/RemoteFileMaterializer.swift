@@ -48,6 +48,7 @@ public actor RemoteFileMaterializer: RemoteFileMaterializing {
     private var closed = false
     private var cancellingWaiters: [UUID: [Waiter]] = [:]
 
+    /// 创建进程内物化器；来源会话和私有缓存目录由调用方负责保持有效。
     public init(source: any RemoteSource, sourceBinding: RemoteSourceBinding, cacheDirectory: URL) {
         self.source = source
         self.sourceBinding = sourceBinding
@@ -56,6 +57,7 @@ public actor RemoteFileMaterializer: RemoteFileMaterializing {
         self.readGate = MaterializationReadGate(limit: source.capabilities.maxConcurrentTransfers)
     }
 
+    /// 将远端文件物化到本地缓存，并返回受租约保护的文件 URL。
     public func materialize(_ reference: RemoteFileReference,
                             options: RemoteMaterializationOptions = .init()) async throws -> MaterializedFileLease {
         try preflight(reference, options: options)
@@ -128,9 +130,7 @@ public actor RemoteFileMaterializer: RemoteFileMaterializing {
         })
     }
 
-    /// Stops admission, cancels outstanding metadata reads and downloads, and waits
-    /// for these source operations and download cleanup to finish.
-    /// Does not disconnect the caller's source or invalidate already issued leases.
+    /// 停止接收新请求，取消在途操作并等待清理完成；不会断开调用方来源。
     public func shutdown() async {
         closed = true
         let current = Array(flights.values)
@@ -149,9 +149,11 @@ public actor RemoteFileMaterializer: RemoteFileMaterializing {
         await clearPersistentCache()
     }
 
+    /// 删除当前没有租约且未标记为 persistent 的缓存文件。
     public func evictUnleased() async {
         for record in Array(records.values) where record.leases == 0 && !record.persistent { remove(record) }
     }
+    /// 删除当前没有租约的持久缓存文件。
     public func clearPersistentCache() async {
         for record in Array(records.values) where record.leases == 0 { remove(record) }
     }

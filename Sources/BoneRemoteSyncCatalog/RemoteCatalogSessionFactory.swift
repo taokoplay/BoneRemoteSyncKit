@@ -3,6 +3,7 @@ import BoneRemoteSyncCore
 import BoneRemoteSyncLocal
 import BoneRemoteSyncWebDAV
 import BoneRemoteSyncOneDrive
+import BoneRemoteSyncICloud
 
 /// Fixed-binding sessions are private to Catalog; callers cannot reconnect a scanning source to another account.
 public final class RemoteCatalogSessionFactory: Sendable {
@@ -43,6 +44,8 @@ public final class RemoteCatalogSessionFactory: Sendable {
                 source = OneDriveSource(configuration: try .init(clientID: client, redirectURI: redirect, timeout: timeout)) {
                     try fixedHandle.replace($0.credential)
                 }
+            case .iCloud(let configuration):
+                source = ICloudDriveSource(configuration: configuration)
             }
             let connected = source!
             try await connected.connect(credential)
@@ -52,7 +55,7 @@ public final class RemoteCatalogSessionFactory: Sendable {
             }
             try Task.checkCancellation()
             let fixedHandle = handle; let access = local
-            return CatalogSession(source: connected) {
+            return CatalogSession(source: RemoteAccessControlledSource(source: connected, permission: profile.permission)) {
                 if let fixedHandle { coordinator.release(fixedHandle) }
                 access?.release()
             }

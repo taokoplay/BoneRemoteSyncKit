@@ -26,7 +26,7 @@ struct CatalogRefreshCoordinator: Sendable {
                     } catch {
                         return .report(.init(refreshID: run.id, state: Task.isCancelled ? .cancelled : .failed,
                             startedAt: started, finishedAt: Date(), publishedDirectories: 0, publishedEntries: 0,
-                            failures: [.init(path: run.path, reason: .map(error))]))
+                            failures: [.init(path: run.path, reason: .map(error))], storageSummary: nil))
                     }
                     let scanner = CatalogDirectoryScanner(store: store, source: session.source, run: run, options: options, budget: .init(options), permit: permit)
                     let report = await CatalogTreeScanner(scanner: scanner).scan()
@@ -59,7 +59,8 @@ struct CatalogRefreshCoordinator: Sendable {
                 return .init(refreshID: run.id,
                     state: cancelled ? .cancelled : (expired ? (result.publishedDirectories == 0 ? .failed : .partial) : result.state),
                     startedAt: started, finishedAt: Date(), publishedDirectories: result.publishedDirectories,
-                    publishedEntries: result.publishedEntries, failures: failures)
+                    publishedEntries: result.publishedEntries, failures: failures,
+                    storageSummary: expired || cancelled ? nil : result.storageSummary)
             }
         } onCancel: { permit.cancel() }
     }
