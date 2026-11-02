@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按 `v0.5.0` API 描述；图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供。R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
+> 本页按 `v0.6.0` API 描述；网盘权限、Catalog 统计、缓存失效和 iCloud Catalog 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -73,7 +73,7 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 本地文件系统 / iCloud 容器与 NSFileCoordinator / URLSession
 ```
 
-当前没有 `BoneRemoteSyncEngine` 或 SMB 产品。iCloud Drive 为独立来源，详见 [iCloud 指南](ICloudDrive.md)；Catalog 默认工厂暂不集成它。枚举中其他预留来源类型不代表适配器已实现。
+当前没有 `BoneRemoteSyncEngine` 或 SMB 产品。iCloud Drive 为独立来源，Catalog 已支持保存 iCloud 配置、打开固定会话并索引选定目录；宿主仍需提供正确 entitlement 和容器，详见 [iCloud 指南](ICloudDrive.md)。枚举中其他预留来源类型不代表适配器已实现。
 
 ## 协议与能力
 

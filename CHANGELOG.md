@@ -2,7 +2,9 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
-## Unreleased
+## v0.6.0 — 2026-11-02
+本版本以 Git 附注标签 `v0.6.0` 发布，新增网盘实例访问权限、Catalog 路径与递归统计、缓存失效和 iCloud Catalog 配置接入；`v0.5.0` 及更早标签保持不变。
+
 
 ### 网盘访问权限
 

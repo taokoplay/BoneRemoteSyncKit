@@ -4,7 +4,7 @@
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
-> 当前发布版本为 **`v0.5.0`**。在 `v0.4.0` 的 Transfer、恢复传输和 OneDrive Upload Session 基础上，新增 `icon.bundle` 网盘图标资源、来源显示名称、图标读取 API 和网盘类型列表 API。图标目录不代表对应网盘原生适配器已经实现；版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+> 当前发布版本为 **`v0.6.0`**。在 `v0.5.0` 的图标资源与来源类型展示基础上，新增网盘实例只读/编辑权限、Catalog 路径与递归存储统计、缓存失效、schema v2 迁移和 iCloud Catalog 配置接入。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
 
 > 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB 和其他网盘适配器尚未实现；iCloud Drive 来源已新增，真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
 
@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | 多来源文件管理器 / NAS 浏览器 | 统一浏览、文件信息、读写与目录管理；NAS 通过 WebDAV 接入 | UI、账号和目录授权、破坏性操作确认；不是 SMB 客户端 |
 | 文档阅读 / 笔记附件 / 媒体导入 | 下载完整文件；Transfer 提供本地 URL、复用与 lease | 解析、预览、播放、缩略图和编辑；不支持通用边下边播 |
-| 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询 | 正文离线保存、刷新触发与状态展示；Catalog 暂不支持 iCloud |
+| 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询；支持 Local、WebDAV、OneDrive Personal 和 iCloud 配置 | 正文离线保存、刷新触发与状态展示 |
 | 备份与恢复 | 上传宿主生成的备份包、列出备份、下载及显式删除 | 数据一致性导出、打包/加密、保留策略、恢复安装；iCloud 写成功不等于云端已同步 |
 | 前台批量获取与中断恢复 | Transfer 限制下载并发，并提供可插拔单文件分片下载（首个适配 WebDAV）；WebDAV 可恢复下载，OneDrive 可恢复上传 | 持久任务、后台执行、显式继续与未知结果核对；不是所有来源双向都能续传 |
 | 跨来源一次性导入 / 导出 | 宿主可组合“下载到本地 → 上传到另一来源” | 两段操作的编排与结果核对；没有跨来源直传、原子移动或回滚 |
@@ -42,7 +42,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ## 能力矩阵
 
-下表按 **`v0.5.0`** 列出。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
+下表按 **`v0.6.0`** 列出。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
 
 | 功能 | 本地目录 | WebDAV | OneDrive Personal | iCloud Drive |
 | --- | --- | --- | --- | --- |
@@ -68,7 +68,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 | 分片上传 / 上传续传 **「v0.4.0 新增」** | 不支持 | 不支持 | Upload Session 顺序分片与恢复；专用构造器 opt-in，0 < 文件大小 ≤5 GiB | 不支持 |
 | 传输字节进度 / 协作式取消 | 支持 | 支持 | 支持 | 支持本地复制进度；不提供云端传输百分比 |
 | 完整文件物化 / lease / 进程内缓存 **「v0.4.0 新增」** | 支持 | 支持 | 支持 | 支持 |
-| Catalog 配置与离线目录索引 | 支持 | 支持 | 支持 | 未接入 |
+| Catalog 配置与离线目录索引 | 支持 | 支持 | 支持 | 支持，需宿主 entitlement 和容器 |
 | 来源提供内容哈希 / 远端变更流 | 均不支持 | 均不支持 | 均不支持 | 均不支持 |
 
 **表格说明：**
@@ -98,15 +98,15 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ### Xcode
 
-添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.4.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
+添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.6.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.5.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.5.0"` 改为 `branch: "main"`。图标资源和类型列表已包含在 `v0.5.0` 中。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.6.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.6.0"` 改为 `branch: "main"`。图标资源和类型列表自 `v0.5.0` 提供，权限与 Catalog 统计自 `v0.6.0` 提供。
 
 ```swift
 // Package.dependencies
-.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.4.0")
+.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.6.0")
 ```
 
 ```swift
@@ -246,7 +246,7 @@ func transferFile(
 - **传输完整性不是内容相同证明：** ETag 是版本标识，不保证为内容哈希；`size`、`modifiedAt` 或 `hasReliableFingerprint` 不能代替内容比对。
 - **网盘实例权限：** Catalog 的 `RemoteSourceProfile.permission` 支持 `.readOnly` 和 `.editor`。只读实例仍可浏览、查询和下载；上传、建目录、删除、移动、复制会在 SDK 内部拦截。该字段只控制当前 SDK 会话，不修改远端账号权限。
 - **文件权限与并发：** sandbox、security-scoped URL 和跨实例／跨进程目标独占由宿主负责；路径校验不构成防恶意 TOCTOU 的文件系统 sandbox。
-- **iCloud 是文件来源而非同步引擎：** 使用独立 `ICloudDriveSource`，不要用本地来源替代；本地写入成功不等于云端上传完成。Catalog 暂未纳入 iCloud，冲突仅检测并拒绝，不自动选版。
+- **iCloud 是文件来源而非同步引擎：** 使用独立 `ICloudDriveSource`，不要用本地来源替代；本地写入成功不等于云端上传完成。Catalog 已支持保存 iCloud 配置并通过固定会话索引，冲突仅检测并拒绝，不自动选版。
 
 ## 详细文档
 

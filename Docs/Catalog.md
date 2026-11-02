@@ -2,11 +2,11 @@
 
 [首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
 
-> 本页描述当前 `v0.5.0` Catalog API；统计快照、缓存失效和 schema v2 迁移已包含。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
+> 本页描述当前 `v0.6.0` Catalog API；网盘访问权限、统计快照、缓存失效、iCloud 配置接入和 schema v2 迁移已包含。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
 
 ## 能力与层次
 
-`BoneRemoteSyncCatalog` 是可选上层模块：保存 Local、WebDAV、OneDrive Personal 的非敏感配置、选定目录、文件元数据及刷新状态。`BoneRemoteSyncKit` 统一导出它；只需要传输时仍可单独依赖 Core 和来源产品，基础模块不依赖数据库。
+`BoneRemoteSyncCatalog` 是可选上层模块：保存 Local、WebDAV、OneDrive Personal 和 iCloud Drive 的非敏感配置、选定目录、文件元数据及刷新状态。`BoneRemoteSyncKit` 统一导出它；只需要传输时仍可单独依赖 Core 和来源产品，基础模块不依赖数据库。
 
 - `RemoteSourceProfile`：稳定来源 ID、账号/端点绑定 ID、配置修订、typed configuration 和凭据引用。
 - `RemoteCatalogRoot`：选定目录的路径与来源 ID、过滤规则、默认刷新范围和 selection revision。
@@ -134,7 +134,7 @@ struct AppFolderResolver: RemoteLocalAccessResolver {
 }
 ```
 
-bookmark 更新、stale 检测、start/stopAccessingSecurityScopedResource 和用户重新选择 UI 归宿主。resolver 应响应取消；SDK 无法强制中断一个不返回的宿主闭包。缓存不授予文件权限，也不增加 iCloud 文件协调。新增 [ICloudDriveSource](ICloudDrive.md) 为独立来源，当前 Catalog 的 provider/configuration 与默认 session factory 尚未集成它，不应使用 `.local` 绕过其云端语义。
+bookmark 更新、stale 检测、start/stopAccessingSecurityScopedResource 和用户重新选择 UI 归宿主。resolver 应响应取消；SDK 无法强制中断一个不返回的宿主闭包。缓存不授予文件权限，也不增加 iCloud 文件协调。Catalog 已通过独立的 `ICloudDriveSource` provider/configuration 和固定会话支持 iCloud 目录索引；宿主仍需配置 entitlement 和容器，不应使用 `.local` 绕过 iCloud 语义。
 
 ## 选择目录、刷新与离线查询
 
