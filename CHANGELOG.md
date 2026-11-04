@@ -2,6 +2,12 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
+## 未发布
+
+- `RemoteAccessPermission` 从二选一角色改为 `OptionSet`：默认 `.readOnly` 且读取必选，`.edit`、`.create`、`.delete` 可多选，提供 `.all` 预设与四项 `allCases`；配置和受控会话自动补齐读取权限，空选择按只读处理。
+- Catalog 会话按操作检查读取、编辑、新增和删除权限，并同步裁剪能力；上传区分新建与覆盖，复制要求读取和新增，移动归编辑。
+- 移除旧 `.editor` 角色 API 和全部旧权限格式兼容。持久化 `permission` 必须是名称数组；旧角色字符串、缺失字段或 null 均拒绝读取，不再映射为全部权限或默认权限。新建配置默认只读，已有旧格式配置须按新模型重新配置。
+
 ## v0.6.0 — 2026-11-02
 本版本以 Git 附注标签 `v0.6.0` 发布，新增网盘实例访问权限、Catalog 路径与递归统计、缓存失效和 iCloud Catalog 配置接入；`v0.5.0` 及更早标签保持不变。
 

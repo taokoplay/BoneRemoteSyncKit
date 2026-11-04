@@ -5,6 +5,8 @@
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
 > 当前发布版本为 **`v0.6.0`**。在 `v0.5.0` 的图标资源与来源类型展示基础上，新增网盘实例只读/编辑权限、Catalog 路径与递归存储统计、缓存失效、schema v2 迁移和 iCloud Catalog 配置接入。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+>
+> 开发分支的权限模型已统一为只读必选、编辑/新增/删除多选；旧角色 API 与持久化格式不再兼容，详见 [Catalog 权限说明](Docs/Catalog.md)。
 
 > 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB 和其他网盘适配器尚未实现；iCloud Drive 来源已新增，真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
 
@@ -244,7 +246,7 @@ func transferFile(
 - **授权由宿主管理：** SDK 不包含登录界面或账号选择。Catalog 提供可选 Keychain 桥接；直接使用来源模块时仍由宿主保存凭据。不要记录密码、token、授权回调或预授权下载 URL。
 - **文件信息与分类：** `RemoteEntry.createdAt` 返回来源报告的创建时间，缺失为 nil；`fileCategory` 按 MIME/扩展名给出图片、音频、视频、文档等提示，不解析文件内容、EXIF 或音视频时长。见[元数据 API](Docs/API.md#文件时间与类型分类)。
 - **传输完整性不是内容相同证明：** ETag 是版本标识，不保证为内容哈希；`size`、`modifiedAt` 或 `hasReliableFingerprint` 不能代替内容比对。
-- **网盘实例权限：** Catalog 的 `RemoteSourceProfile.permission` 支持 `.readOnly` 和 `.editor`。只读实例仍可浏览、查询和下载；上传、建目录、删除、移动、复制会在 SDK 内部拦截。该字段只控制当前 SDK 会话，不修改远端账号权限。
+- **网盘实例权限：** `RemoteSourceProfile.permission` 默认 `.readOnly` 且读取必选，`.edit`、`.create`、`.delete` 可多选，例如 `[.readOnly, .create]`；`.all` 表示全部。配置与会话自动补齐读取权限，传入 `[]` 等价于只读。Catalog 按操作检查权限，持久化统一使用权限名称数组，旧角色 API、字符串解码和缺失字段兼容已移除。详见 [Catalog 权限说明](Docs/Catalog.md)。
 - **文件权限与并发：** sandbox、security-scoped URL 和跨实例／跨进程目标独占由宿主负责；路径校验不构成防恶意 TOCTOU 的文件系统 sandbox。
 - **iCloud 是文件来源而非同步引擎：** 使用独立 `ICloudDriveSource`，不要用本地来源替代；本地写入成功不等于云端上传完成。Catalog 已支持保存 iCloud 配置并通过固定会话索引，冲突仅检测并拒绝，不自动选版。
 

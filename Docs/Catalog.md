@@ -72,25 +72,36 @@ func openCatalogStore(privateDirectory: URL) throws -> SQLiteRemoteCatalogStore 
 | `.webDAV(baseURL:timeout:retry:)` | collection URL、请求与只读重试参数 | URL userinfo、密码、Authorization |
 | `.oneDrive(clientID:redirectURI:driveID:timeout:)` | public-client 应用参数、已核对的 Personal 主盘 ID | token、nextLink、预授权下载 URL |
 
-`RemoteSourceProfile.permission` 保存该网盘实例的文件访问权限：
+`RemoteSourceProfile.permission` 使用 `RemoteAccessPermission`（`OptionSet`）保存文件操作权限。默认只读且读取必选，编辑、新增和删除可多选：
 
 | 权限 | 允许操作 | 说明 |
 | --- | --- | --- |
-| `.readOnly` | 浏览、查询、下载 | 上传、建目录、删除、移动、复制会在进入来源适配器前被拦截 |
-| `.editor` | 读操作和全部已声明的写操作 | 仍须遵守来源能力、服务端账号权限、冲突和条件版本规则 |
+| `.readOnly`（只读，必选） | 浏览、查询、下载、遍历 | 默认勾选且不可取消；与写权限组合后不会禁止已授予的写操作 |
+| `.edit`（编辑） | 覆盖已有文件、移动、重命名 | 不包含新增或删除权限 |
+| `.create`（新增） | 上传新文件、创建目录、来源内复制 | 自动包含必选的读取权限，不允许覆盖已有文件 |
+| `.delete`（删除） | 删除文件、递归删除目录 | 自动包含必选的读取权限，不授予编辑或新增权限 |
 
-创建或替换来源时通过 `saveSource` 保存权限；不传时默认 `.editor`。`profiles()` 和配置详情返回的 `RemoteSourceProfile` 会包含该字段，旧数据缺失字段时按 `.editor` 解码。Catalog 会话根据保存的权限包装来源，UI 可同时读取受控来源的 `capabilities` 隐藏写入口，运行时拦截仍然有效。
+使用 `[.readOnly, .edit, .create]` 组合权限，`.all` 表示全部。配置初始化、解码和受控会话会补齐 `.readOnly`：传入 `[]` 等价于只读，传入 `.create` 会保存为 `[.readOnly, .create]`。集合本身保留标准 `OptionSet` 运算语义，移除读取位后再用于配置或会话仍会补齐。`RemoteAccessPermission.allCases` 列出四个选项；宿主多选界面应将只读固定勾选并禁用取消，另外三项使用 `contains`、`insert`、`remove` 管理。
+
+创建或替换来源时通过 `saveSource` 保存权限；不传时默认 `.readOnly`。`catalog.store.profiles()` 和 `catalog.store.profile(id:)` 返回保存的组合。持久化配置的 `permission` 必须是权限名称数组，例如 `["readOnly","create"]`；只读保存为 `["readOnly"]`。旧角色 API、字符串格式和缺失字段兼容均已移除，字符串、缺失字段、null 及未知权限名称都会导致解码失败，数据库读取返回 `RemoteCatalogError.invalidConfiguration`。已有旧格式配置需按新模型重新配置；SDK 不自动授予权限或转换旧角色。
 
 ```swift
 let profile = try await catalog.saveSource(
-    displayName: "只读资料盘",
+    displayName: "可读取和新增的资料盘",
     configuration: .webDAV(baseURL: url),
     credential: .basic(username: username, password: password),
-    permission: .readOnly
+    permission: [.readOnly, .create]
 )
+
+var selection = profile.permission
+selection.insert(.edit)
+selection.remove(.create)
+let canDelete = selection.contains(.delete)
 ```
 
-`permission` 是网盘实例的 SDK 访问控制，不会修改远端账号权限，也不替代 WebDAV、OneDrive、iCloud 或本地系统权限。
+Catalog 会话按保存的权限检查文件操作，并裁剪 `capabilities` 供 UI 隐藏入口；未授予权限时返回 `RemoteSyncError.permissionDenied`。上传 `overwrite=false` 需要新增权限，`expectedETag` 条件上传需要编辑权限；普通上传仅选编辑或新增时检查目标是否存在，只有 `notFound` 才视为新文件。新增上传强制禁止覆盖，避免并发创建后覆盖他人文件。仅编辑时，若来源支持条件上传且返回 ETag，会固定该版本；不支持条件上传的来源仍采用存在性预检，预检与实际写入之间的外部删除竞争须由宿主协调，不能将此检查当作跨进程原子授权。
+
+`permission` 是网盘实例的 SDK 访问控制，不会修改远端账号权限，也不替代 WebDAV、OneDrive、iCloud 或本地系统权限。直接使用未包装的适配器不受此配置约束。
 
 `connect()` 不隐式持久化任何内容。`RemoteEntry` 不携带凭据。Keychain 实现以宿主指定的 service 和 UUID account 存完整凭据，使用 generic-password、AfterFirstUnlockThisDeviceOnly，不启用同步、不擅设共享 access group。构造 store 不访问 Keychain，实际 read/insert/replace/remove 才访问。
 

@@ -113,20 +113,21 @@ public struct RemoteSourceProfile: Sendable, Codable, Equatable, Identifiable {
     public let displayName: String
     public let configuration: RemoteSourceConfiguration
     public let credentialReference: UUID?
+    /// 读取为必选基础权限，编辑、新增和删除可多选。
     public let permission: RemoteAccessPermission
 
     private enum CodingKeys: String, CodingKey { case id, bindingID, configurationRevision, displayName, configuration, credentialReference, permission }
 
-    /// 创建并校验网盘配置详情；未显式传入权限时默认允许编辑。
+    /// 创建并校验网盘配置详情；默认只读，显式权限也会补齐必选的读取权限。
     public init(id: UUID = UUID(), bindingID: UUID = UUID(), configurationRevision: Int64 = 1,
                 displayName: String, configuration: RemoteSourceConfiguration, credentialReference: UUID? = nil,
-                permission: RemoteAccessPermission = .editor) throws {
+                permission: RemoteAccessPermission = .readOnly) throws {
         self.id = id; self.bindingID = bindingID; self.configurationRevision = configurationRevision
         self.displayName = displayName; self.configuration = configuration; self.credentialReference = credentialReference
-        self.permission = permission
+        self.permission = permission.union(.readOnly)
         try validate()
     }
-    /// 从持久化数据解码配置详情；旧数据缺失权限字段时按 editor 兼容。
+    /// 从持久化数据解码配置详情；permission 必须是权限名称数组。
     public init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(id: values.decode(UUID.self, forKey: .id), bindingID: values.decode(UUID.self, forKey: .bindingID),
@@ -134,7 +135,7 @@ public struct RemoteSourceProfile: Sendable, Codable, Equatable, Identifiable {
             displayName: values.decode(String.self, forKey: .displayName),
             configuration: values.decode(RemoteSourceConfiguration.self, forKey: .configuration),
             credentialReference: values.decodeIfPresent(UUID.self, forKey: .credentialReference),
-            permission: values.decodeIfPresent(RemoteAccessPermission.self, forKey: .permission) ?? .editor)
+            permission: values.decode(RemoteAccessPermission.self, forKey: .permission))
     }
     /// 校验配置详情、版本、显示名称和凭据引用的组合。
     public func validate() throws {

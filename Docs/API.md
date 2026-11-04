@@ -88,14 +88,20 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 
 ## 网盘访问权限
 
-Catalog 保存的 `RemoteSourceProfile.permission` 控制该网盘实例在 SDK 内的文件操作范围：
+Catalog 保存的 `RemoteSourceProfile.permission` 使用 `RemoteAccessPermission: OptionSet`：默认只读且读取必选，编辑、新增、删除可多选：
 
-| 权限 | 读操作 | 写操作 |
-| --- | --- | --- |
-| `.readOnly` | 浏览、stat、下载、遍历 | 上传、建目录、删除、移动、复制在适配器调用前返回 `RemoteSyncError.permissionDenied` |
-| `.editor` | 支持 | 按来源 `capabilities` 和服务端权限执行 |
+| 权限 | 允许操作 |
+| --- | --- |
+| `.readOnly`（必选） | 浏览、stat、下载、遍历 |
+| `.edit` | 覆盖已有文件、移动、重命名 |
+| `.create` | 上传新文件、建目录、复制（会话自动包含读取权限） |
+| `.delete` | 删除文件或目录 |
 
-使用 `RemoteCatalog.saveSource(..., permission:)` 保存；默认值为 `.editor`。`RemoteCatalog.profiles()` 返回的 `RemoteSourceProfile` 和配置详情都包含 `permission`。权限由 Catalog 会话内部拦截，不能通过直接调用受控来源绕过；它只限制 SDK 当前实例，不会修改远端账号授权。
+例如 `permission: [.readOnly, .edit, .create]` 允许读取、编辑和新增，拒绝删除。`allCases` 枚举四个选项，宿主界面应将只读固定勾选并禁用取消，其余三项使用 `contains`、`insert`、`remove` 管理。配置与受控会话自动补齐读取权限：`[]` 等价于只读，`.create` 等价于 `[.readOnly, .create]`，`.all` 授予全部权限。`OptionSet` 本身保留标准集合运算语义。
+
+使用 `RemoteCatalog.saveSource(..., permission:)` 保存，默认值为 `.readOnly`，`RemoteSourceProfile` 和 `RemoteAccessControlledSource` 同样默认只读。`catalog.store.profiles()` 和 `catalog.store.profile(id:)` 返回包含读取权限的组合。持久化的 `permission` 必须是权限名称数组（只读为 `["readOnly"]`），不接受角色字符串、缺失字段、null 或未知名称。旧角色 API 和兼容解码已移除；直接解码不合法配置抛出 `DecodingError`，数据库读取返回 `RemoteCatalogError.invalidConfiguration`。旧格式配置需按新模型重新配置。
+
+Catalog 会话的 `RemoteAccessControlledSource` 按操作检查权限；`capabilities` 同步裁剪但不会增加来源本身没有的能力。普通上传区分目标是否存在，非覆盖上传要求新增权限，条件上传要求编辑权限。仅新增时禁止覆盖；仅编辑时优先固定来源支持的 ETag，否则存在性预检仍需宿主协调外部并发删除。完整语义见 [Catalog](Catalog.md)。此配置只约束受控会话，不修改远端账号授权；直接使用原始适配器不受它约束。
 
 `RemoteCapabilities` 反映受控来源可展示的操作入口，但调用方仍须处理服务端权限、冲突、条件版本和来源错误。
 `walk` 和按路径下载是 `RemoteSource` 的扩展方法。`RemoteCapabilities` 用于界面与任务规划，但不能代替服务端权限验证；即使能力为 true，操作仍可能被拒绝。低层 `maxConcurrentTransfers` 只是建议值；`RemoteTransferCoordinator` 将它作为各 binding 的调度上限输入，同时实施自身全局限制，不能限制绕过该 coordinator 的调用。

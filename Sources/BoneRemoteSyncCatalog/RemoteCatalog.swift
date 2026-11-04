@@ -12,9 +12,9 @@ public actor RemoteCatalog {
     /// Creates a new exclusive secret reference before switching the database binding.
     /// Rebinding never overwrites an existing secret. Old references remain for explicit host cleanup.
     @discardableResult
-    /// 保存或替换网盘配置、凭据引用和访问权限；使用 expectedRevision 防止丢失更新。
+    /// 保存或替换网盘配置、凭据引用和多选访问权限（默认只读且读取必选）；使用 expectedRevision 防止丢失更新。
     public func saveSource(displayName: String, configuration: RemoteSourceConfiguration,
-                           credential: RemoteCredential? = nil, permission: RemoteAccessPermission = .editor,
+                           credential: RemoteCredential? = nil, permission: RemoteAccessPermission = .readOnly,
                            replacing sourceID: UUID? = nil,
                            expectedRevision: Int64? = nil) async throws -> RemoteSourceProfile {
         let correlationID = UUID()
