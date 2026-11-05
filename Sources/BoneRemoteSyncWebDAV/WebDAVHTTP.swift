@@ -38,6 +38,9 @@ final class DAVSessionDelegate: NSObject, URLSessionDataDelegate, @unchecked Sen
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
         let pending = lock.withLock { bodies.removeValue(forKey: task.taskIdentifier) }
+        // URLSession may coalesce every intermediate upload callback for a small body.
+        // Publish the observed count before waking the response consumer; never infer it from Content-Length.
+        if error == nil { pending?.progress?(task.countOfBytesSent) }
         pending?.body.finish(error)
         pending?.completed(error == nil)
     }
