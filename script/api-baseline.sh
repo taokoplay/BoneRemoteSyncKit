@@ -29,6 +29,10 @@ trap cleanup EXIT
 dump_api() {
     # 一次性构建 symbol graph；--minimum-access-level public 只保留公共 API。
     swift build --build-path "$SCRATCH/build" >/dev/null 2>&1
+    # SwiftPM native 将 swiftmodule 放在 bin/Modules；Xcode 构建后端可直接放在 bin。
+    # 使用实际输出路径，不能假设跨工具链都采用 build/debug 的扁平布局。
+    local bin_path
+    bin_path="$(swift build --build-path "$SCRATCH/build" --show-bin-path)"
     local symbols="$SCRATCH/symbols.txt"
     : > "$symbols"
     # symbolgraph-extract 不会自动创建输出目录，必须预先建好。
@@ -54,7 +58,8 @@ for name in sorted(names):
     for target in $targets; do
         xcrun swift symbolgraph-extract \
             -module-name "$target" \
-            -I "$SCRATCH/build/debug" \
+            -I "$bin_path/Modules" \
+            -I "$bin_path" \
             -sdk "$sdk" \
             -target "$target_triple" \
             -minimum-access-level public \

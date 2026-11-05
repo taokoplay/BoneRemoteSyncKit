@@ -4,7 +4,7 @@
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
-> 当前发布版本为 **`v0.8.0`**。新增独立 OPDS 1.2 只读书库、公开目录格式兼容及 Transfer 下载接入。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+> 当前发布版本为 **`v0.8.1`**。包含 v0.8.0 的独立 OPDS 1.2 只读书库与 Transfer 下载接入，并修复 WebDAV 最终上传进度及发布 API 导出路径。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
 >
 > 自 `v0.7.0` 起，权限模型统一为只读必选、编辑/新增/删除多选；旧角色 API 与持久化格式不再兼容，详见 [Catalog 权限说明](Docs/Catalog.md)。
 
@@ -106,15 +106,15 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ### Xcode
 
-添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.8.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
+添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.8.1`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.8.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.8.0"` 改为 `branch: "main"`。图标资源和类型列表自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.8.1`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.8.1"` 改为 `branch: "main"`。图标资源和类型列表自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
 
 ```swift
 // Package.dependencies
-.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.8.0")
+.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.8.1")
 ```
 
 ```swift
