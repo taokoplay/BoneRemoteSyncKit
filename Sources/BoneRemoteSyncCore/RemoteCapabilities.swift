@@ -5,8 +5,9 @@ import Foundation
 /// 存在的意义是让 UI 和同步引擎"先问再做"：勾选了什么才显示什么、
 /// 才规划什么动作，而不是靠 try-catch 在运行时兜底。
 public struct RemoteCapabilities: Sendable, Hashable {
-    /// 是否支持列目录。理论上所有来源都应为 true，保留字段用于尚未实现的适配器。
+    /// 是否支持文件目录列表；OPDS 等内容来源使用独立浏览 API，可为 false。
     public var list: Bool
+    /// 是否支持查询文件描述，元数据实时性以来源合同为准。
     public var stat: Bool
     /// 是否实现 RemoteIDAddressableSource。只涉及稳定 ID 读取，不表示支持按 ID 写入或遍历。
     public var idAddressing: Bool

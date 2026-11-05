@@ -2,7 +2,65 @@
 
 [返回项目首页](../README.md)
 
-本页区分实现、受控测试、平台编译与真实服务验收。当前版本为 **`v0.4.0`（2026-10-28，GMT+8）**，以 Git 附注标签发布，不另外创建 GitHub Release。原 `v0.1.0`、`v0.2.0`、`v0.3.0` 标签不变；新能力不写回旧标签。下文保留各阶段的验证快照，各阶段数量不能相加，也不是后续任意源码版本的保证。
+## v0.8.0 发布验证
+
+`v0.8.0` 以 Git 附注标签分发，首次发布 OPDS 模块及兼容模式；v0.7.0 已发布的权限模型不重复计为新功能。发布整理更新文档版本和CI配置，不改变下方最终579项测试对应的生产实现；历史验证快照保留其当时范围。
+
+发布前检查发现此前远端CI使用macos-14默认Swift5.10/Xcode15.4，无法读取Swift tools6.0清单。工作流改为macos-15并固定镜像已提供的Xcode26.3，缓存按架构/工具链分隔；同时修复临时文件零匹配导致清理检查退出失败。远端执行结果以对应GitHub Actions记录为准，不将本地Swift6.4结果冒充远端通过。
+
+## 2026-11-05：OPDS 公开格式兼容扩展（最终验证）
+
+新增默认 `.compatible` / 可选 `.strict`，时间元数据改为 `Date?` + `updatedRaw`，支持直接 Atom 搜索模板和标准 Atom 筛选字段，并对常见错误目录 MIME 做有界 XML 验证。未修改 Core 的日期解析、Catalog schema 或 Transfer 调度；书籍下载安全合同和跨域授权不变。详见 [兼容模式](OPDS.md)与[公开源复测](OPDSPublicCatalogValidation.md)。
+
+| 验证 | 结果 |
+| --- | --- |
+| 最终 OPDS 专项 | 自有43项通过（含12项兼容测试），统一入口OPDS测试另通过且已包含于全包计数 |
+| 最终全包串行 | `swift test --no-parallel` 退出0：579个去重后的测试函数通过，39 XCTest + 540 Swift Testing，0失败、0跳过。运行器603次执行包含共享TestSupport8项在四个bundle中的重复24次 |
+| 自有目标计数 | WebDAV142、Transfer45、OneDrive92、OPDS43、Kit6、iCloud52、Core/Local127、Catalog64、TestSupport8，共579；参数化case不再叠加 |
+| 构建 | 本轮Debug构建通过；最后一次Atom参数映射后的全包测试完成Debug编译，`swift build -c release` 退出0；最终独立Kit消费端构建通过 |
+| 平台 | 最后改动后，macOS12、iOS15/tvOS15/visionOS1 Simulator的OPDS与Kit编译链接、宿主示例与指南示例类型检查均通过。未变模块沿用此前同工具链的构建产物，本轮未重编全部九模块 |
+| 真实公开源 | 五站复测：Unglue、Ebooks Gratuits、Wolne各新增一次EPUB下载；arXiv根和一级分类成功；ManyBooks模板已识别但列表/搜索响应仍失败。最后补齐Atom参数后，Wolne关键词`ballady`实测返回17本书 |
+| 下载文件 | 新增344306、574339、1163929字节样本，ZIP CRC、mimetype、container引用OPF存在性/XML和lease清理通过；未与远端可信摘要比较，未做排版验收 |
+
+本轮43项OPDS测试覆盖默认兼容/严格模式、未知时间原文与nil、直接模板中的固定编码/保留字符/相对地址/命名空间、未知必填字段、跨origin与旧会话、MIME回退及HTML/非Atom/DTD/超预算拒绝。新增测试为补充覆盖，不宣称全部经过行为红绿。
+
+最终证据：scratch中的`opds-compat-final-tests.log`、`opds-compat-final-full.log`、`opds-compat-final-release.log`、`opds-compat-final-consumer.log`、`opds-platform-<平台>-4.log`，以及`opds-compat-public/`、`opds-compat-downloads/`。兼容扩展中间版578项结果已被最终579项覆盖，不相加。Release仍有既有PythonFixtureTests同模块import警告；iCloud临时文件系统诊断对应测试通过，未顺带改动无关代码。
+
+**剩余边界：** ManyBooks受Cloudflare/异常响应影响，arXiv代理深层响应有未声明XML前缀与空标题，不能视为已全面兼容。401/403、付费认证、错误详情链接不绕过；OPDS2、DRM、后台/续传、Catalog持久化与最低系统真机验收仍不在本次范围。该实现阶段本地检查无阻塞；当时尚未提交、推送或发布，后续版本状态见本页顶部。
+
+## 首轮公开服务实测（兼容扩展前）
+
+使用仅导入 Kit 的独立消费端测试文章列出的15个公开地址：7个原始根地址连接成功；Textos 改用规范地址后也成功。Gutenberg、Textos.info、The Anarchist Library 各完成一次真实 EPUB 下载，分别为609138、61767、43590字节；ZIP CRC、mimetype、container/package 存在性及 lease 清理均通过。Gutenberg 搜索需显式配置其移动站 origin；ManyBooks、Unglue.it 等仍有目录格式、访问或搜索形式限制。
+
+本轮只新增真实服务证据和文档，不修改生产代码、不重复此前全包回归。根目录成功不能推导整站兼容；全部15个地址、失败原因、配置和样本 SHA-256 见 [公开书库实测记录](OPDSPublicCatalogValidation.md)。
+
+## OPDS 首期实现验证（兼容扩展前，后纳入 v0.8.0）
+
+新增独立 `BoneRemoteSyncOPDS`、Core 来源类型、Kit 导出、专用书目 API、会话内下载引用及 Transfer 接入。未改 Catalog schema 或 Transfer 调度逻辑；本次没有提交、推送或发布。
+
+| 验证 | 实际结果与范围 |
+| --- | --- |
+| Debug / Release | `swift build`、`swift build -c release` 通过 |
+| OPDS 定向 | OPDS 自有 **31 个测试函数**通过；覆盖解析、命名空间/xml:base、搜索、分页、详情、认证、引用隔离、下载、目标保护、取消和 Transfer。参数化 case 不另加到函数数量 |
+| 全包串行 | `swift test --no-parallel` 退出 0：**567 个去重后测试函数通过**，39 XCTest + 528 Swift Testing，0 失败、0 跳过。运行器合计执行 591 次测试函数；共享 TestSupport 的 8 个函数在四个 bundle 中运行，额外的 24 次不计为独立测试 |
+| 自有目标函数数 | WebDAV142、Transfer45、OneDrive92、OPDS31、Kit6、iCloud52（含5 XCTest）、Core/Local127（含34 XCTest）、Catalog64、TestSupport8，共567 |
+| 统一入口 | `swift test --no-parallel --filter UnifiedImportTests`：6项通过，已含于全包计数 |
+| 独立消费端 | 外部临时 SwiftPM 包仅依赖/导入 Kit；完成浏览、取详情、选择 EPUB、coordinator → materializer → lease，验证210000字节原文并确认 release 后文件清理 |
+| 最低部署目标编译 | macOS12、iOS15/tvOS15/visionOS1 Simulator，九模块逐个编译链接；四目标的宿主示例和指南代码均类型检查通过。最终分组日志无编译警告或错误 |
+| 包与文档 | Package 导出 OPDS 产品且该模块仅依赖 Core；Markdown 本地文件链接、Python fixture 语法、清理脚本语法及 diff 格式检查通过 |
+| 一次只读审查 | 识别并修复 XHTML 标题、带前缀的标准 OpenSearch 参数、通用 MIME 获取返回具体格式、注释/CDATA 含声明字样四个边界；新增回归先复现错误再通过。修复后未发起第二轮审查 |
+
+工具链为 Swift 6.4 / Swift 6 语言模式、Xcode 27.1、Python 3.13.2。HTTP fixture 只监听 localhost、使用虚构凭据及合成内容；生产代码不依赖 Python。最低部署目标编译不等于 Swift 6.0 编译器或最低 OS/真机运行验收。
+
+全包首次执行触及60秒工具时限，随后使用足够时限完整重跑通过。平台首次整组编译也触及时限，之后显式指定 SDK 环境并按模块组完整重跑；不把中断的输出当作通过证据。全包/Release 留有既有 `PythonFixtureTests` 同模块 import 警告；iCloud 用例输出一次临时 moved.txt 的系统诊断，该测试通过，未修改无关源码。
+
+本轮日志位于会话工作台：`opds-final-build.log`、`opds-final-release.log`、`opds-final-kit.log`、`opds-final-full.log`、`opds-tests.log`、`opds-review-red.log`、`opds-platform-<平台>-<组>.log`、`opds-consumer-build.log`、`opds-consumer-run.log`。过程脚本和独立消费端均在 scratch，不作为包资源分发。
+
+**未验收/不在首期范围：** 真实 Calibre/Komga/Kavita 部署、真实 TLS/ATS/设备、最低系统运行、大文件内存/吞吐与磁盘故障；OPDS 2.0、购买借阅、DRM、Cookie/OAuth、后台/续传/强版本和 Catalog 持久化。当前没有阻碍本次实现交付的已知问题。接口合同见 [OPDS](OPDS.md)，完整接入见 [宿主示例](../Examples/OPDSReadOnly/README.md)。
+
+## 历史验证记录
+
+以下为截至 **`v0.4.0`（2026-10-28，GMT+8）**的历史验证记录，当时以 Git 附注标签发布，不另外创建 GitHub Release。既有标签不变；各阶段数量不能相加，也不是后续任意源码版本的保证。当前版本的验证范围见本页顶部。
 
 ## CI 与测试可移植性（本次改动）
 

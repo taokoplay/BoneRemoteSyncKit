@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按 `v0.6.0` API 描述；网盘权限、Catalog 统计、缓存失效和 iCloud Catalog 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
+> 本页按 `v0.8.0` API 描述；OPDS 只读书库自 `v0.8.0`、可组合网盘权限自 `v0.7.0`、Catalog 统计/缓存失效/iCloud 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -18,6 +18,7 @@
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
 | `BoneRemoteSyncTransfer` | **自 v0.4.0 提供**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
+| `BoneRemoteSyncOPDS` | **自 v0.8.0**：OPDS 1.2 专用书目浏览/搜索/详情与只读下载，仅依赖 Core；不集成 Catalog |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
 
@@ -79,12 +80,14 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 
 | 协议 | 主要接口 | 当前实现 |
 | --- | --- | --- |
-| `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 全部来源 |
-| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 全部来源 |
+| `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 文件来源；OPDS 仅提供登记描述 stat/下载，list 明确不支持 |
+| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 四类文件来源；OPDS 不遵循 |
 | `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件） |
 | `RemoteByteRangeSource` | **自 v0.4.0 提供**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
 | `RemoteResumableDownloadSource` | **自 v0.4.0 提供**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
 | `RemoteResumableUploadSource` | **自 v0.4.0 提供**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
+
+自 `v0.8.0` 提供的 `OPDSSource` 使用 `browse`、`nextPage`、`publication`、`search` 处理书库链接，通过 `prepareDownload` 签发会话内合成路径，交给 Transfer。`sourceBinding()` 每次连接变化；stat 不做远端 HEAD，文件版本及大小保持未知，不支持强版本缓存、递归目录或 Catalog。不要把书目 Atom ID、Feed ETag 或 updated 当作文件版本。详见 [OPDS API](OPDS.md)。
 
 ## 网盘访问权限
 

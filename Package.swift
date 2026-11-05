@@ -20,6 +20,7 @@ let package = Package(
         .library(name: "BoneRemoteSyncICloud", targets: ["BoneRemoteSyncICloud"]),
         .library(name: "BoneRemoteSyncWebDAV", targets: ["BoneRemoteSyncWebDAV"]),
         .library(name: "BoneRemoteSyncOneDrive", targets: ["BoneRemoteSyncOneDrive"]),
+        .library(name: "BoneRemoteSyncOPDS", targets: ["BoneRemoteSyncOPDS"]),
         .library(name: "BoneRemoteSyncCatalog", targets: ["BoneRemoteSyncCatalog"]),
         // 通用文件物化与传输任务层；不包含文件格式或宿主业务。
         .library(name: "BoneRemoteSyncTransfer", targets: ["BoneRemoteSyncTransfer"]),
@@ -27,7 +28,7 @@ let package = Package(
     targets: [
         .target(
             name: "BoneRemoteSyncKit",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncOPDS", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
             resources: [.copy("Resources/icon.bundle")]
         ),
         .target(name: "BoneRemoteSyncCatalog",
@@ -40,6 +41,10 @@ let package = Package(
         .target(name: "BoneRemoteSyncWebDAV", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"], linkerSettings: [.linkedFramework("Security")]),
         .target(name: "BoneRemoteSyncTransfer", dependencies: ["BoneRemoteSyncCore"]),
+        .target(name: "BoneRemoteSyncOPDS", dependencies: ["BoneRemoteSyncCore"]),
+        .testTarget(name: "BoneRemoteSyncOPDSTests",
+                    dependencies: ["BoneRemoteSyncOPDS", "BoneRemoteSyncTransfer", "BoneRemoteSyncTestSupport"],
+                    resources: [.copy("Fixtures")]),
         .testTarget(name: "BoneRemoteSyncKitTests", dependencies: ["BoneRemoteSyncKit"]),
         .testTarget(name: "BoneRemoteSyncTransferTests", dependencies: ["BoneRemoteSyncTransfer", "BoneRemoteSyncLocal", "BoneRemoteSyncTestSupport"]),
         .testTarget(name: "BoneRemoteSyncTestSupport"),

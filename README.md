@@ -1,14 +1,16 @@
 # BoneRemoteSyncKit
 
-**面向 Apple 平台的 Swift 文件访问 SDK，以统一 API 连接本地目录、iCloud Drive、WebDAV 和 OneDrive Personal。**
+**面向 Apple 平台的 Swift 文件访问 SDK，以统一 API 连接本地目录、iCloud Drive、WebDAV 和 OneDrive Personal，并提供 OPDS 只读书库访问。**
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
-> 当前发布版本为 **`v0.6.0`**。在 `v0.5.0` 的图标资源与来源类型展示基础上，新增网盘实例只读/编辑权限、Catalog 路径与递归存储统计、缓存失效、schema v2 迁移和 iCloud Catalog 配置接入。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+> 当前发布版本为 **`v0.8.0`**。新增独立 OPDS 1.2 只读书库、公开目录格式兼容及 Transfer 下载接入。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
 >
-> 开发分支的权限模型已统一为只读必选、编辑/新增/删除多选；旧角色 API 与持久化格式不再兼容，详见 [Catalog 权限说明](Docs/Catalog.md)。
+> 自 `v0.7.0` 起，权限模型统一为只读必选、编辑/新增/删除多选；旧角色 API 与持久化格式不再兼容，详见 [Catalog 权限说明](Docs/Catalog.md)。
 
 > 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB 和其他网盘适配器尚未实现；iCloud Drive 来源已新增，真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
+>
+> **v0.8.0 新增：** 独立 `BoneRemoteSyncOPDS` 提供 OPDS 1.2 书目浏览、分页、详情、OpenSearch 和只读文件获取，可接入 Transfer；使用专用浏览 API，尚未接入 Catalog。见 [OPDS 指南](Docs/OPDS.md)。
 
 [支持的来源](#支持的来源) · [能力矩阵](#能力矩阵) · [业务场景](Docs/UseCases.md) · [安装](#安装) · [快速上手](#快速上手) · [更新说明](CHANGELOG.md) · [详细文档](#详细文档) · [验证状态](Docs/Validation.md)
 
@@ -42,9 +44,11 @@
 
 Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，以及 SMB、SFTP、FTP/FTPS、NFS 等协议尚未实现，见[未支持来源开发计划](Docs/CloudDriveRoadmap.md)。第三方服务即使提供 WebDAV，也仅可按其 WebDAV 接口尝试接入，不代表已实现该品牌原生 API 或完成兼容性验收。
 
+自 `v0.8.0` 起另提供 **OPDS 只读内容来源** `OPDSSource`，用于阅读器/个人书库导入。它支持匿名或 Basic，使用 `browse/search/publication` 获取书目，显式选择格式后下载；不提供文件目录树或写操作，不计入上述四类文件来源。默认兼容缺失时间、常见目录 MIME 错标和直接搜索模板，可显式选择严格模式。两轮公开实测已有六个站点的 EPUB 下载证据；各站点限制见[公开书库实测](Docs/OPDSPublicCatalogValidation.md)。
+
 ## 能力矩阵
 
-下表按 **`v0.6.0`** 列出。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。**
+下表按 **`v0.8.0`** 列出四类文件来源。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。** OPDS 内容来源另见表后说明。
 
 | 功能 | 本地目录 | WebDAV | OneDrive Personal | iCloud Drive |
 | --- | --- | --- | --- | --- |
@@ -73,6 +77,8 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 | Catalog 配置与离线目录索引 | 支持 | 支持 | 支持 | 支持，需宿主 entitlement 和容器 |
 | 来源提供内容哈希 / 远端变更流 | 均不支持 | 均不支持 | 均不支持 | 均不支持 |
 
+**v0.8.0 OPDS 能力：** 书目浏览/搜索/分页/详情支持；完整文件下载、Transfer 进度/取消/lease 支持；通用 `list/walk`、稳定 ID 寻址、写操作、Range/恢复、文件版本缓存及 Catalog 均不支持。`stat` 仅返回会话内登记描述，详情见 [OPDS](Docs/OPDS.md)。
+
 **表格说明：**
 
 - **¹ 并发不是线程数。** `capabilities.maxConcurrentTransfers` 在低层是建议值，Transfer 将它作为各 binding 的上限输入，同时受 coordinator 的全局任务上限限制；单 materializer 构造的 coordinator 默认全局上限为 **1**，需要多文件并发时显式调高。同一 materializer 的普通下载和分片请求还共享来源 I/O 上限，但不包含 stat。不同实例或绕过入口的调用不受同一上限约束。本地来源虽声明 4，当前单实例同步复制仍在 actor 内串行执行，不能据此承诺 4 路磁盘复制；iCloud 声明 1，文件 I/O 使用串行协调队列。详见 [Transfer 调度](Docs/Transfer.md#调度进度与取消)。
@@ -100,15 +106,15 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ### Xcode
 
-添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.6.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
+添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.8.0`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.6.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.6.0"` 改为 `branch: "main"`。图标资源和类型列表自 `v0.5.0` 提供，权限与 Catalog 统计自 `v0.6.0` 提供。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.8.0`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.8.0"` 改为 `branch: "main"`。图标资源和类型列表自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
 
 ```swift
 // Package.dependencies
-.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.6.0")
+.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.8.0")
 ```
 
 ```swift
@@ -263,10 +269,12 @@ func transferFile(
 | [iCloud Drive](Docs/ICloudDrive.md) | entitlement、容器、占位下载、协调、状态与真机验收边界 |
 | [WebDAV](Docs/WebDAV.md) | 连接、文件管理、条件覆盖、重试、Range 与 checkpoint 恢复 |
 | [OneDrive Personal](Docs/OneDrive.md) | OAuth/PKCE、token 刷新、分页、安全下载、普通写入及 opt-in Upload Session |
+| [OPDS 1.2 只读书库](Docs/OPDS.md) | 自 v0.8.0：书目导航、搜索、详情、多格式获取、会话引用与 Transfer 衔接 |
 | [未支持来源开发计划](Docs/CloudDriveRoadmap.md) | Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 与区域性网盘的分阶段路线图 |
 | [构建与验证状态](Docs/Validation.md) | 构建命令、验证记录、真实服务验收边界与待办方向 |
 | [WebDAV 完整示例](Examples/WebDAVReadWrite/README.md) | 读写操作生命周期及真实 NAS 验收清单 |
 | [OneDrive 宿主示例](Examples/OneDriveReadOnly/README.md) | 授权事务管理、读路径及账号验收清单 |
+| [OPDS 宿主示例](Examples/OPDSReadOnly/README.md) | 用户选书/格式、下载、lease 消费和清理生命周期 |
 
 ## 构建与测试
 

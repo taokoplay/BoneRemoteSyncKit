@@ -15,6 +15,8 @@
 
 来源连接、账号授权、entitlement、安全作用域和文件访问授权仍由宿主负责。Transfer 不自动 connect/disconnect，不迁移账号或根目录绑定。
 
+**自 v0.8.0 提供 OPDS 接入：** `OPDSSource.prepareDownload(_:acquisition:)` 返回会话内 `RemoteFileReference`，使用同一来源的 `sourceBinding()` 构造 materializer；现有 coordinator/lease 无需 OPDS 分支。OPDS stat 只返回登记描述，文件大小、ETag、修改时间未知，因此 Transfer 不复用旧文件或合并同版本请求。重连后旧引用失效，必须新建 binding/materializer；不支持强版本、分片或恢复。完整示例见 [OPDS](OPDS.md)。
+
 ## 基本使用
 
 以下示例可以放入仅依赖 Kit 的消费端。`connectedSource` 必须已连接且在整个调用期间不切换账号/根；`cacheDirectory` 必须是宿主拥有的私有本地目录，不能位于同步盘或来源根内。

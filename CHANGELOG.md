@@ -2,7 +2,24 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
-## 未发布
+## v0.8.0 — 2026-11-05
+
+以 Git 附注标签 `v0.8.0` 发布，沿用仓库现有 Swift Package 分发方式，不另外创建 GitHub Release。以下为相对 `v0.7.0` 的新增能力，既有标签不变。
+
+- 新增独立 `BoneRemoteSyncOPDS`：OPDS 1.2 核心子集、匿名/Basic、Atom 书目/导航/详情、OpenSearch GET、显式分页和多格式选择。
+- 会话内下载引用接入现有 Transfer，提供流式 staging、完整性检查、进度、取消与原子安装；不把书目更新时间当文件版本，无版本时不复用旧内容。
+- 新增 `.opds` 来源类型及 Kit 统一导出；文件目录树、写操作、Range/续传、OPDS 2.0、购买借阅/DRM 和 Catalog 持久化不在首期范围。新增 [接入指南](Docs/OPDS.md)、[宿主示例](Examples/OPDSReadOnly/README.md)、本地 HTTP 测试及[公开书库实测记录](Docs/OPDSPublicCatalogValidation.md)；两轮测试共六个站点完成 EPUB 下载，其余兼容性限制如实记录。
+- 默认 `.compatible` 模式，并可选择 `.strict`：允许缺失/无时区的书目时间、验证正文后的目录 MIME 回退、Atom 直接 GET 搜索模板，以及关键词搜索的标准 Atom 筛选参数。首次发布的 `OPDSPage.updated` / `OPDSPublication.updated` 为 `Date?` 并提供 `updatedRaw`，宿主需处理未知时间；不伪造日期或文件版本。跨域授权与书籍下载校验保持原规则。
+
+### 接入与验证
+
+- 使用 `.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.8.0")`。对 `RemoteSourceKind` 做穷举分支的宿主需处理新增 `.opds`；`sourceTypes()` 包含 OPDS，`driveTypes()` 仍为网盘图标目录。
+- 最终全包回归579个去重后的测试函数通过（OPDS自有43项），Debug/Release、独立Kit消费端、四个最低部署目标的OPDS/Kit编译链接与示例检查通过。详见[验证记录](Docs/Validation.md)。
+- 公开书库测试是有限路径验收：ManyBooks仍有Cloudflare/异常响应限制，arXiv代理深层XML仍损坏；真实私有书库、最低OS真机、DRM、后台与性能不在验收范围。
+
+## v0.7.0 — 2026-11-04
+
+已由 Git 附注标签 `v0.7.0` 发布（提交 `4b14583`）；本次补齐对应版本标题，不把已发布权限改动重复列为 v0.8.0 新增。
 
 - `RemoteAccessPermission` 从二选一角色改为 `OptionSet`：默认 `.readOnly` 且读取必选，`.edit`、`.create`、`.delete` 可多选，提供 `.all` 预设与四项 `allCases`；配置和受控会话自动补齐读取权限，空选择按只读处理。
 - Catalog 会话按操作检查读取、编辑、新增和删除权限，并同步裁剪能力；上传区分新建与覆盖，复制要求读取和新增，移动归编辑。

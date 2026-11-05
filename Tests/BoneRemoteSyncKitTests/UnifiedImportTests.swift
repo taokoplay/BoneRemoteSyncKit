@@ -4,6 +4,20 @@ import BoneRemoteSyncKit
 
 /// Deliberately imports only the umbrella SDK, without @testable or individual source modules.
 @Suite struct UnifiedImportTests {
+    @Test func exposesOPDSAsContentSource() throws {
+        let source = OPDSSource(configuration: try OPDSConfiguration(rootURL: URL(string: "https://books.example/opds")!))
+        #expect(source.configuration.compatibility == .compatible)
+        let strict = try OPDSConfiguration(rootURL: URL(string: "https://books.example/opds")!, compatibility: .strict)
+        #expect(strict.compatibility == .strict)
+        let remote: any RemoteSource = source
+        #expect(remote.kind == .opds)
+        #expect(!remote.capabilities.list && remote.capabilities.stat && remote.capabilities.download)
+        #expect(!remote.capabilities.upload && !remote.capabilities.rangedDownload && !remote.capabilities.idAddressing)
+        #expect(BoneRemoteSyncIcons.sourceTypes().first(where: { $0.kind == .opds })?.displayName == "OPDS")
+        #expect(BoneRemoteSyncIcons.icon(for: .opds) == nil)
+        #expect(!BoneRemoteSyncIcons.driveTypes().contains(where: { $0.kind == .opds }))
+    }
+
     @Test func exposesAllImplementedSourcesAndCoreContracts() throws {
         let local = LocalFileSource(root: FileManager.default.temporaryDirectory)
         let webDAV = try WebDAVSource(

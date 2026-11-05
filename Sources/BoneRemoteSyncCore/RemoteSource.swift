@@ -14,15 +14,17 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
     case iCloud
     /// 只读媒体源，不具备文件系统语义。
     case dlna
+    /// OPDS 书库：专用链接浏览与只读文件获取，没有文件系统目录语义。
+    case opds
 
-    /// DLNA 这类"媒体源"要走不同的 UI 路径，不能混进文件浏览器。
+    /// 内容来源使用专用浏览 API；来源类型不代表文件目录浏览能力。
     /// The bundled icon filename used by the unified SDK. `nil` means this kind has no built-in artwork yet.
     public var iconResourceName: String? {
         switch self {
         case .webdav: "webdav"
         case .cloudAPI: "onedrive"
         case .iCloud: "icloud"
-        case .local, .smb, .ftp, .sftp, .nfs, .dlna: nil
+        case .local, .smb, .ftp, .sftp, .nfs, .dlna, .opds: nil
         }
     }
 
@@ -38,6 +40,7 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .cloudAPI: "Cloud API"
         case .iCloud: "iCloud Drive"
         case .dlna: "DLNA"
+        case .opds: "OPDS"
         }
     }
 }
@@ -59,9 +62,10 @@ public protocol RemoteSource: Sendable {
     /// 释放连接与临时资源。重复调用必须安全。
     func disconnect() async
 
-    /// 列出一层目录。路径不存在抛 `.notFound`。
+    /// 列出一层目录；非文件树来源可声明 list=false 并返回 unsupported。
     func list(path: String, request: RemoteListRequest) async throws -> RemoteListPage
 
+    /// 查询来源文件描述。OPDS 返回会话中登记的描述，不保证实时远端元数据。
     func stat(path: String) async throws -> RemoteEntry
 
     /// 下载到本地文件。最终目标只安装完整内容；失败可保留来源约定的 staging/part。

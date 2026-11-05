@@ -7,6 +7,7 @@
 @_exported import BoneRemoteSyncICloud
 @_exported import BoneRemoteSyncWebDAV
 @_exported import BoneRemoteSyncOneDrive
+@_exported import BoneRemoteSyncOPDS
 
 @_exported import BoneRemoteSyncCatalog
 @_exported import BoneRemoteSyncTransfer

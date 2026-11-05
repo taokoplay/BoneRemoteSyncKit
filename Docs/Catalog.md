@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
 
-> 本页描述当前 `v0.6.0` Catalog API；网盘访问权限、统计快照、缓存失效、iCloud 配置接入和 schema v2 迁移已包含。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
+> 本页描述 `v0.8.0` 中的 Catalog API；可组合访问权限自 `v0.7.0` 提供，统计快照、缓存失效、iCloud 配置接入和 schema v2 迁移自 `v0.6.0` 提供。OPDS 尚未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
 
 ## 能力与层次
 
