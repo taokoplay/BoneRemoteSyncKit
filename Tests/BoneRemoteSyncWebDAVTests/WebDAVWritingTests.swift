@@ -6,7 +6,8 @@ import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 
 @Suite(.enabled(if: PythonFixture.isAvailable, "HTTP fixture 需要 Python 3")) struct WebDAVWritingTests {
-    @Test func supportsUploadDirectoryCreationMoveCopyAndRecursiveRemove() async throws {
+    @Test(arguments: 0..<10)
+    func supportsUploadDirectoryCreationMoveCopyAndRecursiveRemove(iteration: Int) async throws {
         let server = try WebDAVTestServer(fixture: "write_server")
         defer { server.cleanUp() }
         let reader: any RemoteSource = try server.source()

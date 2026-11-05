@@ -51,6 +51,10 @@ extension WebDAVSource: RemoteCopyingSource {
                 try ctx.scope.check()
                 let response = try await ctx.send(request, path: path, allowed: [200, 201, 204], uploadFile: snapshot.url,
                                                   progress: options.progress)
+                // Small uploads may have no useful URLSession byte-counter observation.
+                // The PUT has now been acknowledged and its response fully drained: report
+                // completion from this operation's immutable snapshot, not a live source file.
+                options.progress?(snapshot.size)
                 // Return metadata from the successful PUT; a second PROPFIND must not turn an
                 // acknowledged upload into failure or return another client's later version.
                 return RemoteEntry(id: RemotePath.relative(path), path: path, name: RemotePath.name(of: path),
