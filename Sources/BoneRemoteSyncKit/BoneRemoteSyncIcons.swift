@@ -127,7 +127,7 @@ public enum BoneRemoteSyncIcons {
         [
             .init(id: "google-drive", displayName: "Google Drive", icon: .googleDrive),
             .init(id: "aliyun", displayName: "阿里云盘", icon: .aliyun),
-            .init(id: "baidu", displayName: "百度网盘", icon: .baidu),
+            .init(id: "baidu", displayName: "百度网盘", icon: .baidu, kind: .baidu),
             .init(id: "onedrive", displayName: "OneDrive", icon: .onedrive),
             .init(id: "icloud", displayName: "iCloud Drive", icon: .icloud, kind: .iCloud),
             .init(id: "webdav", displayName: "WebDAV", icon: .webdav, kind: .webdav),

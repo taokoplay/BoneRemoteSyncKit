@@ -1,14 +1,14 @@
 # 业务能力与适用场景
 
-[项目首页](../README.md) · [通用 API](API.md) · [Catalog](Catalog.md) · [Transfer](Transfer.md) · [验证状态](Validation.md)
+[项目首页](../README.md) · [通用 API](API.md) · [Catalog](Catalog.md) · [Transfer](Transfer.md) · [百度](BaiduDrive.md) · [验证状态](Validation.md)
 
-> 本文按 **`v0.4.0`（2026-10-28）**说明业务适用性，并标明各项能力的引入版本。“可用于某场景”表示库提供了其中的文件基础能力，不表示已经交付对应 App，也不替代真实账号、权限和设备验收。
+> 本文说明已发布 **`v0.8.2`** 与当前工作区未发布百度扩展的业务适用性，并保留能力引入版本。“可用于某场景”表示库提供了其中的文件基础能力，不表示已经交付对应 App，也不替代真实账号、权限和设备验收。
 >
-> **v0.8.0 扩展：** 新增 OPDS 1.2 只读书库模块。以下历史版本表保持原范围；OPDS 接入与限制见 [OPDS 指南](OPDS.md)。
+> OPDS 1.2 只读书库自 `v0.8.0` 提供，见 [OPDS 指南](OPDS.md)。百度应用目录来源尚未发布，需使用包含本次实现的源码，不代表远端 `main` 已可安装；尚无真实百度应用或 token。
 
 ## 一句话定位
 
-**BoneRemoteSyncKit 是 Apple App 的统一文件访问与传输基础库：让应用用一套 Swift API 浏览、获取和管理本地目录、iCloud Drive、WebDAV 与 OneDrive Personal 的文件，并按需增加离线目录索引、本地文件物化和显式断点恢复。**
+**BoneRemoteSyncKit 是 Apple App 的统一文件访问与传输基础库：让应用用一套 Swift API 浏览、获取和管理本地目录、iCloud Drive、WebDAV、OneDrive Personal 和百度应用目录（未发布）的文件，并按需增加离线目录索引、本地文件物化和按来源提供的显式断点恢复。**
 
 它解决的是“文件在哪里、怎样访问、怎样取得可用本地文件、失败后如何识别状态”的基础问题。文件内容的解析、业务数据模型、UI、账号授权流程、备份规则和同步冲突策略仍由接入它的 App（下称宿主）负责。名称中的 Sync 不表示库已经包含自动同步引擎。
 
@@ -18,6 +18,8 @@
 | --- | --- | --- |
 | **`v0.3.0` 已有能力** | 四类来源的文件访问；按来源提供的写入、复制、手动下载续传；WebDAV 专用 checkpoint 恢复下载；Catalog 配置和离线目录索引；结构化日志 | 按版本依赖接入。协议能力、权限和真实服务兼容性仍需核对 |
 | **`v0.4.0` 新增能力** | Transfer 统一物化、本地文件 lease、前台下载调度、可插拔单文件分片下载（首个适配 WebDAV）；通用 WebDAV 恢复下载入口；OneDrive Upload Session 恢复上传；iCloud 批量状态查询 | 使用 `v0.4.0` 版本依赖接入；不包含在 `v0.3.0` 标签中，仍需遵守显式启用和来源限制 |
+| **`v0.5.0`–`v0.8.2` 已发布扩展** | 图标目录、Catalog 统计/失效与 iCloud 配置、可组合权限、OPDS 1.2 只读书库及 WebDAV 进度修复 | 最新发布版本 `v0.8.2` 不包含百度；历史版本范围不随工作区扩展改变 |
+| **当前工作区，未发布百度** | 第五类文件来源：授权应用目录浏览/读写、作用域 ID、Catalog 配置/离线索引与 Transfer 完整文件物化 | 官方开放 API；根须已存在，非空上传 ≤4 GiB、4 MiB 顺序分片；无全盘浏览、持久续传或强版本，真实验收待完成 |
 | **尚未提供** | 自动双向同步、跨来源事务、持久后台传输队列、Catalog 与 Transfer 的任务/内容缓存集成 | 不应当作当前库的现成功能；需要额外设计与实现 |
 
 统一使用 `import BoneRemoteSyncKit`。声明平台为 iOS 15+、macOS 12+、tvOS 15+、visionOS 1+，Swift tools 6.0+；没有第三方运行依赖。最低系统声明与目标编译不等于真机运行已验收。
@@ -31,8 +33,8 @@
 | 多来源文件管理器、NAS 文件浏览器 | 统一目录、元数据、下载、上传、建目录、移动/删除及可选复制 | 文件 UI、账号/目录授权、操作确认、来源差异与错误展示 |
 | 文档阅读器、笔记附件、媒体导入 | 获取完整本地文件；Transfer 自 `v0.4.0` 起提供受管理 URL、复用与 lease | PDF/Office/EPUB 等解析、播放、缩略图、编辑、内容搜索 |
 | 个人书库、电子书/漫画导入（自 v0.8.0） | OPDS 1.2 书目导航、分页、详情、服务端搜索和指定格式下载，复用 Transfer | 书架 UI、格式解析、封面展示、长期收藏和阅读状态；未接入 Catalog |
-| 离线目录浏览、保存常用来源 | Catalog 持久化来源配置、选定目录和最近完整列表 | 正文离线保存、更新触发、缓存状态展示；当前不含 iCloud Catalog |
-| App 数据备份与恢复 | 上传/下载宿主生成的备份包、列出备份、显式清理宿主选定的旧文件 | 一致性导出、打包/加密、版本规则、保留策略、恢复校验与安装 |
+| 离线目录浏览、保存常用来源 | Catalog 持久化五类来源配置（含未发布百度）、选定目录和最近完整列表 | 正文离线保存、更新触发、缓存状态展示；iCloud 需 entitlement，百度限授权应用目录 |
+| App 数据备份与恢复 | 上传/下载宿主生成的备份包、列出备份、显式清理宿主选定的旧文件；百度限应用目录 | 一致性导出、打包/加密、版本规则、保留策略、恢复校验与安装；百度不提供全盘备份或持久续传 |
 | 前台批量获取资源 | Transfer 自 `v0.4.0` 起提供全局/每来源并发限制、任务快照、取消与同版本复用 | 任务选择、UI、网络策略、重启后任务持久化和后台执行 |
 | 网络中断或进程退出后继续传输 | WebDAV checkpoint 恢复下载；自 `v0.4.0` 提供的 OneDrive Upload Session 恢复上传 | 保存恢复上下文、重新授权/连接、显式继续、未知结果核对 |
 | 跨来源导入、导出或单次搬运 | 从来源 A 获取本地文件，再上传到来源 B | 两端编排、结果核对、失败处理、源文件删除决策；没有原子跨来源 move |
@@ -48,17 +50,18 @@
 3. 消费目录页面或进行有界遍历，按 `capabilities` 展示允许的操作。
 4. 用户明确选择后执行下载、上传、建目录、重命名/移动或删除。
 
-**库已提供：** 四来源共用的接口和主要错误类型；OneDrive 支持游标分页与按稳定 ID 读取；WebDAV 可使用服务端 COPY；本地支持文件/目录复制，iCloud 仅文件复制。
+**库已提供：** 五类文件来源共用的接口和主要错误类型（百度为未发布扩展）；OneDrive 与百度支持游标分页及按稳定 ID 读取；WebDAV 可使用服务端 COPY，百度提供同步来源内 copy；本地支持文件/目录复制，iCloud 仅文件复制。
 
 **宿主需注意：**
 
 - NAS 必须开放可兼容的 **WebDAV** 服务；这不是 SMB/NFS 客户端，也不挂载系统磁盘。
 - iCloud 只访问宿主获授权的 ubiquitous container 及配置目录，不是任意用户 iCloud Drive 或其他 App 容器浏览器。
 - OneDrive 当前只支持 **Personal 主盘**，不支持 Business、SharePoint、共享 `remoteItem` 或任意跨盘访问。
+- 百度使用官方开放 API，`rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录；来源 `/` 只指该根，不支持全盘、其他应用目录或共享链接浏览。ID 绑定应用、用户和根，不能直接使用原始 `fs_id`。
 - “最后一页”不证明目录完整；应检查 `coverage`。列表不完整或扫描失败时，不能据缺项删除业务记录或远端文件。
 - 能力标记表示实现存在，不保证当前账号有权限。删除目录会递归影响内容，不是清理展示缓存。
 
-接入入口：[通用 API](API.md)、[WebDAV](WebDAV.md)、[OneDrive](OneDrive.md)、[本地目录](Local.md)。
+接入入口：[通用 API](API.md)、[WebDAV](WebDAV.md)、[OneDrive](OneDrive.md)、[百度](BaiduDrive.md)、[本地目录](Local.md)。
 
 ## 场景二：文档、附件与媒体的统一导入
 
@@ -77,6 +80,8 @@ Transfer 提供：
 
 如果播放器或预览器在方法返回后仍异步读取文件，宿主必须持有 lease 到真实读取结束，不能提前释放。长期保留、编辑或加入用户资料库时，应由宿主复制到自己的受管理目录，不能直接修改 SDK 文件。Transfer 的 `.persistent` 仅在当前 materializer 生命周期中保留，**不是跨启动的内容缓存数据库**。
 
+百度使用 `connectedBinding()` 连接 Transfer，可按路径或来源签发 ID 获取文件。size+mtime 缓存只作启发式复用，不能保证发现同大小同时间的替换；需要重新获取内容时使用 `.refresh`。服务端 MD5 不暴露为 `contentChecksums`、ETag 或强版本，不支持强条件读取和 Range。
+
 OPDS 用专用书目模型提供作者、简介、封面链接和多个获取格式；用户选定直接获取方式后复用上述本地文件流程。OPDS 分类可能交叉，不能把它作为文件树全量扫描或容量统计来源。首期匿名/Basic、OPDS 1.2；不支持购买、借阅、DRM、OPDS 2.0 或阅读进度同步，见 [OPDS 示例](../Examples/OPDSReadOnly/README.md)。
 
 接入入口：[Transfer](Transfer.md)、[文件分类与元数据](API.md#文件时间与类型分类)。
@@ -87,14 +92,14 @@ OPDS 用专用书目模型提供作者、简介、封面链接和多个获取格
 
 Catalog 支持：
 
-1. 保存 Local、WebDAV、OneDrive Personal 的非敏感配置和选定目录；凭据经独立 store 保存，可选 Keychain 实现。
+1. 保存 Local、WebDAV、OneDrive Personal、iCloud Drive 和未发布百度的非敏感配置与选定目录；凭据经独立 store 保存，可选 Keychain 实现。
 2. 显式刷新当前目录或子树，按预算限制并发、深度、页数和条目数量。
 3. 目录全部成功后发布新列表；失败保留旧完整列表，返回成功、部分成功、失败或取消状态。
 4. 跨启动读取 SQLite 中的缓存列表，无需为 `listCached` 访问远端。
 
 **离线目录不等于离线文件。** Catalog 不下载正文、不保存文件内容、不提供全文搜索引擎，也不维护 Transfer 的文件缓存或任务。UI 应分别表达“目录曾刷新成功”“本地确有可读文件”“远端此刻可达”，不能把它们视为同一状态。
 
-Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没有变化；没有变更订阅或服务端增量同步。刷新时机由宿主决定。当前 Catalog 没有 iCloud provider，不应把 iCloud 伪装为 `.local` 绕过协调与账号语义。
+Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没有变化；没有变更订阅或服务端增量同步。刷新时机由宿主决定。iCloud 自 `v0.6.0` 起使用独立 provider，不应伪装为 `.local`。百度保存 `.baidu(configuration:userID:)`，每次打开核对固定用户，`baiduTokenRefresher` 通过宿主后端刷新后由工厂写回原凭据引用；账号或根变化需要新 binding 和重新选根。
 
 接入入口：[Catalog](Catalog.md)、[Catalog 示例](../Examples/CatalogIndex/README.md)。
 
@@ -123,10 +128,13 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 | WebDAV NAS | 上传完整备份包；可用强 ETag 做条件覆盖 | 不支持恢复上传；失败可能已经改变远端，不能盲目重放 |
 | iCloud 容器 | 显式初始化备份目录，协调写入/读取；恢复时等待占位内容就绪 | 上传成功只确认本地提交，不确认云端上传完成或其他设备已收到 |
 | OneDrive Personal | 普通上传上限 250 MiB；自 `v0.4.0` 提供的 session 上传支持非空普通文件至 5 GiB | 不支持最终 ETag 条件替换；session 需显式启用，非自动后台备份 |
+| 百度应用目录（未发布） | 在已存在且获授权的应用根下递归创建备份子目录；上传非空 ≤4 GiB 的包，4 MiB 顺序分片；可列出、下载与显式删除旧备份 | 非全盘备份；上传父目录须存在，非覆盖冲突失败不改名；无持久上传/下载续传、`expectedETag`、强版本或后台备份 |
 
 备份保留数量、命名、过期判断、删除确认和定时执行由宿主实现。iCloud 检测到未解决冲突会拒绝，不自动选择获胜版本。跨设备恢复可作为宿主产品目标，但传播、冲突和真实设备行为仍须单独验证。
 
-接入入口：[iCloud 备份流程](ICloudDrive.md#备份目录的显式初始化)、[OneDrive 上传](OneDrive.md#写入能力与限制)、[WebDAV](WebDAV.md)。
+百度备份应由宿主先生成稳定、非空且不超过配置上限的归档，显式建好子目录，再非覆盖上传并记录结果。同步 move/copy/delete 和上传在同一来源实例串行写入，并发写冲突失败；取消、超时或服务端异步结果后先核对目标，不能自动重放或补偿删除。备份比较中的大小/时间只作提示，SDK 不提供增量或双向同步计划。
+
+接入入口：[iCloud 备份流程](ICloudDrive.md#备份目录的显式初始化)、[OneDrive 上传](OneDrive.md#写入能力与限制)、[WebDAV](WebDAV.md)、[百度指南](BaiduDrive.md)与[百度示例](../Examples/BaiduDrive/README.md)。
 
 ## 场景五：前台批量下载与按需内容准备
 
@@ -157,6 +165,7 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 | 本地 → OneDrive Personal | 自 `v0.4.0` 提供的 Upload Session。仅路径目标、非空普通文件 ≤5 GiB；设备内 session 记录与私有快照 | 先本地 prepare，再保存 handle，最后 resume；管理独立 Keychain service、磁盘空间、结果持久化与显式清理 |
 | Local/iCloud 手动下载续传 | 有 offset/part 接口，无通用 checkpoint 跨进程恢复协议 | 自行核对源版本、偏移与 part，不能将其宣传为自动重启恢复 |
 | OneDrive 下载、WebDAV/Local/iCloud 上传 | 没有对应的恢复适配 | 不能因为另一个方向支持恢复而推断本方向也支持 |
+| 百度上传与下载（未发布） | 均没有持久恢复适配；4 MiB 上传分片不是续传 checkpoint | 中断后核对远端结果，再由宿主决定是否发起新操作；不能自动恢复或把它加入后台队列 |
 
 恢复不是无限重试。OneDrive 创建、最终提交或终止的响应丢失时，可能无法立即判断远端结果；库保留未知状态与证据，不自动新建 session 或补偿删除。`committedCleanupPending` 表示提交已知成功但本地保存/清理尚有问题，不是再次上传的授权。
 
@@ -193,6 +202,7 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 | 恢复 WebDAV 下载 | provider 专用 API，或自 `v0.4.0` 提供的 `RemoteDownloadRecovery` + 明确的合作目标锁 |
 | 恢复 OneDrive 上传 | 专用 opt-in `OneDriveSource` + 自 `v0.4.0` 提供的 `RemoteUploadRecovery`；独立于 coordinator/Catalog |
 | iCloud 备份 | 直接持有 `ICloudDriveSource`，由宿主配置 entitlement、目录和备份规则；不要通过 Local 模拟 |
+| 百度应用目录备份（未发布） | `BaiduDriveSource` + 宿主官方授权/后端刷新；按需加 Catalog 或 Transfer，仅处理授权应用根内的非空备份包 |
 
 只需要一个入口包，不代表必须启用所有模块。Catalog 刷新不会自动下载正文，Transfer 不会自动连接账号，两者尚未形成统一的持久任务或内容缓存系统。
 
@@ -210,12 +220,12 @@ Catalog 的 `current` 表示最近完整扫描成功，不表示远端现在没�
 
 宿主至少需要明确以下事项：
 
-1. **权限与账号：** OAuth/PKCE 授权 UI、token 轮换持久化、Keychain service、iCloud entitlement、sandbox/bookmark 与局域网权限。
+1. **权限与账号：** 按来源完成授权 UI（OneDrive OAuth/PKCE；百度简化/授权码 URL 与回调，无 PKCE 承诺），百度 code 交换与刷新由宿主后端保护 SecretKey；管理 token 轮换持久化、Keychain service、iCloud entitlement、sandbox/bookmark 与局域网权限。
 2. **内容与空间：** 缓存/快照目录在同步根外，目录私有且稳定；规划临时空间、长期文件所有权、lease 释放和清理策略。不存在自动 LRU/配额系统。
 3. **一致性与破坏性操作：** 区分已提交、未提交与未知；普通上传默认覆盖，需按业务显式选择。ETag/大小/时间不是字节一致性的通用证明。
 4. **生命周期与恢复：** 控制连接、取消、退出账号和重新绑定；保存 handle 或 checkpoint 上下文，不跨账号复用缓存或恢复状态。
 5. **真实环境：** 在预定服务商、NAS、账号类型、网络与系统版本上完成读写、冲突、取消、恢复和权限测试。
 
-现有验证包括临时文件、localhost 故障服务、存储替身及受控跨进程恢复；WebDAV 有限的真实飞牛只读验证不能推广为所有 NAS 写入兼容。真实 Microsoft 账号、Keychain 权限、iCloud 占位与双设备传播、大文件性能和最低系统运行仍有未验收项。详见[验证记录](Validation.md)。
+现有验证包括临时文件、localhost 故障服务、存储替身及受控跨进程恢复；WebDAV 有限的真实飞牛只读验证不能推广为所有 NAS 写入兼容。真实 Microsoft 账号、Keychain 权限、iCloud 占位与双设备传播、大文件性能和最低系统运行仍有未验收项。百度尚无真实应用或 token，本地 fixture 不能替代线上授权、应用目录权限与文件操作验收。本轮构建和测试结果以[验证记录](Validation.md)的最终记录为准。
 
 **选型结论：** 如果产品需要“多来源文件访问 + 明确的文件传输 + 可选目录索引”，当前库可以承担这一层；如果产品核心是“持续自动同步、完整离线内容系统、媒体播放或数据库同步”，则还需要独立的上层能力，不能只靠本库完成。

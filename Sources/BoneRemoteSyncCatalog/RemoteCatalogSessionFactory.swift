@@ -4,13 +4,26 @@ import BoneRemoteSyncLocal
 import BoneRemoteSyncWebDAV
 import BoneRemoteSyncOneDrive
 import BoneRemoteSyncICloud
+import BoneRemoteSyncBaidu
+
+/// 宿主按固定账号向后端刷新百度令牌；工厂负责将返回值写入同一凭据引用。
+public typealias BaiduCatalogTokenRefresher = @Sendable (BaiduDriveConfiguration, String, BaiduDriveToken) async throws -> BaiduDriveToken
 
 /// Fixed-binding sessions are private to Catalog; callers cannot reconnect a scanning source to another account.
 public final class RemoteCatalogSessionFactory: Sendable {
     let credentials: any RemoteCredentialStore
     let localResolver: (any RemoteLocalAccessResolver)?
-    public init(credentials: any RemoteCredentialStore, localResolver: (any RemoteLocalAccessResolver)? = nil) {
-        self.credentials = credentials; self.localResolver = localResolver
+    let baiduTokenRefresher: BaiduCatalogTokenRefresher?
+    let baiduSourceFactory: @Sendable (BaiduDriveConfiguration, BaiduDriveTokenRefresher?) -> BaiduDriveSource
+    public init(credentials: any RemoteCredentialStore, localResolver: (any RemoteLocalAccessResolver)? = nil,
+                baiduTokenRefresher: BaiduCatalogTokenRefresher? = nil) {
+        self.credentials = credentials; self.localResolver = localResolver; self.baiduTokenRefresher = baiduTokenRefresher
+        self.baiduSourceFactory = { BaiduDriveSource(configuration: $0, refreshToken: $1) }
+    }
+    init(credentials: any RemoteCredentialStore, baiduTokenRefresher: BaiduCatalogTokenRefresher? = nil,
+         baiduSourceFactory: @escaping @Sendable (BaiduDriveConfiguration, BaiduDriveTokenRefresher?) -> BaiduDriveSource) {
+        self.credentials = credentials; self.localResolver = nil; self.baiduTokenRefresher = baiduTokenRefresher
+        self.baiduSourceFactory = baiduSourceFactory
     }
     func open(profile: RemoteSourceProfile) async throws -> CatalogSession {
         try profile.validate()
@@ -44,14 +57,32 @@ public final class RemoteCatalogSessionFactory: Sendable {
                 source = OneDriveSource(configuration: try .init(clientID: client, redirectURI: redirect, timeout: timeout)) {
                     try fixedHandle.replace($0.credential)
                 }
+            case .baidu(let configuration, let userID):
+                guard let fixedHandle = handle else { throw RemoteCatalogError.needsAuthorization }
+                let refresh: BaiduDriveTokenRefresher?
+                if let callback = baiduTokenRefresher {
+                    refresh = { token in
+                        let next = try await callback(configuration, userID, token)
+                        try fixedHandle.replace(next.credential)
+                        return next
+                    }
+                } else { refresh = nil }
+                source = baiduSourceFactory(configuration, refresh)
             case .iCloud(let configuration):
                 source = ICloudDriveSource(configuration: configuration)
             }
             let connected = source!
-            try await connected.connect(credential)
+            if case .baidu(_, let expected) = profile.configuration, let baidu = connected as? BaiduDriveSource {
+                do { try await baidu.connect(credential, expectedUserID: expected) }
+                catch BaiduDriveError.invalidReference { throw RemoteCatalogError.identityChanged }
+            } else { try await connected.connect(credential) }
             if case .oneDrive(_, _, let expected, _) = profile.configuration {
                 guard let drive = connected as? OneDriveSource,
                       try await drive.connectedDriveID() == expected else { throw RemoteCatalogError.identityChanged }
+            }
+            if case .baidu(_, let expectedUser) = profile.configuration {
+                guard let baidu = connected as? BaiduDriveSource,
+                      try await baidu.connectedUserID() == expectedUser else { throw RemoteCatalogError.identityChanged }
             }
             try Task.checkCancellation()
             let fixedHandle = handle; let access = local

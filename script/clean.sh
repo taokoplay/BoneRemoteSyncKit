@@ -37,13 +37,14 @@ for arg in "$@"; do
     esac
 done
 
-# Temp paths that the test fixtures create. Both patterns are owned by this package's
+# Temp paths that the test fixtures create. These patterns are owned by this package's
 # test servers; a bare UUID directory cannot be attributed safely, so it is not matched.
 TEST_TEMP_PATTERNS=(
     "$TMPDIR""BoneDAVTests-*"
     "$TMPDIR""BoneODTests-*"
     "$TMPDIR""BoneODWriteTests-*"
     "$TMPDIR""BoneOPDSTests-*"
+    "$TMPDIR""BoneBaiduTests-*"
     "$TMPDIR""CatalogTests-*"
 )
 

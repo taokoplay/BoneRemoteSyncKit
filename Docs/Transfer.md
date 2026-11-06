@@ -1,21 +1,25 @@
 # 通用文件物化、前台调度与恢复传输
 
-[首页](../README.md) · [通用 API](API.md) · [验证记录](Validation.md)
+[首页](../README.md) · [通用 API](API.md) · [百度接入](BaiduDrive.md) · [验证记录](Validation.md)
 
-> 本页描述自 **`v0.4.0`** 提供的 Transfer API，不包含在 `v0.3.0` 标签中。它是通用文件能力，不解析文件格式，也不是自动同步引擎；版本发布不代表真实服务、最低系统运行或性能验收已完成。
+> Transfer API 自 **`v0.4.0`** 提供，最新发布版本为 `v0.8.2`；本页另列当前工作区未发布的百度接入，需使用包含本次实现的源码。它是通用文件能力，不解析文件格式，也不是自动同步引擎；版本发布不代表真实服务、最低系统运行或性能验收已完成。
 
 ## 一个 Kit，内部按职责分层
 
 宿主只需依赖 `BoneRemoteSyncKit` 产品并 `import BoneRemoteSyncKit`。新增 `BoneRemoteSyncTransfer` target 依赖 Core，不依赖 Catalog、SQLite 或具体来源。Kit 重新导出所有模块，不复制公共类型。
 
 - **Core**：来源协议、条目、绑定引用、版本强度、条件读写值类型、任务状态。
-- **Providers**：Local、iCloud、WebDAV、OneDrive 各自实现会话、路径、网络/文件协调及底层下载。
+- **Providers**：Local、iCloud、WebDAV、OneDrive、百度（未发布）各自实现会话、路径、网络/文件协调及底层下载；OPDS 提供专用只读内容访问。
 - **Transfer**：本地文件物化、受管理 staging、校验、原子发布、lease、前台任务调度，以及独立的显式恢复下载/上传入口。
 - **Catalog**：来源配置与远端目录元数据索引；不存正文，不因查询或刷新而下载。
 
 来源连接、账号授权、entitlement、安全作用域和文件访问授权仍由宿主负责。Transfer 不自动 connect/disconnect，不迁移账号或根目录绑定。
 
 **自 v0.8.0 提供 OPDS 接入：** `OPDSSource.prepareDownload(_:acquisition:)` 返回会话内 `RemoteFileReference`，使用同一来源的 `sourceBinding()` 构造 materializer；现有 coordinator/lease 无需 OPDS 分支。OPDS stat 只返回登记描述，文件大小、ETag、修改时间未知，因此 Transfer 不复用旧文件或合并同版本请求。重连后旧引用失效，必须新建 binding/materializer；不支持强版本、分片或恢复。完整示例见 [OPDS](OPDS.md)。
+
+**百度接入（当前工作区，未发布）：** `BaiduDriveSource` 连接后，用 `try await source.connectedBinding()` 构造 materializer 和 `RemoteFileReference`；locator 可为来源内路径或 `RemoteEntry.id`，ID 必须由来源签发，不能用原始 `fs_id`、路径或 dlink 代替。可复用完整文件物化、coordinator、进度/取消与 lease，完整生命周期见 [百度示例](../Examples/BaiduDrive/README.md)。其 `rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能浏览全盘。
+
+百度仅提供完整文件下载：不支持 Range、`resumeFrom`、`RemoteDownloadRecovery`、强条件读取或后台任务。非空 ≤4 GiB 的上传虽使用 4 MiB 顺序分片，但 `resumableUpload=false`，不提供持久上传恢复，也不加入下载 coordinator；`expectedETag` 同样不支持。
 
 ## 基本使用
 
@@ -63,7 +67,7 @@ func consumeFile(
 
 `RemoteFileReference` 由 `RemoteSourceBinding` 和 `RemoteLocator` 组成。路径在引用构造和解码时归一化；`.itemID` 只交给遵循 `RemoteIDAddressableSource` 的来源。不能把路径伪装为 ID，也不能跨账号/盘/配置根复用一个 binding。
 
-`binding.identity` 是宿主提供的**非秘密、不透明会话/配置标识**，不是 token、签名 URL 或 cookie。SDK 比较绑定但不能从标识推导真实账号。重连到不同账号或根时必须创建新 binding 和 materializer，不能复用旧缓存实例。不要并发改变来源会话。
+`binding.identity` 是**非秘密、不透明会话/配置标识**，不是 token、签名 URL 或 cookie。一般由宿主提供；百度应直接使用来源的 `connectedBinding()`，它绑定 AppKey、已核对用户和配置根的作用域摘要，不是随机连接 generation。SDK 比较绑定但不能仅从宿主自定标识推导真实账号。重连到不同账号或根时必须创建新 binding 和 materializer，不能复用旧缓存实例；不要并发重绑正在被 materializer 使用的来源。百度断开/重连会通过独立 generation 隔离旧请求与游标。
 
 `RemoteVersion` 同时绑定来源与 locator；value 不是内容摘要。三种强度分别是：
 
@@ -73,7 +77,7 @@ func consumeFile(
 
 默认 `.latestObserved` 在下载前观察元数据，下载后再核对 ID 和版本观察。不是远端原子快照；即使元数据相同也不能证明字节完全相同。缺少可用版本或只有弱 ETag 且无 size+mtime 时，不复用或合并。
 
-`.requireVersion(version)` 当前只接受可执行的 `strongConditional`；来源不支持、弱版本或绑定/locator 不匹配时在读取来源或创建缓存之前拒绝。WebDAV 实现将强 ETag 传给原有 `If-Match` 下载。值不匹配时抛 conflict，不静默降级。Local/iCloud 的启发式指纹和 OneDrive 普通元数据并未被宣称为强条件读取。
+`.requireVersion(version)` 当前只接受可执行的 `strongConditional`；来源不支持、弱版本或绑定/locator 不匹配时在读取来源或创建缓存之前拒绝。WebDAV 实现将强 ETag 传给原有 `If-Match` 下载。值不匹配时抛 conflict，不静默降级。Local/iCloud 的启发式指纹、OneDrive 普通元数据和百度 size+mtime 均不具备强条件读取保证。
 
 `RemoteWriteCondition` 是后续统一写入接口的值类型；本轮没有通用上传调度入口，不应把类型存在理解为已经执行条件上传。
 
@@ -83,6 +87,8 @@ func consumeFile(
 - `.persistent`：在当前 materializer 生命周期内保留，释放 lease 后可用 `clearPersistentCache()` 清理；**不代表跨进程索引持久化或重启恢复**。
 - `.matchingVersion`：相同绑定、引用、版本、校验/一致性策略及下载策略配置才复用或合并在途下载，允许默认策略下的启发式指纹。
 - `.refresh`：新建独立下载代际，不覆盖现有 lease；不把强制刷新结果自动替换成其他调用的 lease。
+
+百度不把服务端 MD5 暴露为 `contentChecksums`、ETag 或强版本；MD5 仅在 provider 的单次下载前后内部观察，不成为 Transfer 的缓存键。大小与修改时间均可用时，size+mtime 允许 `.matchingVersion` 启发式复用和在途合并，但无法保证发现同大小、同时间的内容替换。需要重新获取最新观察内容时使用 `.refresh`；它强制重新下载，也不构成远端原子快照。强版本策略明确不支持；可信整文件 SHA-256 可由宿主经 `expectedChecksum` 提供。
 
 同一个在途下载的每个消费者都有独立 release token。复制 `MaterializedFileLease` 值不增加消费者计数，副本共享同一个 token；重复 release 无副作用。调用 `withAccess` 会在成功和抛错路径都等待 release。没有自动析构释放：宿主必须显式 release/withAccess，并在退出时 shutdown。
 
@@ -197,7 +203,7 @@ public protocol RemoteByteRangeSource: RemoteSource {
 4. 限制接收缓冲，超额、取消与断开时及时取消请求；允许多个调用并发，不写目标文件、不自动连接、不把凭据或签名 URL 放入错误。
 5. 只有确定不支持这类读取时抛 `.unavailable`，不能把坏响应、权限、网络或版本冲突转换为该错误。来源仍须正确实现 `stat`、普通 `download` 与相应 capabilities。
 
-公共层负责切片、首片探测、有界滑动窗口、按偏移合并、进度、取消排空和最终发布。来源负责协议/服务商差异、认证、会话隔离、真实区间及版本校验。首个内置适配为 **WebDAV**；Local、iCloud、OneDrive 当前未实现该协议，不能因为普通下载或 offset 续传可用就自动加入。
+公共层负责切片、首片探测、有界滑动窗口、按偏移合并、进度、取消排空和最终发布。来源负责协议/服务商差异、认证、会话隔离、真实区间及版本校验。首个内置适配为 **WebDAV**；Local、iCloud、OneDrive、百度当前未实现该协议，不能因为普通下载、offset 续传或上传分片可用就自动加入。
 
 ### 资源、一致性与恢复边界
 
@@ -210,7 +216,7 @@ public protocol RemoteByteRangeSource: RemoteSource {
 
 ## 显式恢复下载（WebDAV）
 
-`RemoteDownloadRecovery` 提供独立的通用恢复入口，不改变现有 materializer 的失败清理行为，也**不自动加入 coordinator 的进程内队列**。宿主传入已连接来源、稳定 binding 和明确的目标互斥实现；来源必须实现 `RemoteResumableDownloadSource`，不能仅凭 `resumableDownload` 能力标记或手动 offset 推断支持。当前仅 WebDAV 接入；Local、iCloud、OneDrive 会在来源/锁文件 I/O 前返回 unsupported。错误 binding 同样提前拒绝。
+`RemoteDownloadRecovery` 提供独立的通用恢复入口，不改变现有 materializer 的失败清理行为，也**不自动加入 coordinator 的进程内队列**。宿主传入已连接来源、稳定 binding 和明确的目标互斥实现；来源必须实现 `RemoteResumableDownloadSource`，不能仅凭 `rangedDownload` 能力标记或手动 offset 推断支持。当前仅 WebDAV 接入；Local、iCloud、OneDrive、百度会在来源/锁文件 I/O 前返回 unsupported。错误 binding 同样提前拒绝。
 
 ```swift
 func recoverDownload(
@@ -266,5 +272,6 @@ func recoverDownload(
 - OneDrive 可恢复上传必须通过专用构造器显式 opt-in；普通 `OneDriveSource(configuration:)` 不声明 `resumableUpload`，Transfer 不会自动替宿主选择该 service，也不会自动加入 coordinator 或后台调度。
 - Catalog 任务/缓存记录集成、自动淘汰/配额、跨来源事务、自动双向同步。
 - OneDrive Upload Session 的受控 fixture 已覆盖分片、范围、session/PUT HTTP 错误、快照与提交未知边界；真实 iCloud/Microsoft/NAS、Keychain entitlement、大文件吞吐、空间不足、权限/掉电和最低系统真机仍需单独验收。
+- 百度没有真实应用或 token，localhost fixture 不能替代线上 OAuth、目录权限、下载上传和大文件性能验收。本轮构建与测试结果以[验证记录](Validation.md)的最终记录为准。
 
-四来源已有下载合同已接入同一 materializer 并通过最小集成测试：Local 临时目录、WebDAV/OneDrive localhost HTTP fixture、iCloud 本地容器 seam。OneDrive 引用使用来源返回的完整不透明 entry ID，不手工拼装底层 Graph item ID。这些结果均不能替代真实服务物化验收。
+已发布四类文件来源的既有下载合同接入同一 materializer：Local 临时目录、WebDAV/OneDrive localhost HTTP fixture、iCloud 本地容器 seam 提供受控验证。当前工作区另接入百度；OneDrive 和百度引用均使用来源返回的完整不透明 entry ID，不手工拼装底层 ID。这些受控环境不能替代真实服务物化验收。

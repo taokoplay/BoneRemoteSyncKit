@@ -21,6 +21,7 @@ let package = Package(
         .library(name: "BoneRemoteSyncWebDAV", targets: ["BoneRemoteSyncWebDAV"]),
         .library(name: "BoneRemoteSyncOneDrive", targets: ["BoneRemoteSyncOneDrive"]),
         .library(name: "BoneRemoteSyncOPDS", targets: ["BoneRemoteSyncOPDS"]),
+        .library(name: "BoneRemoteSyncBaidu", targets: ["BoneRemoteSyncBaidu"]),
         .library(name: "BoneRemoteSyncCatalog", targets: ["BoneRemoteSyncCatalog"]),
         // 通用文件物化与传输任务层；不包含文件格式或宿主业务。
         .library(name: "BoneRemoteSyncTransfer", targets: ["BoneRemoteSyncTransfer"]),
@@ -28,11 +29,11 @@ let package = Package(
     targets: [
         .target(
             name: "BoneRemoteSyncKit",
-            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncOPDS", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
+            dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncOPDS", "BoneRemoteSyncBaidu", "BoneRemoteSyncCatalog", "BoneRemoteSyncTransfer"],
             resources: [.copy("Resources/icon.bundle")]
         ),
         .target(name: "BoneRemoteSyncCatalog",
-                dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive"],
+                dependencies: ["BoneRemoteSyncCore", "BoneRemoteSyncLocal", "BoneRemoteSyncICloud", "BoneRemoteSyncWebDAV", "BoneRemoteSyncOneDrive", "BoneRemoteSyncBaidu"],
                 linkerSettings: [.linkedLibrary("sqlite3"), .linkedFramework("Security")]),
         .testTarget(name: "BoneRemoteSyncCatalogTests", dependencies: ["BoneRemoteSyncCatalog"]),
         .target(name: "BoneRemoteSyncCore"),
@@ -42,6 +43,10 @@ let package = Package(
         .target(name: "BoneRemoteSyncOneDrive", dependencies: ["BoneRemoteSyncCore"], linkerSettings: [.linkedFramework("Security")]),
         .target(name: "BoneRemoteSyncTransfer", dependencies: ["BoneRemoteSyncCore"]),
         .target(name: "BoneRemoteSyncOPDS", dependencies: ["BoneRemoteSyncCore"]),
+        .target(name: "BoneRemoteSyncBaidu", dependencies: ["BoneRemoteSyncCore"]),
+        .testTarget(name: "BoneRemoteSyncBaiduTests",
+                    dependencies: ["BoneRemoteSyncBaidu", "BoneRemoteSyncTransfer", "BoneRemoteSyncCatalog", "BoneRemoteSyncTestSupport"],
+                    resources: [.copy("Fixtures")]),
         .testTarget(name: "BoneRemoteSyncOPDSTests",
                     dependencies: ["BoneRemoteSyncOPDS", "BoneRemoteSyncTransfer", "BoneRemoteSyncTestSupport"],
                     resources: [.copy("Fixtures")]),

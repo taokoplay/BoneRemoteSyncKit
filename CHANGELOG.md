@@ -2,6 +2,19 @@
 
 [返回项目首页](README.md) · [通用 API](Docs/API.md) · [验证记录](Docs/Validation.md)
 
+## Unreleased
+
+以下为当前工作区尚未发布的变更；最新发布版本仍为 `v0.8.2`。开发接入需使用包含本次实现的源码，不代表远端 `main` 已包含这些改动。
+
+- 新增独立 `BoneRemoteSyncBaidu`，仅依赖 Core 与系统框架，由 Kit 重导出。`BaiduDriveSource` 遵循 `RemoteCopyingSource` 和 `RemoteIDAddressableSource`；新增 `RemoteSourceKind.baidu`，既有百度图标目录项现在对应 `.baidu`。
+- 使用百度官方开放 API，限已存在且获授权的 `/apps/{app}` 或子目录；提供目录分页、路径/ID 查询与完整文件下载。精确保留 uint64 `fs_id` / `uk`，条目 ID 绑定应用、用户和配置根，不支持全盘或其他应用目录浏览。
+- 提供 OAuth 简化/授权码模式的授权 URL 与回调校验；授权码交换、令牌刷新由宿主后端保护 SecretKey，不承诺 PKCE。来源实例合并并发刷新并核对账号；Catalog 保存 `.baidu(configuration:userID:)` 与固定凭据引用，可注入 `baiduTokenRefresher` 保存轮换结果。
+- 上传支持非空普通文件至 4 GiB、私有快照与 4 MiB 顺序分片；非覆盖冲突失败，不自动改名。提供递归建目录、同步 move/copy/delete，同一来源实例串行写入；失败、超时或取消后需核对远端结果。
+- Transfer 可使用 `connectedBinding()` 和路径/来源签发 ID 进行物化、coordinator 调度及 lease 消费。size+mtime 缓存仅是启发式；百度 MD5 不作为 `contentChecksums`、ETag 或强版本，需最新内容时使用 `.refresh`。
+- 不提供 `expectedETag`、强条件读取、Range、下载续传、持久上传续传、后台传输或远端变更流。新增 [百度指南](Docs/BaiduDrive.md) 与 [宿主示例](Examples/BaiduDrive/README.md)，并同步 API、Catalog、Transfer、业务场景与路线图。
+
+没有真实百度应用或 token，fixture 不能替代线上授权、权限、文件操作与大文件验收。本轮构建和测试结果以[验证记录](Docs/Validation.md)的最终记录为准。
+
 ## v0.8.2 — 2026-11-05
 
 - 进一步修正 WebDAV 最终上传进度：部分 URLSession 小文件任务即使成功，字节计数仍为0。现在在PUT获成功响应且响应流完整结束后，以本次不可变上传快照大小报告完成；错误、取消和提前响应失败路径不补报成功。

@@ -4,6 +4,22 @@ import BoneRemoteSyncKit
 
 /// Deliberately imports only the umbrella SDK, without @testable or individual source modules.
 @Suite struct UnifiedImportTests {
+    @Test func exposesBaiduDriveAndCatalogConfiguration() throws {
+        let configuration = try BaiduDriveConfiguration(appKey: "fixture-app", rootPath: "/apps/Fixture")
+        let source = BaiduDriveSource(configuration: configuration)
+        let writable: any RemoteCopyingSource = source
+        let ids: any RemoteIDAddressableSource = source
+        #expect(writable.kind == .baidu && ids.capabilities.idAddressing)
+        #expect(writable.capabilities.upload && writable.capabilities.copy && !writable.capabilities.resumableUpload)
+        #expect(!writable.capabilities.conditionalUpload && !writable.capabilities.rangedDownload && !writable.capabilities.contentHash)
+        #expect(BoneRemoteSyncIcons.icon(for: .baidu) == .baidu)
+        #expect(BoneRemoteSyncIcons.driveTypes().first(where: { $0.id == "baidu" })?.kind == .baidu)
+        let saved = RemoteSourceConfiguration.baidu(configuration: configuration, userID: "111")
+        try saved.validate()
+        #expect(saved.provider == .baidu)
+        _ = BaiduDriveOAuth(configuration: configuration)
+    }
+
     @Test func exposesOPDSAsContentSource() throws {
         let source = OPDSSource(configuration: try OPDSConfiguration(rootURL: URL(string: "https://books.example/opds")!))
         #expect(source.configuration.compatibility == .compatible)

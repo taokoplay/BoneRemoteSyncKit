@@ -1,8 +1,8 @@
 # 通用 API 与生命周期
 
-[返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
+[返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [百度](BaiduDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页按 `v0.8.0` API 描述；OPDS 只读书库自 `v0.8.0`、可组合网盘权限自 `v0.7.0`、Catalog 统计/缓存失效/iCloud 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
+> 本页描述已发布 `v0.8.2` API 与当前工作区未发布的百度扩展；百度需使用包含本次实现的源码，不代表远端 `main` 已可安装。OPDS 只读书库自 `v0.8.0`、可组合网盘权限自 `v0.7.0`、Catalog 统计/缓存失效/iCloud 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -16,11 +16,12 @@
 | `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照 |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
+| `BoneRemoteSyncBaidu` | **未发布**：百度官方开放 API 的应用目录来源与 OAuth URL/回调辅助，仅依赖 Core 与系统框架，由 Kit 重导出 |
 | `BoneRemoteSyncTransfer` | **自 v0.4.0 提供**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
 | `BoneRemoteSyncOPDS` | **自 v0.8.0**：OPDS 1.2 专用书目浏览/搜索/详情与只读下载，仅依赖 Core；不集成 Catalog |
 
-分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，并通过独立消费端验证；它不是应当在业务代码中复制的接入方式。
+分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，它不是应当在业务代码中复制的接入方式；本轮消费端验证结果以[验证记录](Validation.md)为准。
 
 ## 图标与来源类型 API
 
@@ -36,7 +37,7 @@
 | `BoneRemoteSyncIcon.url` | 无 | 当前图标资源的 PNG URL |
 | `BoneRemoteSyncIcon.data()` | 无 | 当前图标的 PNG 数据 |
 
-`BoneRemoteSyncDriveType` 的字段为：`id: String`、`displayName: String`、`icon: BoneRemoteSyncIcon` 和 `kind: RemoteSourceKind`。`BoneRemoteSyncSourceType` 的字段为：`kind`、`displayName` 和可选 `icon`。图标目录只描述 UI 可展示的网盘类型，不声明 Google Drive、阿里云盘或百度网盘的连接、读写和认证能力；实际来源能力仍需检查 `RemoteSource.capabilities`。
+`BoneRemoteSyncDriveType` 的字段为：`id: String`、`displayName: String`、`icon: BoneRemoteSyncIcon` 和 `kind: RemoteSourceKind`。`BoneRemoteSyncSourceType` 的字段为：`kind`、`displayName` 和可选 `icon`。当前工作区新增 `.baidu`，`driveTypes()` 的百度项对应此类型及 `BaiduDriveSource`；Google Drive、阿里云盘仍只有图标目录项。图标存在不等于来源已实现，实际来源能力仍需检查 `RemoteSource.capabilities`。
 
 ## Catalog 路径与统计
 
@@ -69,7 +70,7 @@ App：import BoneRemoteSyncKit
     ↓
 RemoteSource / RemoteWritableSource / RemoteCopyingSource
     ↓
-LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
+LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource / BaiduDriveSource（未发布）
     ↓
 本地文件系统 / iCloud 容器与 NSFileCoordinator / URLSession
 ```
@@ -81,13 +82,16 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource
 | 协议 | 主要接口 | 当前实现 |
 | --- | --- | --- |
 | `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 文件来源；OPDS 仅提供登记描述 stat/下载，list 明确不支持 |
-| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 四类文件来源；OPDS 不遵循 |
-| `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件） |
+| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 五类文件来源（含未发布百度）；OPDS 不遵循 |
+| `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件）、百度（未发布） |
+| `RemoteIDAddressableSource` | `stat(id:)`、`list(parentID:request:)`、`download(id:to:options:)` | OneDrive Personal、百度（未发布）；仅在各自绑定范围内读取 |
 | `RemoteByteRangeSource` | **自 v0.4.0 提供**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
 | `RemoteResumableDownloadSource` | **自 v0.4.0 提供**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
 | `RemoteResumableUploadSource` | **自 v0.4.0 提供**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
 
 自 `v0.8.0` 提供的 `OPDSSource` 使用 `browse`、`nextPage`、`publication`、`search` 处理书库链接，通过 `prepareDownload` 签发会话内合成路径，交给 Transfer。`sourceBinding()` 每次连接变化；stat 不做远端 HEAD，文件版本及大小保持未知，不支持强版本缓存、递归目录或 Catalog。不要把书目 Atom ID、Feed ETag 或 updated 当作文件版本。详见 [OPDS API](OPDS.md)。
+
+未发布 `BaiduDriveSource` 使用已存在且获授权的 `/apps/{app}` 或子目录作为 `rootPath`，不提供全盘浏览。`BaiduDriveOAuth` 生成简化/授权码模式 URL 并校验回调；code 交换和令牌刷新交给宿主后端保护 SecretKey，无 PKCE 承诺。`BaiduDriveTokenRefresher` 由宿主调用后端并安全持久化新令牌，单实例合并刷新、核对账号，失败使会话失效；Catalog 的固定引用回调另见 [Catalog](Catalog.md)。尚无真实百度应用或 token，接入合同见 [百度指南](BaiduDrive.md)。
 
 ## 网盘访问权限
 
@@ -121,11 +125,12 @@ Catalog 会话的 `RemoteAccessControlledSource` 按操作检查权限；`capabi
 
 ## 路径与条目
 
-- 路径使用来源内 POSIX 风格，`/` 对应配置的本地目录、WebDAV collection、iCloud 容器的配置子目录或 OneDrive 主盘根。
-- `RemotePath.normalize` 负责格式归一化；不要先对路径执行 URL 编码，WebDAV 会逐段处理中文、空格和特殊字符。
-- `RemoteEntry.id` 与 `path` 不可互换。OneDrive 的 `RemoteIDAddressableSource` 支持按不透明 ID 读取条目、列出父目录和下载；重命名后按 ID 查询可能返回 `path=nil`，不能回退到旧路径。稳定 ID 只在同一来源/账号/主盘会话内有效，不能持久化为跨账号凭据或拼接为 URL。其他来源尚未声明该能力，调用方应检查 `capabilities.idAddressing`，不要把相对路径伪装成稳定 ID。
+- 路径使用来源内 POSIX 风格，`/` 对应配置的本地目录、WebDAV collection、iCloud 容器的配置子目录、OneDrive 主盘根或百度授权应用目录的 `rootPath`。
+- `RemotePath.normalize` 负责格式归一化；不要先对路径执行 URL 编码，WebDAV 与百度会处理请求编码。
+- `RemoteEntry.id` 与 `path` 不可互换。OneDrive 和百度通过 `RemoteIDAddressableSource` 支持按不透明 ID 读取、列目录和下载；OneDrive 重命名后按 ID 查询可能返回 `path=nil`，不能回退到旧路径。百度 ID 包含应用/用户/根作用域和精确 uint64 `fs_id`，`uk` 同样精确读取；返回路径必须仍在配置根内。ID 不是授权凭据，不能跨账号复用、手工拼装或拼接为 URL；调用前检查 `capabilities.idAddressing`。
 - `etag` 是版本元数据，不保证是内容哈希。`RemoteUploadOptions.expectedETag` 只有在 `conditionalUpload` 为 true 时才可用；WebDAV 将调用方的强 ETag 原样放入 `If-Match`，其他当前来源明确拒绝。缺少可信版本信息时，`size` 与 `modifiedAt` 只能用于启发式比较。
 - `RemoteContentChecksum` 另行表达整文件摘要，包含算法和原始摘要字节；不同算法不能直接比较，且 SDK 不因来源报告摘要就声称已验证下载。`hasReliableFingerprint` 只表示具备 ETag 或修改时间，不证明内容一致，也不能单独支撑自动删除或双向冲突决策。
+- 百度不将服务端 MD5 作为 `contentChecksums`、ETag 或强版本；仅在单次下载前后内部观察。Transfer 的 size+mtime 是启发式缓存，不能发现所有同大小同时间的内容替换。
 
 ## 文件时间与类型分类
 
@@ -136,8 +141,9 @@ Catalog 会话的 `RemoteAccessControlledSource` 按操作检查权限；`capabi
 | Local / iCloud | 本机文件系统 `creationDate` |
 | WebDAV | 成功 DAV 属性中的 `creationdate`（ISO 8601，支持小数秒和时区偏移） |
 | OneDrive | Graph `driveItem.createdDateTime`，不是 `fileSystemInfo.createdDateTime` |
+| 百度（未发布） | `server_ctime`，服务端 Unix 时间；`server_mtime` 对应修改时间 |
 
-网络创建时间接受带时区的 `YYYY-MM-DDTHH:mm:ss[.小数秒]Z` 或 `±HH:mm` 形式，严格检查日期与完整输入；年份为 0001–9999 的延伸公历，时区偏移小时小于 24、分钟小于 60，不接受闰秒、24:00、无时区或尾随垃圾。
+WebDAV / OneDrive 的网络创建时间接受带时区的 `YYYY-MM-DDTHH:mm:ss[.小数秒]Z` 或 `±HH:mm` 形式，严格检查日期与完整输入；年份为 0001–9999 的延伸公历，时区偏移小时小于 24、分钟小于 60，不接受闰秒、24:00、无时区或尾随垃圾。百度使用服务端 Unix 时间。
 
 缺失或无法解析时返回 nil，不以修改时间或当前时间填充。这些来源的创建时间不一定有完全相同的语义，也不代表 EXIF 拍摄时间、音频录制时间或首次内容生成时间。移动、复制、上传可能改变创建时间。下载返回的是**来源条目元数据**，不承诺把该时间设置到本地目标文件。
 
@@ -166,7 +172,7 @@ func describeFile(_ entry: RemoteEntry) -> String {
 
 ## 稳定 ID 读取
 
-部分云盘可通过可选的 `RemoteIDAddressableSource` 按稳定条目标识读取，而不是依赖可变路径。当前只有 OneDrive Personal 实现 `stat(id:)`、`list(parentID:request:)` 与 `download(id:to:options:)`；按 ID 返回的条目可以没有路径。调用前检查 `capabilities.idAddressing`，不要把路径、分页游标或下载 URL 当稳定 ID。
+部分云盘可通过可选的 `RemoteIDAddressableSource` 按稳定条目标识读取，而不是依赖可变路径。当前 OneDrive Personal 和未发布百度实现 `stat(id:)`、`list(parentID:request:)` 与 `download(id:to:options:)`；OneDrive 按 ID 返回的条目可以没有路径。百度必须使用来源签发的完整 ID，可跟随同一根内的重命名，跨应用/账号/根或条目移出根时拒绝。调用前检查 `capabilities.idAddressing`，不要把原始 `fs_id`、路径、分页游标或下载 URL 当稳定 ID。
 
 ## 分页
 
@@ -177,8 +183,9 @@ func describeFile(_ entry: RemoteEntry) -> String {
 | 本地 / iCloud | nil 或正数合法，仍返回完整单层结果 | 拒绝任何非 nil 值，包括 `""` |
 | WebDAV | nil 或正数合法，仍返回完整 Depth:1 结果 | 拒绝任何非 nil 值，包括 `""` |
 | OneDrive | 向 Graph 发送 `min(limit, 200)`，实际条数由服务端决定 | 使用来源返回的游标，并保持目录与选项一致 |
+| 百度（未发布） | list 的 start/limit 分页，单页最多 1000 | 绑定连接、路径/父 ID、原始 limit 和 includeHidden；成功推进后旧游标失效 |
 
-`RemoteListRequest.all` **不代表自动消费所有 OneDrive 页面**。四个来源的 list 均先检查连接上下文，再在操作中校验请求参数，因此未连接时不保证优先返回参数错误。
+`RemoteListRequest.all` **不代表自动消费所有 OneDrive 或百度页面**。来源会在操作中校验连接与请求参数，未连接时不保证优先返回参数错误。
 
 `RemoteListPage(coverage:entries:nextCursor:)` 必须显式传入 `.complete/.partial/.unknown`，没有默认 complete。`isLastPage` 只表示 cursor 为 nil；所有页 complete 且全部分页完成才有目录发布资格，仍不证明瞬时快照。
 
@@ -209,7 +216,7 @@ func visitDirectory(
 }
 ```
 
-OneDrive 游标绑定当前连接、路径与选项，成功推进后旧游标失效；不要持久化或跨账号复用。分页失败或遍历未完成时，不应把缺少的条目直接推导为远端删除。
+OneDrive 与百度游标绑定当前连接、路径与选项，成功推进后旧游标失效；不要持久化或跨账号复用。百度分页失败后从第一页重试，满页可产生最终返回空页的下一游标；offset 分页即使每页 complete 也不是瞬时快照。分页失败或遍历未完成时，不应把缺少的条目直接推导为远端删除。
 
 ## 目录遍历
 
@@ -244,23 +251,25 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 ## 写入与失败语义
 
-下表为原三个来源；iCloud 的协调、本地提交与云端异步传播、仅文件 copy 和冲突拒绝策略见 [iCloud 写入语义](ICloudDrive.md#当前能力与协调语义)。
+下表列出本地、WebDAV、OneDrive 和当前工作区未发布百度；iCloud 的协调、本地提交与云端异步传播、仅文件 copy 和冲突拒绝策略见 [iCloud 写入语义](ICloudDrive.md#当前能力与协调语义)。
 
 统一协议统一的是调用方式，不是远端事务保证。
 
-| 行为 | 本地 | WebDAV | OneDrive |
-| --- | --- | --- | --- |
-| 上传父目录 | 可自动创建 | 必须已存在 | 必须已存在 |
-| `overwrite=false` | 非覆盖安装 | `If-None-Match: *` | Graph `conflictBehavior=fail` |
-| `overwrite=true` | 原子替换普通文件 | 已有文件要求强 ETag / `If-Match` | Graph `conflictBehavior=replace` |
-| `expectedETag` | 不支持，调用前拒绝 | 强 ETag 预检并原样发送 `If-Match` | 不支持，调用前拒绝 |
-| 上传临时存储 | 同目录 staging | 私有磁盘快照，约源文件大小 | 文件式上传；不要假定具备 WebDAV 快照保证 |
-| MOVE / COPY | 不覆盖；父目录须存在 | `Overwrite: F`；父目录须存在 | MOVE 先查目标再 PATCH；无 COPY |
-| 写入失败 | 按操作保留或清理局部状态 | 远端可能已改变，无回滚 | 远端可能已改变，无回滚 |
+| 行为 | 本地 | WebDAV | OneDrive | 百度（未发布） |
+| --- | --- | --- | --- | --- |
+| 上传父目录 | 可自动创建 | 必须已存在 | 必须已存在 | 必须已存在，可显式递归 mkdir；配置根须预先存在 |
+| `overwrite=false` | 非覆盖安装 | `If-None-Match: *` | Graph `conflictBehavior=fail` | `rtype=0`，冲突失败，不改名 |
+| `overwrite=true` | 原子替换普通文件 | 已有文件要求强 ETag / `If-Match` | Graph `conflictBehavior=replace` | 整文件替换，无强条件 |
+| `expectedETag` | 不支持，调用前拒绝 | 强 ETag 预检并原样发送 `If-Match` | 不支持，调用前拒绝 | 不支持，副作用前拒绝 |
+| 上传临时存储 | 同目录 staging | 私有磁盘快照，约源文件大小 | 文件式上传；不要假定具备 WebDAV 快照保证 | 私有磁盘快照，约源文件大小；非空 ≤4 GiB，4 MiB 顺序分片，无持久续传 |
+| MOVE / COPY | 不覆盖；父目录须存在 | `Overwrite: F`；父目录须存在 | MOVE 先查目标再 PATCH；无 COPY | 同步 `async=0` / `ondup=fail`；父目录须存在 |
+| 写入失败 | 按操作保留或清理局部状态 | 远端可能已改变，无回滚 | 远端可能已改变，无回滚 | 远端可能已改变，无回滚或自动重放 |
 
 普通 `RemoteUploadOptions.overwrite` 和 `RemoteDownloadOptions.overwrite` 默认均为 true；需要保留已有文件时应显式设为 false。递归建目录中途失败可留下已创建父目录；删除目录会递归删除内容。
 
 **OneDrive MOVE 的并发限制：** 当前实现先拒绝已存在目标，再发送 PATCH，没有显式的原子非覆盖请求条件。不能把该预检当成与 WebDAV `Overwrite: F` 相同的竞争保护；真实服务行为尚待验收。
+
+**百度写入边界：** 同一来源实例串行写入，并发写返回冲突，不构成跨实例事务。move/copy/delete 检查顶层及逐项结果；服务端返回非零 `taskid` 时以 `asynchronousResult` 拒绝当作已完成。上传仅支持非空普通文件，precreate 非 1 的内部完成状态也明确不支持；未知结果需核对远端。禁止对配置根本身执行写入/删除/移动/复制，不支持 `expectedETag`、Range、下载 `resumeFrom`、持久续传、后台传输、变更流或强条件读取。
 
 **远端写入不是事务：** 网络错误、超时、取消、断开或 207 等响应不能证明操作未发生。先重新核对远端状态，再决定是否重试；不要盲目重放、回滚或补偿删除。
 
@@ -271,6 +280,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 - `isRetryable` 只是分类提示，不包含操作幂等性判断。
 - WebDAV 默认不重试；显式策略只重试白名单内的 PROPFIND / GET，写流程的只读预检可使用同一策略，写请求本身不重试。
 - OneDrive 的令牌刷新与一次认证重放是专用生命周期逻辑，不是通用 429 / 5xx 重试器。
+- 百度按到期时间合并单实例刷新并核对账号；认证错误不自动重放写请求，无隐藏网络重试。`.apiToken` 或无 expiry 的 OAuth 不自动到期刷新，宿主负责重新授权。
 - `.conflict` 不只表示版本变化，也可能表示目标已存在、资源锁定或文件类型冲突。
 - 错误中的路径可能是来源路径或真实本地文件路径；诊断时应区分，不要一律当作远端路径。
 
@@ -278,7 +288,7 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 进度回调为同步 `@Sendable` 闭包，不保证在主线程。回调应线程安全且快速返回；UI 更新由宿主切换到 `MainActor`。
 
-`RemoteDownloadOptions.progress` 报告已写 staging/part 字节（含续传偏移）。新增 `phaseProgress` 报告 `RemoteDownloadProgress`：iCloud preparing 状态变化与各来源普通 download 的 transferring 字节，比例 0...1；未知总量或空文件比例 nil。两阶段比例独立，重试可回退，达到 1 不等于最终安装成功。iCloud 不伪造系统网络百分比，详见[下载阶段状态机](ICloudDrive.md#下载阶段状态机)。上传回调报告发送进度。它们不等于远端持久化确认；WebDAV managed 恢复回调也不等于 checkpoint 已提交偏移，重试后可能回退。长时间阻塞回调会延迟取消与截止时间处理。网络来源已在途的回调可能晚于取消返回；宿主应以任务标识过滤过期事件，不把 async 终态当作回调排空屏障。
+`RemoteDownloadOptions.progress` 报告已写 staging/part 字节（含续传偏移）。新增 `phaseProgress` 报告 `RemoteDownloadProgress`：iCloud preparing 状态变化与各来源普通 download 的 transferring 字节，比例 0...1；未知总量或空文件比例 nil。两阶段比例独立，重试可回退，达到 1 不等于最终安装成功。iCloud 不伪造系统网络百分比，详见[下载阶段状态机](ICloudDrive.md#下载阶段状态机)。上传进度按来源合同报告：百度报告本次服务端确认的分片字节，最终大小仅在 create 成功后报告，服务端跳过重复分片时可跳跃，不表示瞬时发送速率；其他来源按各自发送进度合同处理。进度不构成通用远端持久化证明；WebDAV managed 恢复回调也不等于 checkpoint 已提交偏移，重试后可能回退。长时间阻塞回调会延迟取消与截止时间处理。网络来源已在途的回调可能晚于取消返回；宿主应以任务标识过滤过期事件，不把 async 终态当作回调排空屏障。
 
 ## 宿主职责
 

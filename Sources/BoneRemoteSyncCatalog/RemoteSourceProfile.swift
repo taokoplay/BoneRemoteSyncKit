@@ -3,6 +3,7 @@ import BoneRemoteSyncCore
 import BoneRemoteSyncWebDAV
 import BoneRemoteSyncOneDrive
 import BoneRemoteSyncICloud
+import BoneRemoteSyncBaidu
 
 /// Catalog 配置、缓存和刷新过程中的错误。
 public enum RemoteCatalogError: Error, Sendable, Equatable {
@@ -37,7 +38,7 @@ public enum RemoteCatalogError: Error, Sendable, Equatable {
 }
 
 /// Catalog 中用于区分具体来源适配器的提供方标识。
-public enum RemoteCatalogProvider: String, Sendable, Codable { case local, webDAV, oneDrive, iCloud }
+public enum RemoteCatalogProvider: String, Sendable, Codable { case local, webDAV, oneDrive, iCloud, baidu }
 
 /// 网盘非敏感配置；密码、令牌、bookmark 和运行时连接对象不保存于此。
 public enum RemoteSourceConfiguration: Sendable, Codable, Equatable {
@@ -45,10 +46,11 @@ public enum RemoteSourceConfiguration: Sendable, Codable, Equatable {
     case webDAV(baseURL: URL, timeout: TimeInterval = 60, retry: RemoteCatalogRetryPolicy = .none)
     case oneDrive(clientID: String, redirectURI: URL, driveID: String, timeout: TimeInterval = 60)
     case iCloud(ICloudDriveConfiguration)
+    case baidu(configuration: BaiduDriveConfiguration, userID: String)
 
     /// 返回配置对应的明确提供方，不根据通用 cloudAPI 猜测品牌。
     public var provider: RemoteCatalogProvider {
-        switch self { case .local: .local; case .webDAV: .webDAV; case .oneDrive: .oneDrive; case .iCloud: .iCloud }
+        switch self { case .local: .local; case .webDAV: .webDAV; case .oneDrive: .oneDrive; case .iCloud: .iCloud; case .baidu: .baidu }
     }
     /// 校验来源参数、URL、超时、容器和凭据引用的组合。
     public func validate() throws {
@@ -67,6 +69,10 @@ public enum RemoteSourceConfiguration: Sendable, Codable, Equatable {
                       CatalogValidation.text(redirect.absoluteString, max: 16384),
                       !redirect.path.utf8.contains(0) else { throw RemoteCatalogError.invalidConfiguration }
                 _ = try OneDriveConfiguration(clientID: client, redirectURI: redirect, timeout: timeout)
+            case .baidu(let configuration, let userID):
+                guard let uid = UInt64(userID), uid > 0, String(uid) == userID else { throw RemoteCatalogError.invalidConfiguration }
+                _ = try BaiduDriveConfiguration(appKey: configuration.appKey, rootPath: configuration.rootPath,
+                    timeout: configuration.timeout, maxConcurrentTransfers: configuration.maxConcurrentTransfers, maxUploadBytes: configuration.maxUploadBytes)
             case .iCloud(let configuration):
                 _ = try ICloudDriveConfiguration(containerIdentifier: configuration.containerIdentifier,
                     directoryPath: configuration.directoryPath, downloadTimeout: configuration.downloadTimeout,
@@ -82,6 +88,7 @@ public enum RemoteSourceConfiguration: Sendable, Codable, Equatable {
         case (.webDAV(let a, _, _), .webDAV(let b, _, _)): return a == b
         case (.oneDrive(let a, let b, let c, _), .oneDrive(let x, let y, let z, _)): return a == x && b == y && c == z
         case (.iCloud(let a), .iCloud(let b)): return a == b
+        case (.baidu(let a, let u), .baidu(let b, let v)): return a.appKey == b.appKey && a.rootPath == b.rootPath && u == v
         default: return false
         }
     }
@@ -144,7 +151,7 @@ public struct RemoteSourceProfile: Sendable, Codable, Equatable, Identifiable {
               CatalogValidation.text(displayName, max: 1024) else { throw RemoteCatalogError.invalidConfiguration }
         switch configuration {
         case .local: guard credentialReference == nil else { throw RemoteCatalogError.invalidConfiguration }
-        case .oneDrive: guard credentialReference != nil else { throw RemoteCatalogError.invalidConfiguration }
+        case .oneDrive, .baidu: guard credentialReference != nil else { throw RemoteCatalogError.invalidConfiguration }
         case .webDAV, .iCloud: break
         }
     }

@@ -16,6 +16,8 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
     case dlna
     /// OPDS 书库：专用链接浏览与只读文件获取，没有文件系统目录语义。
     case opds
+    /// 百度网盘开放平台的应用目录来源。
+    case baidu
 
     /// 内容来源使用专用浏览 API；来源类型不代表文件目录浏览能力。
     /// The bundled icon filename used by the unified SDK. `nil` means this kind has no built-in artwork yet.
@@ -24,6 +26,7 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .webdav: "webdav"
         case .cloudAPI: "onedrive"
         case .iCloud: "icloud"
+        case .baidu: "baidu"
         case .local, .smb, .ftp, .sftp, .nfs, .dlna, .opds: nil
         }
     }
@@ -41,6 +44,7 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .iCloud: "iCloud Drive"
         case .dlna: "DLNA"
         case .opds: "OPDS"
+        case .baidu: "Baidu Netdisk"
         }
     }
 }

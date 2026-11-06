@@ -1,6 +1,6 @@
 # BoneRemoteSyncKit
 
-**面向 Apple 平台的 Swift 文件访问 SDK，以统一 API 连接本地目录、iCloud Drive、WebDAV 和 OneDrive Personal，并提供 OPDS 只读书库访问。**
+**面向 Apple 平台的 Swift 文件访问 SDK，以统一 API 连接本地目录、iCloud Drive、WebDAV、OneDrive Personal 和百度网盘应用目录（未发布），并提供 OPDS 只读书库访问。**
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
@@ -8,9 +8,11 @@
 >
 > 自 `v0.7.0` 起，权限模型统一为只读必选、编辑/新增/删除多选；旧角色 API 与持久化格式不再兼容，详见 [Catalog 权限说明](Docs/Catalog.md)。
 
-> 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB 和其他网盘适配器尚未实现；iCloud Drive 来源已新增，真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
+> 当前提供文件访问与传输能力，**不包含自动同步引擎**。SMB、Google Drive、Dropbox 和阿里云盘等适配器尚未实现；iCloud Drive 来源的真实云端验收待完成。接口统一不代表每个来源的能力与失败语义完全相同。
 >
 > **v0.8.0 新增：** 独立 `BoneRemoteSyncOPDS` 提供 OPDS 1.2 书目浏览、分页、详情、OpenSearch 和只读文件获取，可接入 Transfer；使用专用浏览 API，尚未接入 Catalog。见 [OPDS 指南](Docs/OPDS.md)。
+>
+> **当前工作区未发布新增：** `BoneRemoteSyncBaidu` 基于百度官方开放 API，提供已授权应用目录的读写、Catalog 与 Transfer 接入。最新发布版本 `v0.8.2` 不包含百度；开发接入需使用包含本次实现的源码，不代表远端 `main` 已可安装。尚无真实百度应用或 token，线上验收待完成，见 [百度指南](Docs/BaiduDrive.md)。
 
 [支持的来源](#支持的来源) · [能力矩阵](#能力矩阵) · [业务场景](Docs/UseCases.md) · [安装](#安装) · [快速上手](#快速上手) · [更新说明](CHANGELOG.md) · [详细文档](#详细文档) · [验证状态](Docs/Validation.md)
 
@@ -22,8 +24,8 @@
 | --- | --- | --- |
 | 多来源文件管理器 / NAS 浏览器 | 统一浏览、文件信息、读写与目录管理；NAS 通过 WebDAV 接入 | UI、账号和目录授权、破坏性操作确认；不是 SMB 客户端 |
 | 文档阅读 / 笔记附件 / 媒体导入 | 下载完整文件；Transfer 提供本地 URL、复用与 lease | 解析、预览、播放、缩略图和编辑；不支持通用边下边播 |
-| 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询；支持 Local、WebDAV、OneDrive Personal 和 iCloud 配置 | 正文离线保存、刷新触发与状态展示 |
-| 备份与恢复 | 上传宿主生成的备份包、列出备份、下载及显式删除 | 数据一致性导出、打包/加密、保留策略、恢复安装；iCloud 写成功不等于云端已同步 |
+| 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询；支持 Local、WebDAV、OneDrive Personal、iCloud 和未发布百度配置 | 正文离线保存、刷新触发与状态展示 |
+| 备份与恢复 | 上传宿主生成的备份包、列出备份、下载及显式删除；百度限已授权应用目录 | 数据一致性导出、打包/加密、保留策略、恢复安装；iCloud 写成功不等于云端已同步，百度没有持久续传 |
 | 前台批量获取与中断恢复 | Transfer 限制下载并发，并提供可插拔单文件分片下载（首个适配 WebDAV）；WebDAV 可恢复下载，OneDrive 可恢复上传 | 持久任务、后台执行、显式继续与未知结果核对；不是所有来源双向都能续传 |
 | 跨来源一次性导入 / 导出 | 宿主可组合“下载到本地 → 上传到另一来源” | 两段操作的编排与结果核对；没有跨来源直传、原子移动或回滚 |
 
@@ -33,7 +35,7 @@
 
 ## 支持的来源
 
-目前内置 **4 类文件来源**，均从 `BoneRemoteSyncKit` 统一使用。以下是实际接入范围，不是对同品牌全部服务的支持承诺。
+当前工作区内置 **5 类文件来源（含未发布百度）**，均从 `BoneRemoteSyncKit` 统一使用；已发布 `v0.8.2` 包含前四类。以下是实际接入范围，不是对同品牌全部服务的支持承诺。
 
 | 来源 | 适配器 | 当前接入范围与前提 |
 | --- | --- | --- |
@@ -41,14 +43,15 @@
 | WebDAV / NAS | `WebDAVSource` | 提供 WebDAV 接口的 NAS 或服务器，支持匿名 / Basic 认证；优先 HTTPS，具体操作取决于服务端实现与账号权限；不是 SMB 接入 |
 | OneDrive Personal | `OneDriveSource` | Microsoft 个人账号的主盘，OAuth / PKCE 授权；不含 Business、SharePoint、共享 `remoteItem` 或跨盘访问 |
 | iCloud Drive | `ICloudDriveSource` | 系统 Apple 账号及宿主获授权的 ubiquitous container，需正确 entitlement；不是任意浏览用户整个 iCloud Drive，也不是 CloudKit |
+| 百度网盘（未发布） | `BaiduDriveSource` | 官方开放 API；`rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能全盘浏览；OAuth 简化/授权码 URL 与回调校验，code 交换和刷新由宿主后端保护 SecretKey，无 PKCE 承诺 |
 
-Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，以及 SMB、SFTP、FTP/FTPS、NFS 等协议尚未实现，见[未支持来源开发计划](Docs/CloudDriveRoadmap.md)。第三方服务即使提供 WebDAV，也仅可按其 WebDAV 接口尝试接入，不代表已实现该品牌原生 API 或完成兼容性验收。
+Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFTP、FTP/FTPS、NFS 等协议尚未实现，见[来源开发计划](Docs/CloudDriveRoadmap.md)。第三方服务即使提供 WebDAV，也仅可按其 WebDAV 接口尝试接入，不代表已实现该品牌原生 API 或完成兼容性验收。
 
-自 `v0.8.0` 起另提供 **OPDS 只读内容来源** `OPDSSource`，用于阅读器/个人书库导入。它支持匿名或 Basic，使用 `browse/search/publication` 获取书目，显式选择格式后下载；不提供文件目录树或写操作，不计入上述四类文件来源。默认兼容缺失时间、常见目录 MIME 错标和直接搜索模板，可显式选择严格模式。两轮公开实测已有六个站点的 EPUB 下载证据；各站点限制见[公开书库实测](Docs/OPDSPublicCatalogValidation.md)。
+自 `v0.8.0` 起另提供 **OPDS 只读内容来源** `OPDSSource`，用于阅读器/个人书库导入。它支持匿名或 Basic，使用 `browse/search/publication` 获取书目，显式选择格式后下载；不提供文件目录树或写操作，不计入上述五类文件来源。默认兼容缺失时间、常见目录 MIME 错标和直接搜索模板，可显式选择严格模式。两轮公开实测已有六个站点的 EPUB 下载证据；各站点限制见[公开书库实测](Docs/OPDSPublicCatalogValidation.md)。
 
 ## 能力矩阵
 
-下表按 **`v0.8.0`** 列出四类文件来源。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。** OPDS 内容来源另见表后说明。
+下表列出已发布 **`v0.8.2`** 的四类文件来源；当前工作区新增的百度单列在后。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。** OPDS 内容来源另见表后说明。
 
 | 功能 | 本地目录 | WebDAV | OneDrive Personal | iCloud Drive |
 | --- | --- | --- | --- | --- |
@@ -79,6 +82,23 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 **v0.8.0 OPDS 能力：** 书目浏览/搜索/分页/详情支持；完整文件下载、Transfer 进度/取消/lease 支持；通用 `list/walk`、稳定 ID 寻址、写操作、Range/恢复、文件版本缓存及 Catalog 均不支持。`stat` 仅返回会话内登记描述，详情见 [OPDS](Docs/OPDS.md)。
 
+**百度网盘能力矩阵（当前工作区，未发布）：**
+
+| 功能 | 百度应用目录范围 |
+| --- | --- |
+| 浏览 / stat / walk / 分页 | 支持；每页最多 1000，需检查 `coverage`，offset 分页不保证瞬时快照 |
+| 按 ID 查询 / 列表 / 下载 | 支持；SDK 签发 ID 绑定应用、用户、根目录，精确保留 uint64 `fs_id` / `uk` |
+| 完整文件下载 / 进度 / 取消 | 支持；流式 staging、目标保护，取得完整本地文件后消费 |
+| 普通上传 / 整文件覆盖 | 非空普通文件 ≤4 GiB；私有快照、4 MiB 顺序分片，父目录须已存在；非覆盖冲突失败，不自动改名 |
+| 建目录 / 移动 / 复制 / 删除 | 支持递归建目录及同步 move/copy/delete；同一来源实例串行写入，并发写冲突失败；禁止操作配置根本身 |
+| 多文件下载 / 并发上限 | 可接入 coordinator；来源默认 3、可配置至 8，来源请求还受自身并发上限约束 |
+| Transfer / Catalog | `connectedBinding()`、路径或签发 ID 引用、物化/lease；固定用户绑定、配置与凭据引用、离线目录索引 |
+| 缓存版本 / 内容摘要 | size+mtime 仅作启发式缓存；MD5 不暴露为 `contentChecksums`、ETag 或强版本，需最新内容时用 `.refresh` |
+| 强条件 / Range / 恢复 | 不支持 `expectedETag`、强版本读取、Range、下载续传或持久上传续传；分片上传不等于可恢复上传 |
+| 后台 / 变更流 / 全盘访问 | 均不支持；限已授权应用目录，无共享链接或其他应用目录访问 |
+
+模块仅依赖 Core 与系统框架，由 Kit 重导出。完整合同和宿主生命周期见 [百度指南](Docs/BaiduDrive.md) 与 [百度示例](Examples/BaiduDrive/README.md)。
+
 **表格说明：**
 
 - **¹ 并发不是线程数。** `capabilities.maxConcurrentTransfers` 在低层是建议值，Transfer 将它作为各 binding 的上限输入，同时受 coordinator 的全局任务上限限制；单 materializer 构造的 coordinator 默认全局上限为 **1**，需要多文件并发时显式调高。同一 materializer 的普通下载和分片请求还共享来源 I/O 上限，但不包含 stat。不同实例或绕过入口的调用不受同一上限约束。本地来源虽声明 4，当前单实例同步复制仍在 actor 内串行执行，不能据此承诺 4 路磁盘复制；iCloud 声明 1，文件 I/O 使用串行协调队列。详见 [Transfer 调度](Docs/Transfer.md#调度进度与取消)。
@@ -89,7 +109,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 当前均不提供自动双向同步、后台持久传输队列、跨来源直传 / 事务或通用边下边播；这些需要宿主另行实现或后续扩展。
 
-**验收边界：** WebDAV 只有有限的真实飞牛只读验收；写入、恢复与分片下载通过本地合成服务验证，真实 NAS 写入、分片兼容性及性能待验收。OneDrive 普通写入与 Upload Session 可恢复上传通过本地合成服务测试；Upload Session 仅由专用构造器 opt-in，真实 Microsoft 账号、真实 Keychain entitlement、大文件与性能验收待完成。iCloud 仅完成临时目录及注入状态测试，真实 entitlement、占位文件和双设备验收待完成。详情见[验证状态](Docs/Validation.md)。
+**验收边界：** WebDAV 只有有限的真实飞牛只读验收；写入、恢复与分片下载通过本地合成服务验证，真实 NAS 写入、分片兼容性及性能待验收。OneDrive 普通写入与 Upload Session 可恢复上传通过本地合成服务测试；Upload Session 仅由专用构造器 opt-in，真实 Microsoft 账号、真实 Keychain entitlement、大文件与性能验收待完成。iCloud 仅完成临时目录及注入状态测试，真实 entitlement、占位文件和双设备验收待完成。百度尚无真实应用或 token，本地 fixture 不能替代线上授权、权限和文件操作验收；本轮构建/测试结果以[验证状态](Docs/Validation.md)的最终记录为准。
 
 ## 平台要求
 
@@ -110,7 +130,7 @@ Google Drive、Dropbox、百度网盘、阿里云盘等独立网盘适配器，�
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.8.2`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随开发分支时，可将 `exact: "0.8.2"` 改为 `branch: "main"`。图标资源和类型列表自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.8.2`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随远端开发分支时，可将 `exact: "0.8.2"` 改为 `branch: "main"`，但这不保证包含当前工作区未发布的百度实现；百度开发接入需使用包含本次实现的源码。图标资源和类型列表自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
 
 ```swift
 // Package.dependencies
@@ -146,7 +166,7 @@ let iconURL = BoneRemoteSyncIcons.iconURL(for: .iCloud)
 let iconData = try BoneRemoteSyncIcons.iconData(for: .webdav)
 ```
 
-`driveTypes()` 返回 `[BoneRemoteSyncDriveType]`。每一项包含 `id`、`displayName`、`icon` 和对应的 `RemoteSourceKind`；Google Drive、阿里云盘和百度网盘当前是图标目录项，SDK 尚未提供它们的原生来源适配器。`sourceTypes()` 则返回所有 `RemoteSourceKind`，没有内置图标的预留来源会返回 `icon == nil`。
+`driveTypes()` 返回 `[BoneRemoteSyncDriveType]`。每一项包含 `id`、`displayName`、`icon` 和对应的 `RemoteSourceKind`；当前工作区的百度项对应新增 `.baidu`，由 `BaiduDriveSource` 实现，尚未发布。Google Drive、阿里云盘仍仅有图标目录项，SDK 尚未提供它们的原生来源适配器。`sourceTypes()` 则返回所有 `RemoteSourceKind`，没有内置图标的预留来源会返回 `icon == nil`。
 
 `BoneRemoteSyncIcon.url` 返回 bundle 内 PNG 的 `URL?`；`BoneRemoteSyncIcon.data()` 返回 PNG `Data`，资源不存在时抛出 `BoneRemoteSyncIconError.missingResource`。`RemoteSourceKind.iconResourceName` 和 `displayName` 只提供稳定资源名与默认英文 UI 标签，宿主可自行本地化。
 
@@ -167,7 +187,7 @@ print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
 
 ### 1. 连接并浏览
 
-下面的函数适用于四个现有来源，在同一连接中读取根目录的全部页面，并在成功和异常路径等待断开。它适合大小可控的目录；大型目录应使用[逐页消费或有界遍历](Docs/API.md)，避免累积全部结果。
+下面的函数适用于五类文件来源（百度需包含未发布实现的源码），在同一连接中读取根目录的全部页面，并在成功和异常路径等待断开。它适合大小可控的目录；大型目录应使用[逐页消费或有界遍历](Docs/API.md)，避免累积全部结果。
 
 ```swift
 import Foundation
@@ -204,6 +224,7 @@ func readRootDirectory(
 | iCloud Drive | `ICloudDriveSource(configuration: configuration)` | `.anonymous` 使用系统账号；宿主配置 entitlement 和容器，见 [iCloud 指南](Docs/ICloudDrive.md) |
 | WebDAV | `try WebDAVSource(baseURL: collectionURL)` | `.anonymous` 或 `.basic(username:password:)`；优先 HTTPS |
 | OneDrive | `OneDriveSource(configuration: configuration, onTokenRefresh: persistToken)` | OAuth token；首次授权和刷新持久化见 [OneDrive 指南](Docs/OneDrive.md) |
+| 百度（未发布） | `BaiduDriveSource(configuration: configuration, refreshToken: refresh)` | `BaiduDriveToken.credential` 或 `.apiToken`；宿主负责后端交换/刷新与安全持久化，见 [百度指南](Docs/BaiduDrive.md) |
 
 表中的 URL、配置和 token 保存回调由宿主提供，不是库内全局变量。`/` 总是指当前来源的根，而不是服务器或本机的系统根。
 
@@ -243,12 +264,12 @@ func transferFile(
 - `RemoteWritableSource`：增加上传、建目录、删除、移动。
 - `RemoteCopyingSource`：增加来源内复制。
 
-本地、iCloud 与 WebDAV 遵循 `RemoteCopyingSource`，OneDrive 遵循 `RemoteWritableSource` 和 `RemoteIDAddressableSource`。UI 可读取 `capabilities` 决定展示哪些入口，执行时仍需处理权限、冲突及服务端错误。OneDrive 的稳定 ID 读取不等于支持按 ID 写入。
+本地、iCloud 与 WebDAV 遵循 `RemoteCopyingSource`，OneDrive 遵循 `RemoteWritableSource` 和 `RemoteIDAddressableSource`；未发布百度同时遵循 `RemoteCopyingSource` 和 `RemoteIDAddressableSource`。UI 可读取 `capabilities` 决定展示哪些入口，执行时仍需处理权限、冲突及服务端错误。稳定 ID 读取不等于支持按 ID 写入。
 
 ## 接入前需要了解
 
-- **覆盖与父目录：** WebDAV、OneDrive 上传要求父目录存在；本地和 iCloud 上传可自动创建。WebDAV 覆盖已有文件要求强 ETag，缺失或弱 ETag 会拒绝覆盖。使用 `expectedETag` 做条件上传时只有 WebDAV 支持；其他来源明确拒绝。各来源的[写入语义](Docs/API.md#写入与失败语义)不可互换。
-- **远端写入不能回滚：** 取消、超时或丢失响应不证明操作未发生。WebDAV 写请求不自动重试；不要只根据 `isRetryable` 重放写入或补偿删除。
+- **覆盖与父目录：** WebDAV、OneDrive、百度上传要求父目录存在；本地和 iCloud 上传可自动创建。百度只接受非空且 ≤4 GiB 的上传。WebDAV 覆盖已有文件要求强 ETag，缺失或弱 ETag 会拒绝覆盖。使用 `expectedETag` 做条件上传时只有 WebDAV 支持；其他来源明确拒绝。各来源的[写入语义](Docs/API.md#写入与失败语义)不可互换。
+- **远端写入不能回滚：** 取消、超时或丢失响应不证明操作未发生。WebDAV 与百度写请求不自动重试；不要只根据 `isRetryable` 重放写入或补偿删除。
 - **授权由宿主管理：** SDK 不包含登录界面或账号选择。Catalog 提供可选 Keychain 桥接；直接使用来源模块时仍由宿主保存凭据。不要记录密码、token、授权回调或预授权下载 URL。
 - **文件信息与分类：** `RemoteEntry.createdAt` 返回来源报告的创建时间，缺失为 nil；`fileCategory` 按 MIME/扩展名给出图片、音频、视频、文档等提示，不解析文件内容、EXIF 或音视频时长。见[元数据 API](Docs/API.md#文件时间与类型分类)。
 - **传输完整性不是内容相同证明：** ETag 是版本标识，不保证为内容哈希；`size`、`modifiedAt` 或 `hasReliableFingerprint` 不能代替内容比对。
@@ -269,12 +290,14 @@ func transferFile(
 | [iCloud Drive](Docs/ICloudDrive.md) | entitlement、容器、占位下载、协调、状态与真机验收边界 |
 | [WebDAV](Docs/WebDAV.md) | 连接、文件管理、条件覆盖、重试、Range 与 checkpoint 恢复 |
 | [OneDrive Personal](Docs/OneDrive.md) | OAuth/PKCE、token 刷新、分页、安全下载、普通写入及 opt-in Upload Session |
+| [百度网盘应用目录](Docs/BaiduDrive.md) | 未发布：官方 OAuth、宿主后端刷新、作用域 ID、分片上传、Catalog/Transfer 与线上验收边界 |
 | [OPDS 1.2 只读书库](Docs/OPDS.md) | 自 v0.8.0：书目导航、搜索、详情、多格式获取、会话引用与 Transfer 衔接 |
-| [未支持来源开发计划](Docs/CloudDriveRoadmap.md) | Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 与区域性网盘的分阶段路线图 |
+| [来源开发计划](Docs/CloudDriveRoadmap.md) | 百度已实现待真实验收/未发布；Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 与其他网盘候选 |
 | [构建与验证状态](Docs/Validation.md) | 构建命令、验证记录、真实服务验收边界与待办方向 |
 | [WebDAV 完整示例](Examples/WebDAVReadWrite/README.md) | 读写操作生命周期及真实 NAS 验收清单 |
 | [OneDrive 宿主示例](Examples/OneDriveReadOnly/README.md) | 授权事务管理、读路径及账号验收清单 |
 | [OPDS 宿主示例](Examples/OPDSReadOnly/README.md) | 用户选书/格式、下载、lease 消费和清理生命周期 |
+| [百度宿主示例](Examples/BaiduDrive/README.md) | 未发布：应用目录配置、授权、Transfer lease、非覆盖上传与固定用户 Catalog 绑定 |
 
 ## 构建与测试
 
@@ -294,7 +317,7 @@ BONE_PYTHON=/opt/homebrew/bin/python3 swift test --no-parallel
 
 ### CI 与缓存回收
 
-仓库通过 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在 `macos-14` 上自动执行：debug / release 构建、串行全量测试，并在发布标签上生成**公共 API 变更清单**（与上一个标签比对，仅告警不阻断，符合本项目“不承诺向后兼容”的策略）。
+仓库通过 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在 `macos-15` 上自动执行：debug / release 构建、串行全量测试，并在发布标签上生成**公共 API 变更清单**（与上一个标签比对，仅告警不阻断，符合本项目“不承诺向后兼容”的策略）。
 
 构建与测试会在本地产生约 **600–700 MB** 的 `.build` 目录，长期多次构建会持续累积。使用 [script/clean.sh](script/clean.sh) 回收：
 

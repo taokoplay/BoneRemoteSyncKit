@@ -2,6 +2,29 @@
 
 [返回项目首页](../README.md)
 
+## 百度网盘首期接入（未发布）
+
+新增独立 `BoneRemoteSyncBaidu`、Core `.baidu`、Kit 导出和图标映射，以及 Catalog 配置/凭据轮换/账号绑定；Transfer 复用完整下载、物化与 lease。基于官方开放 API，仅访问已授权 `/apps/...` 根。最新发布标签仍为 `v0.8.2`，百度接入尚未发布。接口与宿主职责见 [百度指南](BaiduDrive.md) 和 [示例](../Examples/BaiduDrive/README.md)。
+
+| 验证 | 结果 |
+| --- | --- |
+| 全包回归 | `swift test --no-parallel` 退出 0；**628 个去重测试函数通过，0 失败、0 跳过**。运行器共执行 660 次：39 XCTest + 621 Swift Testing；TestSupport 的 8 个函数在五个 bundle 中执行，额外 32 次不重复计数 |
+| 各目标自有函数 | Baidu 46、Catalog 64、Core/Local 127、iCloud 52、Kit 7、OPDS 43、OneDrive 92、TestSupport 8、Transfer 45、WebDAV 144，共 628；参数化 case 不另加 |
+| 百度专项 | 46 个函数覆盖 OAuth/state/单次回调、精确 ID、根边界、分页/部分列表、账号与会话隔离、刷新、下载/目标保护/取消、上传快照与跨 4 MiB 分片往返、文件管理、Catalog 与 Transfer。浏览套件 7 项另行定向通过 |
+| 构建 | 全包测试完成 Debug 编译；随后 `swift build -c release` 退出 0。测试与 Release 各执行一次，无重跑或超时 |
+| 四个平台 | macOS 12、iOS 15 Simulator、tvOS 15 Simulator、visionOS 1 Simulator，arm64 / Swift 6：全部十个生产模块重新编译链接通过，共 40 项；两份百度示例各平台类型检查通过，共 8 项。平台日志无 warning/error |
+| 独立消费端 | 外部 SwiftPM 包只依赖并 `import BoneRemoteSyncKit`，构建与运行通过；核对百度配置/协议、OAuth 回调、Catalog Codable 和 PNG 图标资源，没有网络或真实账号访问 |
+| 包与辅助检查 | Package 导出独立百度产品，Baidu 仅依赖 Core，Kit/Catalog 正确依赖 Baidu，无第三方包。Python fixture 语法、清理脚本语法、清理 dry-run、本地 Markdown 链接/标题锚点、代码块及差异格式检查通过 |
+| 清理 | `BoneBaiduTests-*` 在实际系统临时目录、`/private/tmp`、工作区与会话 scratch 根均无残留；脚本与 CI 已纳入百度 fixture 名称 |
+
+本轮有限审查发现未消费的分页游标可耗尽容量，使后续新列表全部失败。现改为容量到达 1024 时淘汰最旧游标，已淘汰/已消费游标返回 `invalidCursor`；新增容量为 2 的内部测试验证新列表、未失效游标及旧游标拒绝，不通过大量网络调用逼近上限。
+
+实际工具链为 Apple Swift 6.4 / Xcode 27.1（27A9275）。最低部署目标编译不等于 Swift 6.0 编译器、旧系统运行、移动真机或真实 TLS/ATS 验收。Release 存在既有 `PythonFixtureTests.swift` 自导入诊断；iCloud 移动测试记录了为尚不存在的目标申请 sandbox extension 的系统诊断，随后该测试的移动/下载/内容断言通过。本轮没有为消除这些诊断修改无关代码。独立消费端首轮因临时探针的能力字段名和 throwing 断言写法错误而编译失败，修正探针后构建运行通过，SDK 未因此变更。
+
+原始证据留在会话工作台：`baidu-final-full.log`、`baidu-final-release.log`、`baidu-final-test-list.log`、`baidu-final-counts.json`、`baidu-platform-*.log`、`baidu-consumer-final.log` 和 `baidu-clean-dry-run.log`；不随仓库分发。
+
+**剩余验收：** 尚无真实百度应用或授权 token，未执行线上 OAuth、应用目录权限、文件操作、配额/地区差异、4 GiB 上限性能或真实 Keychain 验收。本地 fixture 使用虚构凭据，仅监听 `127.0.0.1`。真实联调需宿主 AppKey、已登记回调、已授权根和测试用户 token；SecretKey 继续由宿主后端保管。当前没有阻碍本次代码交付的已知问题。
+
 ## v0.8.2 发布修正
 
 v0.8.1 发布前的完整远端检查通过（39 XCTest+542 Swift Testing，共581项，API无变化），但标签运行再次暴露WebDAV进度为0。仅在任务完成时转发URLSession计数仍不足以保证最终进度，因为小文件计数本身可能未更新。
@@ -341,8 +364,9 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 | WebDAV 写入 | localhost：PUT、MKCOL、DELETE、MOVE、COPY；覆盖竞争、取消、重连、错误映射等 | 真实 NAS 写权限、ETag 与方法兼容性 |
 | WebDAV managed 恢复 | localhost 故障注入、独立进程取消／SIGKILL 后恢复、ready／rename 窗口 | 真实网络、硬件断电、移动设备运行 |
 | OneDrive Personal | localhost：OAuth 请求合同、分页、文件读写、生命周期与安全边界 | 真实 Microsoft 应用／账号、CDN、刷新轮换与授权撤销验收 |
+| 百度网盘（未发布） | localhost：OAuth 回调、账号绑定/刷新、分页、文件传输/管理、Catalog/Transfer、目标保护与取消 | 真实百度应用审核、用户授权、应用目录权限、线上文件操作、配额与大文件性能 |
 
-真实服务验收清单见 [WebDAV 示例](../Examples/WebDAVReadWrite/README.md)和 [OneDrive 示例](../Examples/OneDriveReadOnly/README.md)。只在明确授权的专用测试目录中写入；失败后先核实远端状态，不依据错误返回推断“没有创建”。
+真实服务验收清单见 [WebDAV 示例](../Examples/WebDAVReadWrite/README.md)、[OneDrive 示例](../Examples/OneDriveReadOnly/README.md)和 [百度示例](../Examples/BaiduDrive/README.md)。只在明确授权的专用测试目录中写入；失败后先核实远端状态，不依据错误返回推断“没有创建”。
 
 ## 历史验证与性能记录
 
@@ -360,7 +384,7 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 
 以下是候选方向，不是已发布能力、承诺日期或既定开发顺序：
 
-1. 完成 WebDAV 与 OneDrive 的真实服务读写及异常验收。
+1. 完成 WebDAV、OneDrive 与百度的真实服务读写及异常验收；百度 SecretKey 留在宿主后端。
 2. 完成 OneDrive Upload Session 的真实 Microsoft 账号、Keychain entitlement、大文件、断电/权限和最低系统验收；实现已在受控 localhost fixture 中覆盖。
 3. iCloud Drive 已有文件来源实现；继续真实宿主验收、NSFileVersion/元数据观察与 Catalog 账号绑定设计。SMB 或其他来源按产品需求选择。
 4. 独立同步层：快照、差异、可预览计划、执行与状态存储，再考虑双向冲突策略。

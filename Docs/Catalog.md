@@ -1,18 +1,18 @@
 # 配置持久化与离线目录索引
 
-[首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
+[首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [百度接入](BaiduDrive.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
 
-> 本页描述 `v0.8.0` 中的 Catalog API；可组合访问权限自 `v0.7.0` 提供，统计快照、缓存失效、iCloud 配置接入和 schema v2 迁移自 `v0.6.0` 提供。OPDS 尚未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成，版本发布不扩大下述能力或验证范围。
+> 本页描述已发布 `v0.8.2` 的 Catalog API 与当前工作区未发布的百度配置；百度需使用包含本次实现的源码。可组合访问权限自 `v0.7.0` 提供，统计快照、缓存失效、iCloud 配置接入和 schema v2 迁移自 `v0.6.0` 提供。OPDS 尚未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成；百度尚无真实应用或 token，fixture 不等于线上验收。
 
 ## 能力与层次
 
-`BoneRemoteSyncCatalog` 是可选上层模块：保存 Local、WebDAV、OneDrive Personal 和 iCloud Drive 的非敏感配置、选定目录、文件元数据及刷新状态。`BoneRemoteSyncKit` 统一导出它；只需要传输时仍可单独依赖 Core 和来源产品，基础模块不依赖数据库。
+`BoneRemoteSyncCatalog` 是可选上层模块：保存 Local、WebDAV、OneDrive Personal、iCloud Drive 和百度（未发布）的非敏感配置、选定目录、文件元数据及刷新状态。`BoneRemoteSyncKit` 统一导出它；只需要传输时仍可单独依赖 Core 和来源产品，基础模块不依赖数据库。
 
 - `RemoteSourceProfile`：稳定来源 ID、账号/端点绑定 ID、配置修订、typed configuration 和凭据引用。
 - `RemoteCatalogRoot`：选定目录的路径与来源 ID、过滤规则、默认刷新范围和 selection revision。
 - `SQLiteRemoteCatalogStore`：离线查询与持久化，使用系统 SQLite，无第三方运行依赖。
 - `RemoteCredentialStore` / `KeychainRemoteCredentialStore`：同步线程安全的凭据存储。SQLite 只存 UUID 引用。
-- `RemoteCatalogSessionFactory`：固定绑定的短生命周期连接，恢复凭据、核对 OneDrive 主盘、持有 Local 访问 lease。
+- `RemoteCatalogSessionFactory`：固定绑定的短生命周期连接，恢复凭据、核对 OneDrive 主盘或百度用户 ID、持有 Local 访问 lease。
 - `RemoteCatalog`：保存来源、验证/保存根选择、显式刷新和查询缓存。
 
 它不是同步引擎、内容缓存或下载队列。刷新不调用远端 mutation，不删除已下载文件，不安装定时器，不提供跨进程扫描调度。
@@ -64,13 +64,17 @@ func openCatalogStore(privateDirectory: URL) throws -> SQLiteRemoteCatalogStore 
 
 ## 配置与秘密分离
 
-`RemoteSourceConfiguration` 的来源类型是明确枚举，不能只靠 `.cloudAPI` 推断 OneDrive：
+`RemoteSourceConfiguration` 的来源类型是明确枚举，对应 `RemoteCatalogProvider` 的 `.local`、`.webDAV`、`.oneDrive`、`.iCloud` 和未发布新增 `.baidu`，不能只靠 `.cloudAPI` 推断具体网盘：
 
 | 配置 | 保存内容 | 不保存内容 |
 | --- | --- | --- |
 | `.local(accessReference:)` | 宿主定义的访问引用 | 已连接状态、security scope、Task |
 | `.webDAV(baseURL:timeout:retry:)` | collection URL、请求与只读重试参数 | URL userinfo、密码、Authorization |
 | `.oneDrive(clientID:redirectURI:driveID:timeout:)` | public-client 应用参数、已核对的 Personal 主盘 ID | token、nextLink、预授权下载 URL |
+| `.iCloud(configuration)` | 容器标识和配置目录等 `ICloudDriveConfiguration` | 系统账号凭据、entitlement、已连接状态 |
+| `.baidu(configuration:userID:)`（未发布） | `BaiduDriveConfiguration` 的公开 AppKey、授权根、超时/并发/上传上限及已核对用户 ID | SecretKey、token、dlink、远端 cursor；凭据仅保存 UUID 引用 |
+
+百度配置必须指向已存在且获授权的 `/apps/{app}` 或子目录，来源 `/` 仅表示这个配置根；Catalog 选根不能扩大为全盘权限。新增 provider 沿用当前数据库 schema，无需升级表结构；旧 SDK 不能理解百度配置。
 
 `RemoteSourceProfile.permission` 使用 `RemoteAccessPermission`（`OptionSet`）保存文件操作权限。默认只读且读取必选，编辑、新增和删除可多选：
 
@@ -101,7 +105,7 @@ let canDelete = selection.contains(.delete)
 
 Catalog 会话按保存的权限检查文件操作，并裁剪 `capabilities` 供 UI 隐藏入口；未授予权限时返回 `RemoteSyncError.permissionDenied`。上传 `overwrite=false` 需要新增权限，`expectedETag` 条件上传需要编辑权限；普通上传仅选编辑或新增时检查目标是否存在，只有 `notFound` 才视为新文件。新增上传强制禁止覆盖，避免并发创建后覆盖他人文件。仅编辑时，若来源支持条件上传且返回 ETag，会固定该版本；不支持条件上传的来源仍采用存在性预检，预检与实际写入之间的外部删除竞争须由宿主协调，不能将此检查当作跨进程原子授权。
 
-`permission` 是网盘实例的 SDK 访问控制，不会修改远端账号权限，也不替代 WebDAV、OneDrive、iCloud 或本地系统权限。直接使用未包装的适配器不受此配置约束。
+`permission` 是网盘实例的 SDK 访问控制，不会修改远端账号权限，也不替代 WebDAV、OneDrive、百度、iCloud 或本地系统权限。直接使用未包装的适配器不受此配置约束。百度默认 `.readOnly`，编辑/新增/删除需显式组合；受控会话不会给百度增加强条件读写能力。
 
 `connect()` 不隐式持久化任何内容。`RemoteEntry` 不携带凭据。Keychain 实现以宿主指定的 service 和 UUID account 存完整凭据，使用 generic-password、AfterFirstUnlockThisDeviceOnly，不启用同步、不擅设共享 access group。构造 store 不访问 Keychain，实际 read/insert/replace/remove 才访问。
 
@@ -128,6 +132,18 @@ SQLite 与 Keychain **没有跨存储事务**：DB 失败只清理能证明是�
 同一个 `coordinationID + credentialReference` 在进程内最多一个活动使用会话，跨 factory/root/profile 也互斥。冲突返回 busy（公开刷新报告可能表现为启动失败），不无界排队。同一子树共用一个 source，允许受限并发，并利用该 source 的 token 刷新合并。多个 profile 共享引用时必须是同一 binding/OAuth 应用配置；自定义 store 的 `coordinationID` 必须准确代表底层凭据域。
 
 `revokeCredential(reference:remove:)` 序列化撤销与写入，旧回调不能重新创建已删除凭据；撤销不代表旧会话已经断开或远端 token 已撤销。宿主仍须取消并等待关联任务。活动引用上的重绑返回 busy，不中断另一个合法会话正在保存的 token。
+
+## 百度身份与后端刷新（未发布）
+
+首次用 `BaiduDriveSource` 连接后，从 `connectedUserID()` 获取已核对的用户 ID，再保存 `.baidu(configuration:userID:)` 与完整 OAuth 凭据或 `.apiToken`。`uk` 以精确 uint64 值读取并保留为字符串，不从文件、路径或浮点数推测用户。百度条目 ID 和来源 binding 包含应用/用户/根作用域；AppKey、账号或 `rootPath` 变化需要新的 binding、凭据引用及重新选根。
+
+工厂每次用 `connect(_:expectedUserID:)` 核对固定用户，账号不匹配在目录请求前失败，映射为 `RemoteCatalogError.identityChanged`。即使应用目录为空也必须核对身份；公开配置不包含授权秘密。
+
+通过 `RemoteCatalogSessionFactory(credentials:localResolver:baiduTokenRefresher:)` 注入 `BaiduCatalogTokenRefresher`，其签名为 `@Sendable (BaiduDriveConfiguration, String, BaiduDriveToken) async throws -> BaiduDriveToken`。回调收到固定配置、固定用户 ID 和旧令牌，调用宿主可信后端交换刷新结果并返回完整新令牌；SecretKey 只在后端保管，SDK 不承诺 PKCE。与原始来源的 `refreshToken` 回调不同，Catalog 工厂负责同步写回原 UUID 凭据引用，不查找可变的“当前账号”，也不在回调内进入 SQLite 或 Catalog actor。
+
+到期前刷新在同一来源实例合并，成功后再核对用户；刷新或凭据保存失败使会话失效，不能用旧 refresh token 无限重试。引用级进程内会话互斥、固定引用保存和 `revokeCredential(reference:remove:)` 的撤销规则同样适用，旧回调不能重建撤销后的凭据。百度 refresh token 一次有效，跨实例/设备仍需宿主后端按固定应用和用户串行刷新、保存轮换结果，并响应取消。`.apiToken` 或缺少 expiry 的 OAuth 不自动到期刷新，过期时由宿主重新授权。
+
+目录索引、离线查询、统计和显式失效复用现有 Catalog；文件变更后调用 `invalidateCache` 或 `refresh`，没有后台任务、变更订阅或强版本缓存。完整保存与清理生命周期见 [百度指南](BaiduDrive.md) 和 [百度示例](../Examples/BaiduDrive/README.md)。
 
 ## Local 访问 lease
 
@@ -186,7 +202,7 @@ func indexSelection(catalog: RemoteCatalog, profile: RemoteSourceProfile) async 
 - 完整列表中未见项退出缓存，不解释成 provider 删除事件，不删除远端或本地下载文件。
 - 成功兄弟目录独立提交，失败目录保留旧缓存，整轮可为 partial；未成功扫描的目录不凭旧缓存继续下钻。
 - 父目录退出、变文件或 ID 替换使旧后代直接查询也不可见。路径改名按旧路径退出+新路径出现处理，不自动搬移旧子树。物理旧记录可能保留至清索引。
-- OneDrive 选定根按路径绑定，扫描前后核对 ID，改名或同路径换对象需重选；Local/WebDAV 的路径型 ID 无法完全识别同路径替换。前后校验不构成瞬时快照证明。
+- OneDrive 与百度选定根按路径绑定，扫描前后核对 ID，改名或同路径换对象需重选；Local/WebDAV 的路径型 ID 无法完全识别同路径替换。百度来源根始终限制在配置的应用目录，回退 `/` 也不能越过此边界。前后校验及 offset 分页不构成瞬时快照证明。
 - 首版每次重新枚举请求范围，仅避免重写未变的 DB 条目；不是服务端增量拉取，不根据目录 ETag/mtime 跳过后代。
 
 ## 恢复与清理
@@ -201,4 +217,4 @@ func indexSelection(catalog: RemoteCatalog, profile: RemoteSourceProfile) async 
 
 ## 验证边界
 
-测试使用临时文件、注入的内存/Security backend 和 localhost 合成服务，未访问真实 Keychain、Microsoft 账号或 NAS。本地重开验证不等于硬件断电保证。十万条规模测试不是延迟 SLA，峰值内存包含测试宿主；最低平台编译/链接也不是旧系统或真机运行验收。具体本轮结果见[验证状态](Validation.md)。
+测试使用临时文件、注入的内存/Security backend 和 localhost 合成服务，未访问真实 Keychain、Microsoft 账号或 NAS；百度也没有真实应用或 token，fixture 不能替代线上授权与目录操作验收。本地重开验证不等于硬件断电保证。十万条规模测试不是延迟 SLA，峰值内存包含测试宿主；最低平台编译/链接也不是旧系统或真机运行验收。本轮构建与测试结论以[验证状态](Validation.md)的最终记录为准。

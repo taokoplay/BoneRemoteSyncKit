@@ -23,7 +23,7 @@ public actor RemoteCatalog {
             switch (configuration, credential) {
             case (.local, nil), (.webDAV, nil), (.webDAV, .some(.anonymous)),
                  (.webDAV, .some(.basic)), (.oneDrive, .some(.oauth)), (.iCloud, nil),
-                 (.iCloud, .some(.anonymous)): break
+                 (.iCloud, .some(.anonymous)), (.baidu, .some(.oauth)), (.baidu, .some(.apiToken)): break
             default: throw RemoteCatalogError.invalidConfiguration
             }
             let previous: RemoteSourceProfile?
