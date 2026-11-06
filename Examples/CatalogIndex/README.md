@@ -13,4 +13,6 @@
 
 日常目录刷新使用 `.children`；初始化或明确重扫才使用 `.subtree`。处理 `.partial/.failed/.cancelled` 和 `failures`，不要把返回报告当作全树成功。取消后等待 task 返回再关闭数据库。数据库打开期间不要移动、硬链接或手动复制 WAL 文件。
 
+当前工作区未发布新增 `requestInterval`（秒，默认 `0`）：见 `catalogThrottledRefresh`，配置 `concurrency: 1, requestInterval: 0.5` 可串行处理目录，并使扫描阶段的 `list/stat` 调用至少间隔 500 ms 放行。所有目录和分页共用间隔；等待计入 timeout 且可取消。连接/认证、选根预检和适配器内部重试不受此参数约束，也不是跨刷新或全 App 的限流。此参数尚不包含在 `v0.8.2` 中，使用新示例需包含当前改动的源码。
+
 示例不建立系统后台任务、不下载内容、不删除远端文件，也不演示真实账号或真实 Keychain 验收。

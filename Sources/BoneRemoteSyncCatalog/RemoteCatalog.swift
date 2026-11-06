@@ -108,11 +108,11 @@ public actor RemoteCatalog {
             defer { activeRoots.remove(rootID) }
             try Task.checkCancellation()
             var root = try await store.root(id: rootID)
+            let options = options ?? .init(scope: root.defaultScope)
+            try options.validate()
             if directory == nil {
                 root = try await recoverRootIfMissing(root)
             }
-            let options = options ?? .init(scope: root.defaultScope)
-            try options.validate()
             let run = try await store.beginRun(rootID: rootID, path: directory ?? root.path, scope: options.scope)
             correlationID = run.id
             let coordinator = CatalogRefreshCoordinator(store: store, sessions: sessions, run: run, options: options)

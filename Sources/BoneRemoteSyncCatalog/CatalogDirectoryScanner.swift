@@ -5,7 +5,34 @@ actor CatalogScanBudget {
     let options: RemoteCatalogRefreshOptions
     private var entries = 0
     private var directories = 1
-    init(_ options: RemoteCatalogRefreshOptions) { self.options = options }
+    private var lastRequestAdmission: TimeInterval?
+    private let now: @Sendable () -> TimeInterval
+    private let sleep: @Sendable (UInt64) async throws -> Void
+
+    init(_ options: RemoteCatalogRefreshOptions,
+         now: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         sleep: @escaping @Sendable (UInt64) async throws -> Void = { try await Task.sleep(nanoseconds: $0) }) {
+        self.options = options; self.now = now; self.sleep = sleep
+    }
+
+    /// Recheck after every suspension: delayed wakeups must not release a burst of reserved slots.
+    func waitForRequest() async throws {
+        while true {
+            try Task.checkCancellation()
+            guard options.requestInterval > 0 else { return }
+            let instant = now()
+            if let lastRequestAdmission {
+                let remaining = options.requestInterval - (instant - lastRequestAdmission)
+                if remaining > 0 {
+                    try await sleep(UInt64((remaining * 1_000_000_000).rounded(.up)))
+                    continue
+                }
+            }
+            lastRequestAdmission = instant
+            return
+        }
+    }
+
     func consume(entries count: Int) throws {
         guard count <= options.maxEntries - entries else { throw RemoteCatalogError.budgetExceeded }
         entries += count
@@ -52,6 +79,7 @@ struct CatalogDirectoryScanner: Sendable {
             repeat {
                 try Task.checkCancellation()
                 guard pageCount < options.maxPagesPerDirectory else { throw RemoteCatalogError.budgetExceeded }
+                try await budget.waitForRequest()
                 let page = try await source.list(path: path, request: .init(cursor: cursor, limit: options.pageSize, includeHidden: run.root.includeHidden))
                 pageCount += 1
                 guard page.coverage == .complete else { throw RemoteCatalogError.incompleteListing }
@@ -98,9 +126,15 @@ struct CatalogDirectoryScanner: Sendable {
     }
 
     private func verifySelection(path: String, expectedID: String) async throws {
+        try await budget.waitForRequest()
         let selected = try await source.stat(path: run.root.path)
         guard selected.isDirectory, selected.path == run.root.path, selected.id == run.root.entryID else { throw RemoteCatalogError.identityChanged }
-        let directory = path == run.root.path ? selected : try await source.stat(path: path)
+        let directory: RemoteEntry
+        if path == run.root.path { directory = selected }
+        else {
+            try await budget.waitForRequest()
+            directory = try await source.stat(path: path)
+        }
         guard directory.isDirectory, directory.path == path, directory.id == expectedID else { throw RemoteCatalogError.identityChanged }
     }
 }

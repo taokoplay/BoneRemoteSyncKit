@@ -11,6 +11,8 @@ actor CatalogSource: RemoteSource {
     var identities: [String: String] = ["/": "root"]
     var delay: UInt64 = 0
     var requests: [String] = []
+    var statRequests: [String] = []
+    var requestTimes: [TimeInterval] = []
     var active = 0
     var peak = 0
     var synchronizePaths: Set<String> = []
@@ -23,6 +25,7 @@ actor CatalogSource: RemoteSource {
     func connect(_ credential: RemoteCredential) async throws {}
     func disconnect() async {}
     func list(path: String, request: RemoteListRequest) async throws -> RemoteListPage {
+        requestTimes.append(ProcessInfo.processInfo.systemUptime)
         let key = path + "|" + (request.cursor ?? "")
         requests.append(key); active += 1; peak = max(peak, active)
         defer { active -= 1 }
@@ -40,6 +43,8 @@ actor CatalogSource: RemoteSource {
         return page
     }
     func stat(path: String) async throws -> RemoteEntry {
+        requestTimes.append(ProcessInfo.processInfo.systemUptime)
+        statRequests.append(path)
         if let error = errors["stat:" + path] { throw error }
         guard let identity = identities[path] else { throw RemoteSyncError.notFound(path: path) }
         return catalogEntry(path, directory: true, id: identity)

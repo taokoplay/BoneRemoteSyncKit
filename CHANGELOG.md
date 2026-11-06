@@ -6,6 +6,7 @@
 
 以下为当前工作区尚未发布的变更；最新发布版本仍为 `v0.8.2`。开发接入需使用包含本次实现的源码，不代表远端 `main` 已包含这些改动。
 
+- Catalog 扫描新增 `RemoteCatalogRefreshOptions.requestInterval`，单位秒、默认 `0`；整轮扫描的并发目录及分页共用 `list/stat` 放行间隔，可与 `concurrency: 1` 配合降低请求频率。等待可取消并计入 timeout；非法参数在来源访问前拒绝。连接/认证、选根预检和适配器内部重试不属于该限制。见 [扫描配置与示例](Docs/Catalog.md#选择目录刷新与离线查询)。
 - 新增独立 `BoneRemoteSyncBaidu`，仅依赖 Core 与系统框架，由 Kit 重导出。`BaiduDriveSource` 遵循 `RemoteCopyingSource` 和 `RemoteIDAddressableSource`；新增 `RemoteSourceKind.baidu`，既有百度图标目录项现在对应 `.baidu`。
 - 使用百度官方开放 API，限已存在且获授权的 `/apps/{app}` 或子目录；提供目录分页、路径/ID 查询与完整文件下载。精确保留 uint64 `fs_id` / `uk`，条目 ID 绑定应用、用户和配置根，不支持全盘或其他应用目录浏览。
 - 提供 OAuth 简化/授权码模式的授权 URL 与回调校验；授权码交换、令牌刷新由宿主后端保护 SecretKey，不承诺 PKCE。来源实例合并并发刷新并核对账号；Catalog 保存 `.baidu(configuration:userID:)` 与固定凭据引用，可注入 `baiduTokenRefresher` 保存轮换结果。

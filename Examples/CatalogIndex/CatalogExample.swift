@@ -46,3 +46,14 @@ func catalogOfflineExample(databaseURL: URL, rootID: UUID, path: String) async t
         throw error
     }
 }
+
+/// 未发布新增：对请求频率敏感的网盘，单目录任务并发 + 500 ms 的共享扫描间隔。
+/// 宿主持有 catalog/store；页面离开时是否继续由宿主任务生命周期决定。
+func catalogThrottledRefresh(catalog: RemoteCatalog, rootID: UUID) async throws -> RemoteCatalogRefreshReport {
+    try await catalog.refresh(rootID: rootID, options: .init(
+        scope: .subtree,
+        concurrency: 1,
+        timeout: 3_600,
+        requestInterval: 0.5
+    ))
+}

@@ -2,6 +2,18 @@
 
 [返回项目首页](../README.md)
 
+## Catalog 扫描请求间隔（未发布）
+
+新增 `RemoteCatalogRefreshOptions.requestInterval`（秒，默认 `0`，有限值 `0...86400`），同一轮扫描的并发目录、分页和前后元数据核对共用 `list/stat` 放行间隔。使用单调时钟，延迟唤醒后重新核对间隔，不积攒突发名额；等待响应取消并受原有扫描 timeout 约束。非法参数在选根预检及来源访问前拒绝。示例见 [Catalog 刷新](Catalog.md#选择目录刷新与离线查询)和 [宿主代码](../Examples/CatalogIndex/CatalogExample.swift)。
+
+- 定向验证：Catalog 72 项和 Kit 7 项通过。新增 8 项测试覆盖默认零延迟、合法/非法取值、提前/迟到唤醒、并发目录与分页/stat 共用间隔、等待期间取消保留旧缓存，以及公共刷新 timeout 中断等待后再次刷新成功。
+- 全包 `swift test --no-parallel` 退出 0：**636 个去重测试函数通过，0 失败、0 跳过**。实际 668 次执行（39 XCTest + 629 Swift Testing），扣除 TestSupport 8 项在五个 bundle 中产生的额外 32 次重复；参数化 case 不另加。
+- `swift build -c release` 退出 0，保留既有 TestSupport 自导入 warning，无 error。全包测试无 warning/error；本轮全包与 Release 各执行一次。
+- macOS 12、iOS 15 Simulator、tvOS 15 Simulator、visionOS 1 Simulator：受影响的 Catalog/Kit 重新编译链接，以及 Catalog 宿主和指南示例类型检查均通过；四个平台日志无 warning/error。未变依赖复用此前同工具链验证产物；不是最低系统运行或真机验收。
+- Markdown 本地文件/标题链接、代码块和差异格式检查通过。原始日志为会话工作台 `catalog-interval-targeted.log`、`catalog-interval-full.log`、`catalog-interval-release.log`、`catalog-interval-platform-*.log`，不随仓库分发。
+
+参数只作用于本轮扫描的来源调用，不是跨刷新/全 App 的 HTTP 限流，不限制连接、认证、选根预检及适配器内部重试。仍需用 `concurrency: 1` 限制同时执行的目录任务；本次未增加持久扫描队列、后台执行或真实网盘配额验收。当前无本地实现阻塞，功能尚未发布。
+
 ## 百度网盘首期接入（未发布）
 
 新增独立 `BoneRemoteSyncBaidu`、Core `.baidu`、Kit 导出和图标映射，以及 Catalog 配置/凭据轮换/账号绑定；Transfer 复用完整下载、物化与 lease。基于官方开放 API，仅访问已授权 `/apps/...` 根。最新发布标签仍为 `v0.8.2`，百度接入尚未发布。接口与宿主职责见 [百度指南](BaiduDrive.md) 和 [示例](../Examples/BaiduDrive/README.md)。

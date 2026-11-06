@@ -63,6 +63,8 @@ print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
 
 只有保存 root 的完整 `subtree` 刷新成功后才生成或替换递归统计；`children` 刷新不改递归统计。宿主通过来源的上传、删除或移动接口改变远端内容后，应调用 `catalog.invalidateCache(rootID:directory:)` 或执行刷新。`clearIndex`、root 替换、binding 重绑和 profile 删除会清除对应 summary；路径失效自动回退到 `/` 时旧路径统计也不会沿用。
 
+**扫描节流（未发布）：** `RemoteCatalogRefreshOptions.requestInterval: TimeInterval` 表示同一次扫描的 `list/stat` 最小放行间隔，单位秒，默认 `0`，范围 `0...86400`；所有并发目录和分页共享。可用 `.init(scope: .subtree, concurrency: 1, requestInterval: 0.5)` 串行扫描并间隔 500 ms。等待计入 timeout，可被取消；连接/认证、选根预检、适配器内部重试和其他任务不在此限制内，不是全局 HTTP 限流。详细语义见 [Catalog 刷新](Catalog.md#选择目录刷新与离线查询)。
+
 
 
 ```text

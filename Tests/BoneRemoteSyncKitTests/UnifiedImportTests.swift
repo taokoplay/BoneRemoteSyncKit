@@ -78,9 +78,10 @@ import BoneRemoteSyncKit
         #expect(WebDAVResumableDownloadOptions(sourceNamespace: "test-account").sourceNamespace == "test-account")
         let profile = try RemoteSourceProfile(displayName: "Local", configuration: .local(accessReference: "host-bookmark"))
         #expect(profile.sourceNamespace == profile.bindingID.uuidString)
-        let options = RemoteCatalogRefreshOptions(scope: .subtree)
+        let options = RemoteCatalogRefreshOptions(scope: .subtree, requestInterval: 0.5)
         try options.validate()
         #expect(options.concurrency == 4)
+        #expect(options.requestInterval == 0.5)
         let cachedState: RemoteCatalogCacheState = .notInitialized
         #expect(cachedState.rawValue == "notInitialized")
         #expect(RemoteListPage(coverage: .unknown, entries: []).coverage == .unknown)

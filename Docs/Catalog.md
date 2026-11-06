@@ -170,7 +170,9 @@ import BoneRemoteSyncKit
 
 func indexSelection(catalog: RemoteCatalog, profile: RemoteSourceProfile) async throws -> RemoteCatalogRoot {
     let root = try await catalog.selectRoot(sourceID: profile.id, path: "/资料", defaultScope: .children)
-    let report = try await catalog.refresh(rootID: root.id, options: .init(scope: .subtree))
+    let report = try await catalog.refresh(rootID: root.id, options: .init(
+        scope: .subtree, concurrency: 1, timeout: 3_600, requestInterval: 0.5
+    ))
     // 检查 success/partial/failed/cancelled；不能仅以函数返回认定全树成功。
     if report.state == .success {
         _ = try await catalog.listCached(rootID: root.id, directory: root.path)
@@ -184,6 +186,9 @@ func indexSelection(catalog: RemoteCatalog, profile: RemoteSourceProfile) async 
 - 刷新已缓存的子目录可传其规范来源路径；不是任意越过缓存父链的路径查询。
 - 同根同一时间只接受一轮刷新，重复或冲突请求返回 busy；首版不合并等待。
 - 默认并发 4、最大 16；条目数、目录数、深度、单目录页数和整轮 timeout 均有限。pageSize 是提示，Local/WebDAV 可能一次物化整个大目录。
+- **未发布新增 `requestInterval`**：扫描阶段 `list/stat` 调用之间的最小放行间隔，单位秒，默认 `0`，合法范围 `0...86400`（有限值）。首个调用立即放行；同一轮扫描的所有并发目录和分页共享间隔，唤醒延迟不会积攒可突发放行的名额。不是每个目录各自计时，也不是每个文件等待一次。
+- 请求间隔与并发数分别控制频率和同时执行的目录任务数；慢请求仍可能重叠。对限制严格的网盘，建议先设 `concurrency: 1, requestInterval: 0.5`，再按实际配额调整。间隔等待计入扫描 timeout，取消或超时会中断等待并保留旧完整缓存。
+- 间隔仅约束本轮扫描主动调用来源的 `list/stat`；连接、认证、刷新前选根预检、适配器内部重试及其他刷新/下载不共用此限制，不保证每条底层 HTTP 请求的发送间隔。它适用于所有 Catalog 来源，不改变直接使用 `source.walk/list/stat` 的行为。参数按次传入，不自动持久化。
 - 整轮 timeout 使用单调时钟计时，关闭后续提交资格并取消任务，但仍等待网络/lease 清理。取消是协作式的，不保证精确时间点返回；已提交目录不回滚。
 - `refresh` 参数、存储和启动资格错误可能抛出；已开始扫描的来源错误通常在报告 `failures` 中以脱敏类别返回。不要持久化底层响应或 token 到错误日志。
 
