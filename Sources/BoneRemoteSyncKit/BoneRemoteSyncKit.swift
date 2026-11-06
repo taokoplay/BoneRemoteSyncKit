@@ -9,6 +9,11 @@
 @_exported import BoneRemoteSyncOneDrive
 @_exported import BoneRemoteSyncOPDS
 @_exported import BoneRemoteSyncBaidu
+@_exported import BoneRemoteSyncContent
+@_exported import BoneRemoteSyncKomga
+@_exported import BoneRemoteSyncKavita
+@_exported import BoneRemoteSyncAudiobookshelf
+@_exported import BoneRemoteSyncBrowser
 
 @_exported import BoneRemoteSyncCatalog
 @_exported import BoneRemoteSyncTransfer

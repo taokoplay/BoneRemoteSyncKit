@@ -35,7 +35,7 @@ final class OPDSHTTPClient: @unchecked Sendable {
 
     deinit { cancel() }
 
-    func send(_ url: URL, catalog: Bool = true, sink: OPDSDownloadSink? = nil) async throws -> OPDSHTTPResponse {
+    func send(_ url: URL, catalog: Bool = true, image: Bool = false, sink: OPDSDownloadSink? = nil) async throws -> OPDSHTTPResponse {
         do {
             try Task.checkCancellation()
             if let sink {
@@ -52,9 +52,11 @@ final class OPDSHTTPClient: @unchecked Sendable {
                 request.httpShouldHandleCookies = false
                 request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
                 request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
-                request.setValue(sink == nil ? "application/atom+xml, application/opensearchdescription+xml, application/xml, text/xml" : "*/*", forHTTPHeaderField: "Accept")
+                let accept = sink != nil ? "*/*" : image ? "image/*"
+                    : "application/atom+xml, application/opensearchdescription+xml, application/xml, text/xml"
+                request.setValue(accept, forHTTPHeaderField: "Accept")
                 if mayAuthorize { request.setValue(authorization, forHTTPHeaderField: "Authorization") }
-                let result = try await perform(request, sink: sink)
+                let result = try await perform(request, image: image, sink: sink)
                 try Task.checkCancellation()
                 guard lock.withLock({ !closed }) else { throw RemoteSyncError.cancelled }
                 guard Self.isRedirect(result.response.statusCode) else { return result }
@@ -76,9 +78,9 @@ final class OPDSHTTPClient: @unchecked Sendable {
         }
     }
 
-    private func perform(_ request: URLRequest, sink: OPDSDownloadSink?) async throws -> OPDSHTTPResponse {
+    private func perform(_ request: URLRequest, image: Bool, sink: OPDSDownloadSink?) async throws -> OPDSHTTPResponse {
         let id = UUID()
-        let state = OPDSHTTPState(configuration: configuration, sink: sink)
+        let state = OPDSHTTPState(configuration: configuration, image: image, sink: sink)
         try lock.withLock {
             guard !closed else { throw RemoteSyncError.cancelled }
             guard active.count < configuration.maxConcurrentTransfers else { throw OPDSError.resourceLimit }

@@ -4,6 +4,36 @@ import BoneRemoteSyncKit
 
 /// Deliberately imports only the umbrella SDK, without @testable or individual source modules.
 @Suite struct UnifiedImportTests {
+    @Test func exposesUnifiedBrowserThroughKit() async throws {
+        let source = LocalFileSource(root: FileManager.default.temporaryDirectory)
+        let binding = RemoteSourceBinding(kind: .local, identity: "kit-browser")
+        let browser = try RemoteBrowser.files(source, binding: binding, options: .init(maxBufferedItems: 100))
+        #expect(browser.sourceBinding == binding && browser.capabilities.contains(.browse))
+        let metadata = RemoteBrowseMetadata(title: "Book")
+        #expect(metadata.size == nil && metadata.progress == nil)
+        let classification: RemoteBrowserError.Code = .sessionExpired
+        #expect(RemoteBrowserError(code: classification).description == "RemoteBrowserError(sessionExpired)")
+        await browser.close()
+    }
+
+    @Test func exposesNativeContentServicesThroughKit() throws {
+        let configuration = try ContentServerConfiguration(baseURL: URL(string: "https://books.example/mount")!)
+        let sources: [any RemoteSource] = [KomgaSource(configuration: configuration),
+                                           KavitaSource(configuration: configuration),
+                                           AudiobookshelfSource(configuration: configuration)]
+        #expect(sources.map(\.kind) == [.komga, .kavita, .audiobookshelf])
+        for source in sources {
+            #expect(!source.capabilities.list && source.capabilities.stat && source.capabilities.download)
+            #expect(!source.capabilities.upload && !source.capabilities.rangedDownload && !source.capabilities.idAddressing)
+            #expect(BoneRemoteSyncIcons.icon(for: source.kind) == nil)
+            #expect(BoneRemoteSyncIcons.sourceTypes().contains(where: { $0.kind == source.kind }))
+        }
+        let aliases: [ContentServerConfiguration] = [configuration as KomgaConfiguration,
+                                                      configuration as KavitaConfiguration,
+                                                      configuration as AudiobookshelfConfiguration]
+        #expect(aliases.allSatisfy { $0 == configuration })
+    }
+
     @Test func exposesBaiduDriveAndCatalogConfiguration() throws {
         let configuration = try BaiduDriveConfiguration(appKey: "fixture-app", rootPath: "/apps/Fixture")
         let source = BaiduDriveSource(configuration: configuration)

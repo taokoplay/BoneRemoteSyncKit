@@ -6,6 +6,13 @@
 
 以下为当前工作区尚未发布的变更；最新发布版本仍为 `v0.8.2`。开发接入需使用包含本次实现的源码，不代表远端 `main` 已包含这些改动。
 
+- 新增 `BoneRemoteSyncBrowser`，由 Kit 导出：统一文件来源与 OPDS/Komga/Kavita/Audiobookshelf 的浏览条目、元数据、分页、搜索、详情、封面及下载选项。`RemoteBrowseSnapshot` 可编码，live 句柄和 cursor 会话隔离；保留 coverage、未知值和原生阅读/播放语义，支持显式原生引用。关闭 Browser 取消并排空其操作，不断开宿主 source，见 [统一浏览指南](Docs/Browser.md)。
+- OPDS 新增 `cover(_:)`：优先 thumbnail、其次 image，无图返回 nil；复用有界请求和凭据隔离，独立验证 image MIME。封面 Data 不代表已经解码或净化 SVG。新增统一 Browser 示例、跨来源/分页/下载/生命周期及封面回归。
+
+- 新增 `BoneRemoteSyncContent`、`BoneRemoteSyncKomga`、`BoneRemoteSyncKavita`、`BoneRemoteSyncAudiobookshelf`，统一由 Kit 导出；Core 新增三个来源类型，宿主穷举 switch 需更新。提供原生认证/账号核对、书库与内容层级、分页搜索、详情、封面、完整文件获取和显式用户进度。
+- Komga 支持 Basic/API key、书籍页进度和 EPUB Readium progression；Kavita 支持账号/API key/JWT、系列/卷章、章节文件或 ZIP、页数与 EPUB XPath 进度；Audiobookshelf 支持账号/Bearer、书籍/播客/音轨、收听进度和直放会话创建/同步/关闭，认证音轨请求交给宿主播放器。
+- 共用反代子路径处理、认证隔离、拒绝重定向、有界响应、并发与请求间隔、覆盖等待的超时和取消排空；完整文件通过私有 staging 与原子安装接入 Transfer。连接重建使旧下载引用失效；不提供通用目录树、Catalog、强版本、Range/续传、转码或后台播放器。见 [内容服务总览](Docs/ContentServices.md)。
+
 - Catalog 扫描新增 `RemoteCatalogRefreshOptions.requestInterval`，单位秒、默认 `0`；整轮扫描的并发目录及分页共用 `list/stat` 放行间隔，可与 `concurrency: 1` 配合降低请求频率。等待可取消并计入 timeout；非法参数在来源访问前拒绝。连接/认证、选根预检和适配器内部重试不属于该限制。见 [扫描配置与示例](Docs/Catalog.md#选择目录刷新与离线查询)。
 - 新增独立 `BoneRemoteSyncBaidu`，仅依赖 Core 与系统框架，由 Kit 重导出。`BaiduDriveSource` 遵循 `RemoteCopyingSource` 和 `RemoteIDAddressableSource`；新增 `RemoteSourceKind.baidu`，既有百度图标目录项现在对应 `.baidu`。
 - 使用百度官方开放 API，限已存在且获授权的 `/apps/{app}` 或子目录；提供目录分页、路径/ID 查询与完整文件下载。精确保留 uint64 `fs_id` / `uk`，条目 ID 绑定应用、用户和配置根，不支持全盘或其他应用目录浏览。

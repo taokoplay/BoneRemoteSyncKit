@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [百度](BaiduDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页描述已发布 `v0.8.2` API 与当前工作区未发布的百度扩展；百度需使用包含本次实现的源码，不代表远端 `main` 已可安装。OPDS 只读书库自 `v0.8.0`、可组合网盘权限自 `v0.7.0`、Catalog 统计/缓存失效/iCloud 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
+> 本页描述已发布 `v0.8.2` API 与当前工作区未发布的百度、Komga、Kavita、Audiobookshelf 扩展；新模块需使用包含本次实现的源码，不代表远端 `main` 已可安装。OPDS 只读书库自 `v0.8.0`、可组合网盘权限自 `v0.7.0`、Catalog 统计/缓存失效/iCloud 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -20,6 +20,11 @@
 | `BoneRemoteSyncTransfer` | **自 v0.4.0 提供**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
 | `BoneRemoteSyncOPDS` | **自 v0.8.0**：OPDS 1.2 专用书目浏览/搜索/详情与只读下载，仅依赖 Core；不集成 Catalog |
+| `BoneRemoteSyncContent` | **未发布**：内容服务共享配置、分页、认证播放请求及受限 HTTP/下载设施，仅依赖 Core |
+| `BoneRemoteSyncKomga` | **未发布**：Komga 原生书库、下载与阅读进度，依赖 Content/Core |
+| `BoneRemoteSyncKavita` | **未发布**：Kavita 原生系列/卷章、下载与阅读进度，依赖 Content/Core |
+| `BoneRemoteSyncAudiobookshelf` | **未发布**：有声书/播客、文件下载、收听进度与直放会话，依赖 Content/Core |
+| `BoneRemoteSyncBrowser` | **未发布**：文件与四种书库的统一浏览/分页/搜索/详情/封面/下载选择、Codable 展示快照及错误分类；保留原生引用，见 [Browser](Browser.md) |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，它不是应当在业务代码中复制的接入方式；本轮消费端验证结果以[验证记录](Validation.md)为准。
 
@@ -95,6 +100,8 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource / BaiduDrive
 
 未发布 `BaiduDriveSource` 使用已存在且获授权的 `/apps/{app}` 或子目录作为 `rootPath`，不提供全盘浏览。`BaiduDriveOAuth` 生成简化/授权码模式 URL 并校验回调；code 交换和令牌刷新交给宿主后端保护 SecretKey，无 PKCE 承诺。`BaiduDriveTokenRefresher` 由宿主调用后端并安全持久化新令牌，单实例合并刷新、核对账号，失败使会话失效；Catalog 的固定引用回调另见 [Catalog](Catalog.md)。尚无真实百度应用或 token，接入合同见 [百度指南](BaiduDrive.md)。
 
+未发布原生 `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 均遵循 `RemoteSource`，但仅声明会话登记描述的 `stat` 与完整 `download`；通过各自的原生 API 浏览和搜索，不支持 `list/walk` 或 Catalog。`prepareDownload` 返回会话内不透明引用，与同一连接的 `sourceBinding()` 一起接入 Transfer。阅读/收听进度是独立显式写操作，不表示实现文件上传/删除。`RemoteSourceKind` 新增 `.komga`、`.kavita`、`.audiobookshelf`，宿主穷举 switch 需覆盖；图标仍为 nil。详见 [内容服务合同](ContentServices.md)。
+
 ## 网盘访问权限
 
 Catalog 保存的 `RemoteSourceProfile.permission` 使用 `RemoteAccessPermission: OptionSet`：默认只读且读取必选，编辑、新增、删除可多选：
@@ -168,7 +175,7 @@ func describeFile(_ entry: RemoteEntry) -> String {
 }
 ```
 
-分类不打开文件、不读取文件头、不下载远端内容，也不验证 MIME 或扩展名是否真实；不能用它做安全校验或判断文件一定可解码。当前没有图片尺寸、EXIF、音视频时长、封面、缩略图、播放或转码 API。普通 list 不会隐式提取这些信息。
+分类不打开文件、不读取文件头、不下载远端内容，也不验证 MIME 或扩展名是否真实；不能用它做安全校验或判断文件一定可解码。普通文件 `list` 不提取图片尺寸、EXIF、时长或封面。未发布原生内容服务可获取服务端已有的媒体元数据、封面和页面；Audiobookshelf 可创建直放会话，但 SDK 不提供媒体解析器、播放器或转码器，见 [内容服务](ContentServices.md)。
 
 当前数据语义：`createdAt` 是默认 nil 的可选参数；Swift 合成的 Codable 将缺失字段解码为 nil，与来源可能不提供创建时间的语义一致。这不是跨版本格式兼容承诺。分类是计算属性，不重复写入 Codable 数据。`createdAt` 参与合成的相等性/哈希，完整条目相等不等于内容相同；`hasReliableFingerprint` 仍只依据 ETag 或修改时间，不因为有创建时间就变成 true。
 

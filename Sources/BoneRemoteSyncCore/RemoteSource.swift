@@ -18,6 +18,12 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
     case opds
     /// 百度网盘开放平台的应用目录来源。
     case baidu
+    /// 自建漫画书库，使用专用内容 API。
+    case komga
+    /// 自建电子书和漫画书库，使用专用内容 API。
+    case kavita
+    /// 自建有声书和播客服务，使用专用内容及播放 API。
+    case audiobookshelf
 
     /// 内容来源使用专用浏览 API；来源类型不代表文件目录浏览能力。
     /// The bundled icon filename used by the unified SDK. `nil` means this kind has no built-in artwork yet.
@@ -27,7 +33,7 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .cloudAPI: "onedrive"
         case .iCloud: "icloud"
         case .baidu: "baidu"
-        case .local, .smb, .ftp, .sftp, .nfs, .dlna, .opds: nil
+        case .local, .smb, .ftp, .sftp, .nfs, .dlna, .opds, .komga, .kavita, .audiobookshelf: nil
         }
     }
 
@@ -45,6 +51,9 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .dlna: "DLNA"
         case .opds: "OPDS"
         case .baidu: "Baidu Netdisk"
+        case .komga: "Komga"
+        case .kavita: "Kavita"
+        case .audiobookshelf: "Audiobookshelf"
         }
     }
 }

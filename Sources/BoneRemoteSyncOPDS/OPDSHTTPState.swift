@@ -7,6 +7,7 @@ import BoneRemoteSyncCore
 final class OPDSHTTPState: NSObject, URLSessionDataDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private let limit: Int
+    private let image: Bool
     private let sink: OPDSDownloadSink?
     private let configuration: OPDSConfiguration
     // Protected by lock; accessed by cancellation and the awaiting task.
@@ -25,9 +26,10 @@ final class OPDSHTTPState: NSObject, URLSessionDataDelegate, @unchecked Sendable
     private var completed: Result<OPDSHTTPResponse, Error>?
     private var needsCatalogValidation = false
 
-    init(configuration: OPDSConfiguration, sink: OPDSDownloadSink?) {
+    init(configuration: OPDSConfiguration, image: Bool, sink: OPDSDownloadSink?) {
         self.configuration = configuration
         self.limit = configuration.maxResponseBytes
+        self.image = image
         self.sink = sink
     }
 
@@ -124,13 +126,17 @@ final class OPDSHTTPState: NSObject, URLSessionDataDelegate, @unchecked Sendable
                 try sink.file.open()
                 sink.options.reportTransferred(0, total: expected)
             } else {
-                let recognized = ["application/atom+xml", "application/opensearchdescription+xml", "application/xml", "text/xml"]
-                if !recognized.contains(mediaType ?? "") {
-                    guard configuration.compatibility == .compatible,
-                          ["", "text/html", "application/xhtml+xml", "text/plain", "application/octet-stream"].contains(mediaType ?? "") else {
-                        throw OPDSError.unexpectedContentType
+                if image {
+                    try Self.validateImageType(mediaType)
+                } else {
+                    let recognized = ["application/atom+xml", "application/opensearchdescription+xml", "application/xml", "text/xml"]
+                    if !recognized.contains(mediaType ?? "") {
+                        guard configuration.compatibility == .compatible,
+                              ["", "text/html", "application/xhtml+xml", "text/plain", "application/octet-stream"].contains(mediaType ?? "") else {
+                            throw OPDSError.unexpectedContentType
+                        }
+                        needsCatalogValidation = true
                     }
-                    needsCatalogValidation = true
                 }
                 guard expected.map({ $0 <= Int64(limit) }) ?? true else { throw OPDSError.resourceLimit }
             }
@@ -230,6 +236,17 @@ final class OPDSHTTPState: NSObject, URLSessionDataDelegate, @unchecked Sendable
         guard let value else { return nil }
         return value.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first?
             .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private static func validateImageType(_ type: String?) throws {
+        // Require a concrete image MIME subtype; catalog compatibility never applies.
+        guard let type, type.hasPrefix("image/") else { throw OPDSError.unexpectedContentType }
+        let subtype = type.dropFirst("image/".count)
+        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789!#$&^_.+-")
+        guard let first = subtype.utf8.first,
+              (97...122).contains(first) || (48...57).contains(first),
+              subtype.utf8.count <= 127,
+              subtype.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { throw OPDSError.unexpectedContentType }
     }
 
     private static func isXML(_ type: String) -> Bool {

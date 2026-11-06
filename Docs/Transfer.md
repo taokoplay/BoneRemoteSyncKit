@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [百度接入](BaiduDrive.md) · [验证记录](Validation.md)
 
-> Transfer API 自 **`v0.4.0`** 提供，最新发布版本为 `v0.8.2`；本页另列当前工作区未发布的百度接入，需使用包含本次实现的源码。它是通用文件能力，不解析文件格式，也不是自动同步引擎；版本发布不代表真实服务、最低系统运行或性能验收已完成。
+> Transfer API 自 **`v0.4.0`** 提供，最新发布版本为 `v0.8.2`；本页另列当前工作区未发布的百度及三种原生内容服务接入，需使用包含本次实现的源码。它是通用文件能力，不解析文件格式，也不是自动同步引擎；版本发布不代表真实服务、最低系统运行或性能验收已完成。
 
 ## 一个 Kit，内部按职责分层
 
@@ -20,6 +20,12 @@
 **百度接入（当前工作区，未发布）：** `BaiduDriveSource` 连接后，用 `try await source.connectedBinding()` 构造 materializer 和 `RemoteFileReference`；locator 可为来源内路径或 `RemoteEntry.id`，ID 必须由来源签发，不能用原始 `fs_id`、路径或 dlink 代替。可复用完整文件物化、coordinator、进度/取消与 lease，完整生命周期见 [百度示例](../Examples/BaiduDrive/README.md)。其 `rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能浏览全盘。
 
 百度仅提供完整文件下载：不支持 Range、`resumeFrom`、`RemoteDownloadRecovery`、强条件读取或后台任务。非空 ≤4 GiB 的上传虽使用 4 MiB 顺序分片，但 `resumableUpload=false`，不提供持久上传恢复，也不加入下载 coordinator；`expectedETag` 同样不支持。
+
+**原生内容服务（未发布）：** Komga 用 `prepareDownload(bookID:)`，Kavita 用 `prepareDownload(_ chapterReference:)`，Audiobookshelf 用 `prepareDownload(itemID:fileID:)` 或 `prepareTrackDownload`。这些方法返回会话内 `RemoteFileReference`；必须使用同一连接的 `sourceBinding()` 创建 materializer，不手工拼接路径。完整下载复用 coordinator、进度、取消和 lease。重连/账号切换后旧引用失效，需重新选择并登记、新建 binding/materializer。
+
+三者的 `stat` 只读已登记描述；未知大小保持 nil，不把书库更新时间、阅读进度或服务端本地路径当文件版本。没有强版本时不复用旧内容；不支持 Range、`resumeFrom`、`expectedETag` 或持久续传。Kavita 多文件章节返回服务端 ZIP，大小未知；Audiobookshelf 显式选一个文件/音轨，不自动拼接多文件书籍。下载不会修改阅读/收听进度；Audiobookshelf 直放会话独立于 Transfer，见 [内容服务总览](ContentServices.md)。
+
+**统一 Browser（未发布）：** 对跨来源界面，可以统一调用 `browser.downloadOptions(for: item)`，让用户选择格式或实际文件，再 `browser.prepareDownload(selection)`。返回引用直接交给以 `browser.source` / `browser.sourceBinding` 创建的 materializer/coordinator。Browser 不自动选择首个格式，不将多音轨拼接为一个文件；浏览器关闭也不替代 Transfer shutdown，见 [Browser 生命周期](Browser.md#生命周期快照和错误)。
 
 ## 基本使用
 

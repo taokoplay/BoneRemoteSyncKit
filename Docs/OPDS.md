@@ -41,13 +41,18 @@
 | `browse(_ link:)` | 跟随当前会话的 Atom Feed 链接 |
 | `nextPage(_:)` | 获取游标对应的下一页；不预取后续页面 |
 | `publication(_:)` | 有合适 `alternate` 链接时请求完整 Atom Entry 并核对 ID；否则返回当前书目 |
+| `cover(_:) async throws -> Data?` | 验证当前会话书目，优先 thumbnail，其次 image；无图片链接返回 nil |
 | `search(_:in:count:)` | 优先使用 OpenSearch 描述文档；兼容模式还支持 Atom 直接 GET 搜索模板；默认 count 为 100 |
 | `prepareDownload(_:acquisition:)` | 验证书目与显式选中的获取方式，签发文件引用 |
 | `disconnect()` | 取消请求、清空会话状态，使书目/链接/游标/文件引用失效；已提交文件不回滚 |
 
 `OPDSPage.items` 保留服务器条目顺序；`navigation`、`publications` 是过滤视图。同一本书可出现在多个分类，不代表多份文件。页面的 nil `nextCursor` 只表示没有下一页，不证明整个书库完整。游标包含原分页链上下文，可重复请求同一页，但不能跨连接或来源使用；循环和预算超限报错。
 
-`OPDSPublication` 提供 Atom ID、标题、作者、简介、分类、语言、出版社、出版时间字符串、书目更新时间、链接及获取方式。大小未知不是零。`summary`/`content` 的 text、HTML、XHTML 有类型区分；不执行远端标记，宿主渲染前须净化。封面通过 `imageLinks` 提供 URL，不自动请求；URL 可能含敏感参数，不应记录到日志。
+`OPDSPublication` 提供 Atom ID、标题、作者、简介、分类、语言、出版社、出版时间字符串、书目更新时间、链接及获取方式。大小未知不是零。`summary`/`content` 的 text、HTML、XHTML 有类型区分；不执行远端标记，宿主渲染前须净化。封面链接由 `imageLinks` 提供，浏览时不自动请求；URL 可能含敏感参数，不应记录到日志。
+
+需要封面时调用 `try await source.cover(publication)`。仅使用该书目已有的 `http://opds-spec.org/image/thumbnail` 或 `http://opds-spec.org/image` 链接，同一关系按模型顺序选择第一个；不隐式请求详情，已选图片失败时直接抛错，不重试另一个链接。无图片返回 nil；断开后为 `notConnected`，重连或跨来源使用旧书目为 `invalidReference`，在途取消或会话替换为 `cancelled`。
+
+封面经现有独立 HTTP 客户端有界读取，响应须声明合法、具体的 `image/*` MIME（包括 `image/svg+xml`），不使用 Feed 的兼容 MIME 回退。`maxResponseBytes` 同时约束已知长度和流式接收字节数；拒绝短读、部分响应和内容编码。返回值是原始、不可信的 `Data`，传输检查不验证图片能否解码，也不净化 SVG。宿主须使用安全图片解码器并限制解码后的资源用量，不直接执行 SVG、脚本或其他远端内容，不因 MIME 为图片而信任内容。
 
 搜索支持 OpenSearch 1.1 GET 模板的 `searchTerms`、`count`、`startIndex`、`startPage`、`language`、`inputEncoding`、`outputEncoding`，也支持绑定到 OpenSearch 命名空间的前缀（如 `{os:searchTerms}`），按 indexOffset/pageOffset 起始值填充。未知必填参数和 POST 模板明确不支持；未知可选参数替换为空值。参数只允许出现在路径或查询值中，UTF-8 百分号编码防止查询注入；搜索结果按 Feed 的 next 链接翻页。不扫描分类猜测搜索接口，不支持高级字段搜索。
 
@@ -111,14 +116,14 @@ Feed ETag、书目 updated 与出版日期不能当作文件版本。下载响�
 
 - 默认 HTTPS；明文 HTTP 要求 `allowsInsecureHTTP=true`，宿主负责 ATS。系统证书校验不绕过。
 - 目录、详情与搜索默认同源，额外 origin 通过 `allowedCatalogOrigins` 明确配置（只能是 scheme/host/port，无路径和查询）。Basic 只发给根 origin；跨域重定向后即使回到原 origin 也不恢复凭据。
-- 下载允许跨源 HTTPS，启用 HTTP 时也可用于本地测试/局域网；禁止 HTTPS → HTTP 重定向降级。每跳验证，最多 5 次，不带共享 Cookie、共享凭据和隐式磁盘缓存。
+- 下载与封面允许跨源 HTTPS，启用 HTTP 时也可用于本地测试/局域网；禁止 HTTPS → HTTP 重定向降级。每跳验证，最多 5 次，不带共享 Cookie、共享凭据和隐式磁盘缓存。封面的 CDN 请求不需要加入 `allowedCatalogOrigins`，跨域不携带 Basic 凭据。
 - 不接受 URL userinfo、非 HTTP(S) URL、无效端口；合法查询保留，fragment 不参与请求。无隐藏重试或无限重新认证。
 - Feed 有界读取，XML 拒绝 DTD/实体声明和外部实体；额外限制 100,000 XML 节点。未知扩展不会混入标题等字段。外置 atom:content 不自动下载。
 
 | 配置 | 默认值 | 可配置范围 |
 | --- | --- | --- |
 | timeout | 60 秒 | >0，≤86400；每个 HTTP 请求/重定向跳适用 |
-| maxResponseBytes | 8 MiB | 1…64 MiB |
+| maxResponseBytes | 8 MiB | 1…64 MiB；Feed、搜索描述和封面共用单次响应上限 |
 | maxEntriesPerPage | 5000 | 1…100000 |
 | maxXMLDepth | 64 | 2…256 |
 | maxPages | 1000 | 1…100000，按一条分页链 |
@@ -126,7 +131,7 @@ Feed ETag、书目 updated 与出版日期不能当作文件版本。下载响�
 | maxConcurrentTransfers | 3 | 1…16 |
 | compatibility | `.compatible` | `.compatible` / `.strict` |
 
-HTTP 客户端共享当前来源的请求上限（包含浏览/搜索/下载），直接超额请求返回 `resourceLimit`；Transfer 下载还受 materializer 和 coordinator 上限限制。预算是明确拒绝，不把截断结果当成功列表；二进制文件不受 Feed 字节上限限制。
+HTTP 客户端共享当前来源的请求上限（包含浏览/搜索/封面/下载），直接超额请求返回 `resourceLimit`；Transfer 下载还受 materializer 和 coordinator 上限限制。预算是明确拒绝，不把截断结果当成功列表或封面；书籍文件下载不受元数据与封面的字节上限限制。
 
 ## 错误与当前边界
 

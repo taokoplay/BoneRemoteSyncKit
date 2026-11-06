@@ -146,7 +146,7 @@ jobs:
           set -euo pipefail
           # 报出体积但不删除：这里只作为可观察信号。
           ./script/clean.sh --dry-run
-          leftovers="$( (ls -d "${TMPDIR:-/tmp}"/BoneDAVTests-* "${TMPDIR:-/tmp}"/BoneODTests-* "${TMPDIR:-/tmp}"/BoneOPDSTests-* "${TMPDIR:-/tmp}"/BoneBaiduTests-* 2>/dev/null || true) | wc -l | tr -d ' ')"
+          leftovers="$( (ls -d "${TMPDIR:-/tmp}"/BoneDAVTests-* "${TMPDIR:-/tmp}"/BoneODTests-* "${TMPDIR:-/tmp}"/BoneOPDSTests-* "${TMPDIR:-/tmp}"/BoneBaiduTests-* "${TMPDIR:-/tmp}"/BoneContentTests-* "${TMPDIR:-/tmp}"/BoneKomgaTests-* "${TMPDIR:-/tmp}"/BoneKavitaTests-* "${TMPDIR:-/tmp}"/BoneAudiobookshelfTests-* "${TMPDIR:-/tmp}"/BoneBrowserTests-* 2>/dev/null || true) | wc -l | tr -d ' ')"
           echo "夹具临时目录残留：$leftovers"
           if [ "$leftovers" -ne 0 ]; then
             # 单个测试被中断时可能留下目录；不阻断 CI，但给出明确警告。

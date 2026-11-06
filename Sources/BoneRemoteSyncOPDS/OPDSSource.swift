@@ -83,6 +83,19 @@ public actor OPDSSource: RemoteSource {
         return complete
     }
 
+    /// 有界读取当前书目的封面，优先 thumbnail；没有图片链接时返回 nil。
+    /// 返回不可信图片数据（包括 SVG），调用方负责安全解码，不应直接执行内容。
+    public func cover(_ publication: OPDSPublication) async throws -> Data? {
+        let current = try connected()
+        guard publication.sessionID == current.id else { throw OPDSError.invalidReference }
+        guard let link = publication.imageLinks.first(where: { $0.relation == "http://opds-spec.org/image/thumbnail" })
+            ?? publication.imageLinks.first(where: { $0.relation == "http://opds-spec.org/image" }) else { return nil }
+        guard link.sessionID == current.id else { throw OPDSError.invalidReference }
+        let response = try await current.client.send(link.url, catalog: false, image: true)
+        try check(current)
+        return response.data
+    }
+
     /// 搜索入口来自指定页面，省略时使用根 Feed；不扫描分类以猜测接口。
     public func search(_ query: String, in page: OPDSPage? = nil, count: Int = 100) async throws -> OPDSPage {
         let current = try connected()

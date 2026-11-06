@@ -45,6 +45,11 @@ TEST_TEMP_PATTERNS=(
     "$TMPDIR""BoneODWriteTests-*"
     "$TMPDIR""BoneOPDSTests-*"
     "$TMPDIR""BoneBaiduTests-*"
+    "$TMPDIR""BoneContentTests-*"
+    "$TMPDIR""BoneKomgaTests-*"
+    "$TMPDIR""BoneKavitaTests-*"
+    "$TMPDIR""BoneAudiobookshelfTests-*"
+    "$TMPDIR""BoneBrowserTests-*"
     "$TMPDIR""CatalogTests-*"
 )
 

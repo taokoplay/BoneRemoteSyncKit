@@ -16,6 +16,8 @@ maximum = 0
 ATOM = 'http://www.w3.org/2005/Atom'
 ACQ = 'http://opds-spec.org/acquisition'
 PAYLOAD = b'PK\x03\x04opds-test-content' * 10000
+IMAGE = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aZ1sAAAAASUVORK5CYII=')
+SVG = b'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1"/></svg>'
 
 
 def entry(target='/files/book.epub', detail=False):
@@ -52,8 +54,51 @@ class Handler(BaseHTTPRequestHandler):
         query = parse_qs(urlsplit(self.path).query)
         with lock:
             with open(workspace + '/requests.jsonl', 'a') as log:
-                log.write(json.dumps({'path': self.path, 'authorization': self.headers.get('Authorization'), 'cookie': self.headers.get('Cookie')}) + '\n')
+                log.write(json.dumps({'path': self.path, 'authorization': self.headers.get('Authorization'), 'cookie': self.headers.get('Cookie'), 'accept': self.headers.get('Accept')}) + '\n')
         try:
+            if path == '/artwork/catalog':
+                links = ''.join('<link rel="http://opds-spec.org/image%s" href=%s/>' % (
+                    '/thumbnail' if kind == 'thumbnail' else '', quoteattr(target))
+                    for kind in ['image', 'thumbnail'] for target in query.get(kind, []))
+                return self.send(feed(entry().replace('</entry>', links + '</entry>')),
+                                 headers={'Set-Cookie': 'artwork=must-not-be-sent'})
+            if path == '/artwork/cross':
+                return self.send(b'', status=302, headers={'Location': 'http://localhost:%d/artwork/image' % self.server.server_port})
+            if path == '/artwork/cross-return':
+                return self.send(b'', status=302, headers={'Location': 'http://localhost:%d/artwork/return' % self.server.server_port})
+            if path == '/artwork/return':
+                return self.send(b'', status=302, headers={'Location': 'http://127.0.0.1:%d/artwork/image' % self.server.server_port})
+            if path == '/artwork/redirect':
+                return self.send(b'', status=302, headers={'Location': query['target'][0]})
+            if path == '/artwork/mime':
+                mime = query.get('type', ['missing'])[0]
+                return self.send(feed(entry()), None if mime == 'missing' else mime)
+            if path == '/artwork/svg':
+                return self.send(SVG, 'IMAGE/SVG+XML; charset=utf-8')
+            if path == '/artwork/slow':
+                time.sleep(0.8)
+                return self.send(IMAGE, 'image/png')
+            if path == '/artwork/large':
+                return self.send(IMAGE * 100, 'image/png')
+            if path in ['/artwork/unknown', '/artwork/large-unknown', '/artwork/short']:
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Connection', 'close')
+                if path == '/artwork/short':
+                    self.send_header('Content-Length', str(len(IMAGE) + 100))
+                self.end_headers()
+                self.wfile.write(IMAGE * (100 if path == '/artwork/large-unknown' else 1))
+                self.wfile.flush()
+                self.close_connection = True
+                return
+            if path == '/artwork/partial':
+                return self.send(IMAGE, 'image/png', status=206)
+            if path == '/artwork/ranged':
+                return self.send(IMAGE, 'image/png', headers={'Content-Range': 'bytes 0-67/100'})
+            if path == '/artwork/encoded':
+                return self.send(IMAGE, 'image/png', headers={'Content-Encoding': 'gzip'})
+            if path in ['/artwork/image', '/artwork/thumbnail']:
+                return self.send(IMAGE, 'image/png')
             if path == '/compat/metadata':
                 items = entry().replace('2026-11-01T00:00:00Z', '2026-11-01T00:00:00')
                 data = feed(items).replace(b'<updated>2026-11-01T00:00:00Z</updated>', b'')

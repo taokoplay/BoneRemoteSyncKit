@@ -2,6 +2,61 @@
 
 [返回项目首页](../README.md)
 
+## 统一 Browser 使用说明补全（未发布）
+
+本轮只补充文档和宿主示例，未修改 `Sources`、测试目标或 Package 配置。新增 [九种来源连接示例](../Examples/UnifiedBrowser/BrowserConnectionExamples.swift)，扩充 [通用操作示例](../Examples/UnifiedBrowser/UnifiedBrowserExample.swift)和 [完整使用指南](Browser.md)，覆盖本地源码安装、凭据/binding、分页搜索、详情封面、下载进度/取消、lease、原生阅读/播放、快照重连及错误处理；纠正了 Catalog 内部扫描会话不能直接借给 Browser 的说明。
+
+- 两份示例文件和指南的 6 个业务 Swift 代码块，在 macOS 12、iOS 15 Simulator、tvOS 15 Simulator、visionOS 1 Simulator 的 Swift 6 类型检查均通过，零 warning/error；复用上一轮未改动的 SDK 编译产物。另一个安装清单代码块经 `swift package dump-package` 解析通过，并用于下面的独立消费端构建。
+- 独立 SwiftPM 宿主只依赖 Kit，直接引用两份示例及提取的指南代码，构建运行通过：本地连接、三页浏览、页预算报错、详情/封面空值/下载选项、快照编解码、Transfer 文件内容、关闭后来源仍可用，以及完整 choose → consume → close/disconnect 流程。全部数据在临时本地目录，没有访问真实账号或网络服务。
+- 一次读者核验确认安装、SDK/示例区分、九种连接、页面操作、下载生命周期、原生桥接、快照重连及错误层次均有明确说明；Markdown 本地链接/锚点、代码块和差异格式检查通过。
+
+证据在会话工作台 `browser-usage-verification/results.json`、`browser-usage-verification/*-examples.log`、`browser-usage-smoke.log` 和 `browser-usage-doc-links.json`。本轮未重跑 SDK 全包测试，上一阶段 736 项结果保留如下。示例首轮的协议实例身份比较编译失败已改为先转换具体 actor 后比较，再完成上述验证。没有新增真实 iCloud/OAuth/网盘/书库或播放器验收，当前无文档交付阻塞。
+
+## 统一 Browser 与 OPDS 封面（未发布）
+
+新增 `BoneRemoteSyncBrowser`，由 Kit 重导出，在已连接的文件/OPDS/Komga/Kavita/Audiobookshelf 来源之上提供统一浏览、分页、搜索、详情、封面、下载选项和原生引用。展示快照可编码，live item/cursor/download 不可跨 Browser 或会话复用；不隐式扫描文件树、写阅读进度或创建播放会话。OPDS 新增 `cover(_:)`，复用现有有界传输和跨域凭据隔离。指南见 [Browser](Browser.md)、[示例](../Examples/UnifiedBrowser/README.md)和 [OPDS](OPDS.md)。本轮未提交、推送或发布。
+
+| 检查 | 最终结果 |
+| --- | --- |
+| 全包回归 | `swift test --no-parallel` 退出 0，**736 个去重测试函数通过，0 失败、0 跳过**；实际执行 808 次（39 XCTest + 769 Swift Testing）。TestSupport 的 8 个函数在十个 bundle 执行，额外 72 次不重复计数；参数化 case 不另加 |
+| 增量覆盖 | 相对上一阶段 700 项新增 36 项：Browser 22、OPDS 封面 13、Kit 导入 1；当前 OPDS 自有 56、Kit 9。最终 listing 与运行日志逐函数匹配 |
+| Browser 测试 | 五种文件来源标识共用形状、真实 Local → Browser → Transfer、原生/缓冲分页衔接、coverage 保留、路径缺失时 ID 寻址、跨 Browser 句柄拒绝、宿主 binding 变化、缓冲/页数/并发上限、关闭取消排空、错误分类/脱敏、展示快照编码；三种原生服务层级/搜索/详情/图片/下载资源/祖先变化和旧会话均通过 |
+| OPDS 封面 | 无图返回 nil、thumbnail 优先、PNG/SVG、Basic 与跨域隔离、跨域返回原域仍匿名、非法 MIME/URL、短读、响应预算、重定向上限、断开/取消/重连和共享并发预算均有通过的 fixture 测试 |
+| 构建 | 最终全包完成 Debug 编译；随后 `swift build -c release` 和 `swift test list` 退出 0，各执行一次 |
+| 四个平台 | macOS 12、iOS 15 Simulator、tvOS 15 Simulator、visionOS 1 Simulator：全部 15 个生产模块编译链接通过（60 项），统一浏览宿主与指南完整示例类型检查通过（8 项）；四平台日志无 warning/error |
+| 独立消费端 | 外部 SwiftPM 包仅依赖/导入 Kit，构建运行通过；真实临时本地文件的三页浏览、详情、下载选项、Transfer 字节读取和快照 JSON 往返均通过 |
+| 一次限定复核 | 只读检查新层分页/父项/会话、数据与下载选择、封面授权/重定向/预算，未发现可具体触发的中高严重缺陷；不是运行或真实部署验收 |
+| 文档与辅助 | Markdown 本地文件/标题链接、代码块、两套 Browser Python fixture 语法、清理脚本语法与 dry-run、差异格式检查通过；新增 `BoneBrowserTests-*` 清理/CI 识别 |
+
+生产模块仍无第三方运行依赖，Swift tools/language 6；本机实际为 Swift 6.4 / Xcode 27.1。Release 与 listing 保留既有 TestSupport 同模块 import warning，iCloud 移动测试记录一次沙盒 Code=2 系统诊断但测试通过。最初整合测试遇到原生测试中嵌套 `#require` 的宏编译错误，以及 OPDS fixture 缺少 acquisition 关系被识别为导航项；修正测试写法和 fixture 后通过，没有为此放宽解析或生产校验。
+
+原始日志留在会话工作台：`browser-final-full.log`、`browser-final-release.log`、`browser-final-test-list.log`、`browser-final-counts.json`、`browser-platform-*.log`、`browser-consumer.log`、`browser-targeted-final.log`、`opds-artwork-test.log`。不随 SDK 分发。
+
+**剩余边界：** 文件协议没有通用连接 generation，宿主必须管理其连接并在变化前关闭旧 Browser，或通过 validateBinding 拦截宿主会话变化；快照只是展示数据，不恢复执行句柄。没有新增真实服务器、TLS/代理、最低系统真机或媒体/播放器验收；原生阅读/播放语义继续由各来源提供。当前无阻碍代码交付的已知问题。
+
+## Komga、Kavita 与 Audiobookshelf 原生接入（未发布）
+
+新增共享 `BoneRemoteSyncContent` 和三个原生适配器，由 Kit 统一导出；支持认证/身份验证、原生内容层级、分页搜索、详情图片、完整文件 Transfer，以及显式阅读/收听进度。Audiobookshelf 额外提供直放会话与宿主认证音轨请求。未增加 Catalog 文件树、通用文件写入、Range/续传或后台播放器。入口见 [内容服务总览](ContentServices.md)、[Komga](Komga.md)、[Kavita](Kavita.md)、[Audiobookshelf](Audiobookshelf.md)。最新发布仍为 `v0.8.2`，本轮未提交、推送或发布。
+
+| 验证 | 最终结果与范围 |
+| --- | --- |
+| 全包回归 | 修复后 `swift test --no-parallel` 退出 0：**700 个去重测试函数通过，0 失败、0 跳过**。运行器实际执行 764 次（39 XCTest + 725 Swift Testing）；TestSupport 8 个函数在九个 bundle 执行，额外 64 次不重复计数；参数化 case 不另加 |
+| 新模块及 Kit | Content 14、Komga 12、Kavita 20、Audiobookshelf 17、Kit 8，共 71 个定向函数通过；已包含于全包计数。相对前一阶段 636 个函数共增加 64 个 |
+| 构建 | 最终 Debug 测试编译与 `swift build -c release` 退出 0；`swift test list` 与运行器逐函数匹配。首次全包 696 项通过后，一次限定复核补充 4 项回归，最终全包按相同顺序重新执行一次 |
+| 四平台 | macOS 12、iOS 15 Simulator、tvOS 15 Simulator、visionOS 1 Simulator，arm64 / Swift 6：全部 14 个生产模块编译链接通过，三份服务示例与总览完整示例各平台类型检查通过（56 项模块检查 + 16 项示例检查）。最后修复后重新编译 Content/三个适配器/Kit，并重验所有示例；四平台无 warning/error |
+| 外部消费端 | 独立 SwiftPM 包仅依赖并导入 Kit，构建运行通过；验证三个来源、配置 Codable、能力和连接清理，最终修复后再次通过；没有真实网络账号访问 |
+| 共享传输 | 配置/URL/反代子路径、认证头与 cookie 隔离、拒绝重定向、响应长度/流式预算、MIME、HTTP framing、大小验证、保护旧目标与符号/硬链接、取消排空、并发/间隔和包含等待的 timeout 均有测试 |
+| 服务合同 | loopback fixture 验证 Basic/API key/账号登录/Bearer、身份与代际隔离、原生分页关系、图片、Transfer、两类 EPUB 进度、Kavita ZIP、Audiobookshelf 文件/节目/直放及会话同步关闭；无自动写入重放 |
+| 包与辅助检查 | 14 个生产 target、零第三方依赖，三个适配器仅依赖 Content/Core；39 个新增文件格式、Markdown 本地链接/标题/代码块、四套 Python fixture 语法、清理脚本语法及 dry-run、`git diff --check` 通过。CI/清理规则纳入四个 fixture 前缀 |
+
+一次只读复核定位并修复两个 Audiobookshelf 缺陷：合法排除音频使用 `index=-1`，文件元数据现接受该哨兵而播放轨道仍检查非负；close 或替换 create 在本地并发拒绝/等待取消时尚未提交，现保留旧会话句柄，仅在请求可能已送出时作废，避免结果未知时重放。新增四个回归中，三个先复现失败再通过，另一个确认已提交 close 失败仍禁止重放；修复后未再启动广泛复核。
+
+实际工具链为 Apple Swift 6.4 / Xcode 27.1（27A9275）。Release 保留既有 `PythonFixtureTests.swift` 自导入 warning；iCloud 移动测试保留一个沙盒申请的 `NSPOSIXErrorDomain Code=2` 系统诊断，该测试通过。平台编译不代表 Swift 6.0 编译器、最低系统运行或移动真机验收。
+
+最终证据在会话工作台：`content-postreview-full.log`、`content-postreview-release.log`、`content-postreview-test-list.log`、`content-postreview-counts.json`、`content-review-red.log`、`content-review-green.log`、`content-platform-*-postreview.log`、`content-consumer-postreview.log`。研究资料、探针与日志不随 SDK 分发。
+
+**剩余验收：** 尚无用户授权的三种服务真实部署地址或账号。本地 fixture 不能替代真实权限配置、代理/TLS、媒体分析/格式、EPUB 内部位置、播放器 codec/后台音频或大文件性能验收。Kavita 显式 JWT 刷新已实现；Audiobookshelf 令牌轮换由宿主完成后重新连接，无 SDK 自动刷新。当前没有阻碍本次代码交付的已知问题。
+
 ## Catalog 扫描请求间隔（未发布）
 
 新增 `RemoteCatalogRefreshOptions.requestInterval`（秒，默认 `0`，有限值 `0...86400`），同一轮扫描的并发目录、分页和前后元数据核对共用 `list/stat` 放行间隔。使用单调时钟，延迟唤醒后重新核对间隔，不积攒突发名额；等待响应取消并受原有扫描 timeout 约束。非法参数在选根预检及来源访问前拒绝。示例见 [Catalog 刷新](Catalog.md#选择目录刷新与离线查询)和 [宿主代码](../Examples/CatalogIndex/CatalogExample.swift)。

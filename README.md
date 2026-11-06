@@ -1,6 +1,6 @@
 # BoneRemoteSyncKit
 
-**面向 Apple 平台的 Swift 文件访问 SDK，以统一 API 连接本地目录、iCloud Drive、WebDAV、OneDrive Personal 和百度网盘应用目录（未发布），并提供 OPDS 只读书库访问。**
+**面向 Apple 平台的 Swift 文件与内容服务 SDK，连接本地目录、iCloud Drive、WebDAV、OneDrive Personal、百度应用目录，以及 OPDS、Komga、Kavita 和 Audiobookshelf。百度和三种原生内容服务为当前工作区未发布实现。**
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
@@ -13,6 +13,10 @@
 > **v0.8.0 新增：** 独立 `BoneRemoteSyncOPDS` 提供 OPDS 1.2 书目浏览、分页、详情、OpenSearch 和只读文件获取，可接入 Transfer；使用专用浏览 API，尚未接入 Catalog。见 [OPDS 指南](Docs/OPDS.md)。
 >
 > **当前工作区未发布新增：** `BoneRemoteSyncBaidu` 基于百度官方开放 API，提供已授权应用目录的读写、Catalog 与 Transfer 接入。最新发布版本 `v0.8.2` 不包含百度；开发接入需使用包含本次实现的源码，不代表远端 `main` 已可安装。尚无真实百度应用或 token，线上验收待完成，见 [百度指南](Docs/BaiduDrive.md)。
+>
+> **原生内容服务（未发布）：** `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 提供认证、书库/系列/卷章或节目浏览、搜索、封面、完整文件下载和显式阅读/收听进度；Audiobookshelf 另提供直放会话及宿主播放器认证请求。见 [内容服务总览](Docs/ContentServices.md)。需要包含本次实现的源码；`v0.8.2` 不包含这些模块，真实部署验收待完成。
+>
+> **统一浏览层（未发布）：** `RemoteBrowser` 将五类文件来源及 OPDS/Komga/Kavita/Audiobookshelf 转为 `RemoteBrowsePage`、`RemoteBrowseItem` 和可编码展示快照。统一浏览/搜索/详情/封面/下载选择，保留来源完整性与原生进度语义；见 [Browser 指南](Docs/Browser.md)和[宿主示例](Examples/UnifiedBrowser/README.md)。
 
 [支持的来源](#支持的来源) · [能力矩阵](#能力矩阵) · [业务场景](Docs/UseCases.md) · [安装](#安装) · [快速上手](#快速上手) · [更新说明](CHANGELOG.md) · [详细文档](#详细文档) · [验证状态](Docs/Validation.md)
 
@@ -27,6 +31,7 @@
 | 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询；支持 Local、WebDAV、OneDrive Personal、iCloud 和未发布百度配置 | 正文离线保存、刷新触发与状态展示 |
 | 备份与恢复 | 上传宿主生成的备份包、列出备份、下载及显式删除；百度限已授权应用目录 | 数据一致性导出、打包/加密、保留策略、恢复安装；iCloud 写成功不等于云端已同步，百度没有持久续传 |
 | 前台批量获取与中断恢复 | Transfer 限制下载并发，并提供可插拔单文件分片下载（首个适配 WebDAV）；WebDAV 可恢复下载，OneDrive 可恢复上传 | 持久任务、后台执行、显式继续与未知结果核对；不是所有来源双向都能续传 |
+| 漫画/电子书阅读器、有声书与播客客户端（未发布） | Komga/Kavita 原生书库与阅读进度；Audiobookshelf 元数据、音轨、收听进度及直放会话；可复用 Transfer | 阅读器/播放器、格式解析、长期收藏、凭据保存、进度冲突和实际播放生命周期 |
 | 跨来源一次性导入 / 导出 | 宿主可组合“下载到本地 → 上传到另一来源” | 两段操作的编排与结果核对；没有跨来源直传、原子移动或回滚 |
 
 完整的业务流程、模块选择、版本范围及宿主职责见 **[业务能力与适用场景](Docs/UseCases.md)**。
@@ -48,6 +53,16 @@
 Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFTP、FTP/FTPS、NFS 等协议尚未实现，见[来源开发计划](Docs/CloudDriveRoadmap.md)。第三方服务即使提供 WebDAV，也仅可按其 WebDAV 接口尝试接入，不代表已实现该品牌原生 API 或完成兼容性验收。
 
 自 `v0.8.0` 起另提供 **OPDS 只读内容来源** `OPDSSource`，用于阅读器/个人书库导入。它支持匿名或 Basic，使用 `browse/search/publication` 获取书目，显式选择格式后下载；不提供文件目录树或写操作，不计入上述五类文件来源。默认兼容缺失时间、常见目录 MIME 错标和直接搜索模板，可显式选择严格模式。两轮公开实测已有六个站点的 EPUB 下载证据；各站点限制见[公开书库实测](Docs/OPDSPublicCatalogValidation.md)。
+
+当前工作区另提供三个独立原生内容适配器，由 Kit 统一导出。它们使用服务自己的内容模型，`list/walk` 和 Catalog 文件目录索引不适用。
+
+| 服务 | 原生适配器 | 主要能力 |
+| --- | --- | --- |
+| Komga | `KomgaSource` | Basic/API key、书库/系列/书籍、搜索、封面/分页图片、原文件下载、页进度与 EPUB Readium progression |
+| Kavita | `KavitaSource` | 账号/API key/JWT、书库/系列/卷章、分页搜索、封面/页面、章节文件或 ZIP、页数与 EPUB XPath 进度 |
+| Audiobookshelf | `AudiobookshelfSource` | 账号/Bearer、书库/书籍/播客节目、搜索、封面、选定音轨/文件下载、收听进度、直放会话创建/同步/关闭 |
+
+共享配置、下载引用与版本范围见 [内容服务总览](Docs/ContentServices.md)。三者均不提供后台播放、转码、通用文件写入或强版本/续传承诺。
 
 ## 能力矩阵
 
@@ -286,6 +301,8 @@ func transferFile(
 | [文件物化、前台调度与恢复传输](Docs/Transfer.md) | 自 v0.4.0 提供：本地文件 lease、缓存复用、有界下载队列、可插拔分片下载、WebDAV 恢复下载与 OneDrive 恢复上传 |
 | [配置持久化与离线目录索引](Docs/Catalog.md) | 非敏感配置、Keychain 桥接、网盘访问权限、根选择、目录/子树刷新与恢复 |
 | [通用 API 与生命周期](Docs/API.md) | 模块、协议、路径、分页、遍历、错误、进度与宿主职责 |
+| [统一浏览完整使用指南](Docs/Browser.md) | 未发布：本地源码安装、九种来源配置、binding、分页搜索、详情封面、下载取消、原生阅读/播放及问题排查 |
+| [统一浏览示例](Examples/UnifiedBrowser/README.md) | 两份可编译 Swift 示例：各来源连接、逐页消费、下载/lease、快照编解码与原生进度入口 |
 | [本地目录](Docs/Local.md) | 本地读写、落盘、符号链接和权限边界 |
 | [iCloud Drive](Docs/ICloudDrive.md) | entitlement、容器、占位下载、协调、状态与真机验收边界 |
 | [WebDAV](Docs/WebDAV.md) | 连接、文件管理、条件覆盖、重试、Range 与 checkpoint 恢复 |
@@ -298,6 +315,10 @@ func transferFile(
 | [OneDrive 宿主示例](Examples/OneDriveReadOnly/README.md) | 授权事务管理、读路径及账号验收清单 |
 | [OPDS 宿主示例](Examples/OPDSReadOnly/README.md) | 用户选书/格式、下载、lease 消费和清理生命周期 |
 | [百度宿主示例](Examples/BaiduDrive/README.md) | 未发布：应用目录配置、授权、Transfer lease、非覆盖上传与固定用户 Catalog 绑定 |
+| [原生内容服务总览](Docs/ContentServices.md) | 未发布：Komga、Kavita、Audiobookshelf 的能力、配置、下载与宿主职责 |
+| [Komga 指南](Docs/Komga.md) / [示例](Examples/Komga/README.md) | 原生书库、原文件下载、页进度与 EPUB progression |
+| [Kavita 指南](Docs/Kavita.md) / [示例](Examples/Kavita/README.md) | 系列/卷章、章节下载、页面与 EPUB XPath 进度 |
+| [Audiobookshelf 指南](Docs/Audiobookshelf.md) / [示例](Examples/Audiobookshelf/README.md) | 文件/音轨、收听进度与宿主直放会话 |
 
 ## 构建与测试
 
