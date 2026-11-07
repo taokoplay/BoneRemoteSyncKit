@@ -5,6 +5,8 @@
 > 自 **v0.8.0** 提供：`BoneRemoteSyncOPDS` 实现 [OPDS 1.2](https://specs.opds.io/opds-1.2) 核心客户端子集，不是全部 OPDS 扩展的兼容承诺。没有真实 Calibre、Komga 或 Kavita 部署验收。
 >
 > 2026-11-05 首轮测试15个公开地址；兼容扩展后复测五个。两轮分别在 Gutenberg、Textos.info、The Anarchist Library 和 Unglue.it、Ebooks Gratuits、Wolne Lektury 完成 EPUB 下载与本地文件检查；其余服务限制见 [公开书库实测](OPDSPublicCatalogValidation.md)。
+>
+> 本页 `cover(_:)` 与上层 Browser 属于已推送开发提交 `fe8cfc2` 的新增能力，**不包含在 `v0.8.2` 标签中**；基础书目接口仍自 v0.8.0 提供，安装范围见[版本对照](../README.md#开发源码与版本范围)。
 
 ## 业务定位与模块
 
@@ -13,6 +15,8 @@
 产品可单独依赖 `BoneRemoteSyncOPDS`，其运行依赖仅为 Core 和系统框架；统一入口 `BoneRemoteSyncKit` 已重新导出。平台与主包一致：Swift 6 语言模式、macOS 12、iOS/tvOS 15、visionOS 1 起。
 
 `RemoteSourceKind.opds` 显示名为 OPDS，没有内置图标。`sourceTypes()` 包含它，`driveTypes()` 仍为网盘图标目录。
+
+需要与网盘、Komga/Kavita/Audiobookshelf 共用页面模型时，可在已连接 OPDS 来源上创建 `RemoteBrowser.opds(source)`；原生 Feed/Entry 模型仍保留，见 [统一浏览指南](Browser.md)。
 
 ## 兼容模式与时间字段
 

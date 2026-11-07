@@ -1,6 +1,12 @@
 import Foundation
 import BoneRemoteSyncKit
 
+/// 宿主用统一来源枚举决定展示范围；目录仍按 SDK 的固定顺序排列。
+/// 自定义适配器若使用预留来源，应由宿主单独提供其展示项。
+public func browserSourceChoices(enabled: Set<RemoteSourceKind>) -> [BoneRemoteSyncSourceType] {
+    BoneRemoteSyncIcons.sourceTypes().filter { enabled.contains($0.kind) && $0.kind.hasBuiltInAdapter }
+}
+
 /// Host retains both values until its browser/Transfer work has ended.
 public func connectKomgaBrowser(
     configuration: KomgaConfiguration,

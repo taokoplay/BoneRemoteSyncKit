@@ -76,7 +76,7 @@ private func expectBrowserCode(_ code: RemoteBrowserError.Code, _ operation: () 
 }
 
 @Suite struct BrowserFileTests {
-    @Test(arguments: [RemoteSourceKind.local, .iCloud, .webdav, .cloudAPI, .baidu])
+    @Test(arguments: [RemoteSourceKind.local, .iCloud, .webdav, .oneDrive, .baidu])
     func fileSourcesUseOneDisplayShape(kind: RemoteSourceKind) async throws {
         let source = BrowserFileFixture(kind: kind)
         let browser = try RemoteBrowser.files(source, binding: .init(kind: kind, identity: "account"))
@@ -115,8 +115,8 @@ private func expectBrowserCode(_ code: RemoteBrowserError.Code, _ operation: () 
     }
 
     @Test func stableIDsWorkWithMissingPaths() async throws {
-        let source = BrowserFileFixture(kind: .cloudAPI, ids: true)
-        let browser = try RemoteBrowser.files(source, binding: .init(kind: .cloudAPI, identity: "drive"))
+        let source = BrowserFileFixture(kind: .oneDrive, ids: true)
+        let browser = try RemoteBrowser.files(source, binding: .init(kind: .oneDrive, identity: "drive"))
         let item = try #require(await browser.browse().items.first)
         let option = try #require(await browser.downloadOptions(for: item).first)
         let reference = try await browser.prepareDownload(option)

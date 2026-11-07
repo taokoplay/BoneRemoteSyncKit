@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [百度接入](BaiduDrive.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
 
-> 本页描述已发布 `v0.8.2` 的 Catalog API 与当前工作区未发布的百度配置；百度需使用包含本次实现的源码。可组合访问权限自 `v0.7.0` 提供，统计快照、缓存失效、iCloud 配置接入和 schema v2 迁移自 `v0.6.0` 提供。OPDS 尚未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成；百度尚无真实应用或 token，fixture 不等于线上验收。
+> 本页描述当前 Catalog API。百度配置和 `requestInterval` 已在开发提交 `fe8cfc2`，尚未纳入标签；`configuration.provider` 的统一枚举调整仍在工作区，见[版本对照](../README.md#开发源码与版本范围)。可组合权限自 `v0.7.0`，统计/失效/iCloud 配置和 schema v2 自 `v0.6.0` 提供。OPDS/Komga/Kavita/Audiobookshelf 均未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成；fixture 不等于线上验收。
 
 ## 能力与层次
 
@@ -64,7 +64,7 @@ func openCatalogStore(privateDirectory: URL) throws -> SQLiteRemoteCatalogStore 
 
 ## 配置与秘密分离
 
-`RemoteSourceConfiguration` 的来源类型是明确枚举，对应 `RemoteCatalogProvider` 的 `.local`、`.webDAV`、`.oneDrive`、`.iCloud` 和未发布新增 `.baidu`，不能只靠 `.cloudAPI` 推断具体网盘：
+`RemoteSourceConfiguration.provider` 返回统一的 `RemoteSourceKind`，当前五类配置对应 `.local`、`.webdav`、`.oneDrive`、`.iCloud`、`.baidu`。不再提供单独的 `RemoteCatalogProvider`；配置关联值 `.webDAV(baseURL:timeout:retry:)` 的名称和 Codable 载荷保持原样，因此它的配置 case 为 `webDAV`，计算出的 provider 为 `webdav`。来源实例、binding 和界面筛选均使用同一个类型，详见 [枚举升级说明](API.md#来源枚举升级)：
 
 | 配置 | 保存内容 | 不保存内容 |
 | --- | --- | --- |

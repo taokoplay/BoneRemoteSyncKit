@@ -56,23 +56,21 @@ public struct BoneRemoteSyncSourceType: Sendable, Hashable, Identifiable {
 
 /// 一个可展示的网盘类型项；列表可以包含尚未实现原生适配器的网盘。
 public struct BoneRemoteSyncDriveType: Sendable, Hashable, Identifiable {
-    /// 稳定的网盘类型标识。
-    public let id: String
+    /// 与来源实例、绑定共用的强类型标识，不另存一份字符串 ID。
+    public var id: RemoteSourceKind { kind }
     /// 默认显示名称，宿主可自行本地化。
     public let displayName: String
     /// 对应的内置图标。
     public let icon: BoneRemoteSyncIcon
-    /// 对应的来源类型；静态云盘目录项通常为 `.cloudAPI`。
+    /// 精确来源标识；每个厂商网盘使用独立枚举值。
     public let kind: RemoteSourceKind
 
     /// 创建网盘类型项。
     /// - Parameters:
-    ///   - id: 稳定的网盘类型标识。
+    ///   - kind: 精确的来源类型。
     ///   - displayName: 默认显示名称。
     ///   - icon: 对应的内置图标。
-    ///   - kind: 对应的来源类型，默认是 `.cloudAPI`。
-    public init(id: String, displayName: String, icon: BoneRemoteSyncIcon, kind: RemoteSourceKind = .cloudAPI) {
-        self.id = id
+    public init(kind: RemoteSourceKind, displayName: String, icon: BoneRemoteSyncIcon) {
         self.displayName = displayName
         self.icon = icon
         self.kind = kind
@@ -125,12 +123,12 @@ public enum BoneRemoteSyncIcons {
     /// - Returns: 网盘类型列表。
     public static func driveTypes() -> [BoneRemoteSyncDriveType] {
         [
-            .init(id: "google-drive", displayName: "Google Drive", icon: .googleDrive),
-            .init(id: "aliyun", displayName: "阿里云盘", icon: .aliyun),
-            .init(id: "baidu", displayName: "百度网盘", icon: .baidu, kind: .baidu),
-            .init(id: "onedrive", displayName: "OneDrive", icon: .onedrive),
-            .init(id: "icloud", displayName: "iCloud Drive", icon: .icloud, kind: .iCloud),
-            .init(id: "webdav", displayName: "WebDAV", icon: .webdav, kind: .webdav),
+            .init(kind: .googleDrive, displayName: "Google Drive", icon: .googleDrive),
+            .init(kind: .aliyun, displayName: "阿里云盘", icon: .aliyun),
+            .init(kind: .baidu, displayName: "百度网盘", icon: .baidu),
+            .init(kind: .oneDrive, displayName: "OneDrive", icon: .onedrive),
+            .init(kind: .iCloud, displayName: "iCloud Drive", icon: .icloud),
+            .init(kind: .webdav, displayName: "WebDAV", icon: .webdav),
         ]
     }
 }

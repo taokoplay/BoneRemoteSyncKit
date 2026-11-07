@@ -4,7 +4,10 @@
 
 ## Unreleased
 
-以下为当前工作区尚未发布的变更；最新发布版本仍为 `v0.8.2`。开发接入需使用包含本次实现的源码，不代表远端 `main` 已包含这些改动。
+以下变更尚未纳入新版本标签，最新标签仍为 `v0.8.2`。百度、扫描间隔、内容服务、Browser、OPDS 封面和使用说明已推送至开发提交 `fe8cfc2`；下面的来源枚举统一及本轮文档校正仍在工作区。接入代码和指南需来自同一源码范围，见[版本对照](README.md#开发源码与版本范围)。
+
+- 来源标识统一为 `RemoteSourceKind`：移除模糊 `.cloudAPI`，为 OneDrive/Google Drive/阿里云盘使用 `.oneDrive` / `.googleDrive` / `.aliyun`。OneDrive 来源与传输/上传恢复绑定全部切换为 `.oneDrive`；新增 `hasBuiltInAdapter` 供宿主过滤预留来源，Google Drive/阿里云盘仍未实现原生接入。
+- `BoneRemoteSyncDriveType.id` 改为 `RemoteSourceKind` 且等于 kind，构造器改为 `init(kind:displayName:icon:)`；Catalog 移除重复的 `RemoteCatalogProvider`，`RemoteSourceConfiguration.provider` 改返回统一枚举。关联值配置载荷和 Catalog schema 不变。旧 `cloudAPI` 编码、字符串网盘 ID 和 OneDrive 恢复记录不自动迁移，宿主需按 [枚举升级说明](Docs/API.md#来源枚举升级) 更新调用与持久化。
 
 - 新增 `BoneRemoteSyncBrowser`，由 Kit 导出：统一文件来源与 OPDS/Komga/Kavita/Audiobookshelf 的浏览条目、元数据、分页、搜索、详情、封面及下载选项。`RemoteBrowseSnapshot` 可编码，live 句柄和 cursor 会话隔离；保留 coverage、未知值和原生阅读/播放语义，支持显式原生引用。关闭 Browser 取消并排空其操作，不断开宿主 source，见 [统一浏览指南](Docs/Browser.md)。
 - OPDS 新增 `cover(_:)`：优先 thumbnail、其次 image，无图返回 nil；复用有界请求和凭据隔离，独立验证 image MIME。封面 Data 不代表已经解码或净化 SVG。新增统一 Browser 示例、跨来源/分页/下载/生命周期及封面回归。

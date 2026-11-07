@@ -3,7 +3,7 @@ import BoneRemoteSyncCore
 
 /// Personal main drive only. Host owns account selection, authorization UI and secure token storage.
 public actor OneDriveSource: RemoteSource {
-    public nonisolated let kind: RemoteSourceKind = .cloudAPI
+    public nonisolated let kind: RemoteSourceKind = .oneDrive
     public nonisolated let capabilities: RemoteCapabilities
     let configuration: OneDriveConfiguration
     let endpoints: ODEndpoints
@@ -52,7 +52,7 @@ public actor OneDriveSource: RemoteSource {
     /// authentication proof. Hosts must still keep credentials and handles scoped.
     /// 返回当前连接的 OneDrive 主盘绑定；不替代 OAuth 认证证明。
     public func connectedBinding() throws -> RemoteSourceBinding {
-        RemoteSourceBinding(kind: .cloudAPI, identity: "onedrive:" + (try context()).drive)
+        RemoteSourceBinding(kind: .oneDrive, identity: "onedrive:" + (try context()).drive)
     }
 
     var generation = UUID()

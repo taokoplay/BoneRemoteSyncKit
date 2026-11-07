@@ -3,6 +3,22 @@ import Testing
 import BoneRemoteSyncCore
 
 @Suite struct RemoteFileReferenceTests {
+    @Test func vendorBindingsRemainDistinctAfterEncoding() throws {
+        let kinds: [RemoteSourceKind] = [.oneDrive, .googleDrive, .aliyun]
+        let references = kinds.map { RemoteFileReference(source: .init(kind: $0, identity: "same-id"), itemID: "same-file") }
+        #expect(Set(references).count == 3)
+        let encoded = try JSONEncoder().encode(references)
+        let decoded = try JSONDecoder().decode([RemoteFileReference].self, from: encoded)
+        #expect(decoded == references && decoded.map(\.source.kind) == kinds)
+        let kindsData = try JSONEncoder().encode(RemoteSourceKind.allCases)
+        #expect(try JSONDecoder().decode([RemoteSourceKind].self, from: kindsData) == RemoteSourceKind.allCases)
+    }
+
+    @Test func ambiguousLegacyCloudBindingIsNotGuessedAsOneDrive() {
+        let legacy = Data(#"{"source":{"kind":"cloudAPI","identity":"same-id"},"locator":{"itemID":{"_0":"file"}}}"#.utf8)
+        #expect(throws: DecodingError.self) { try JSONDecoder().decode(RemoteFileReference.self, from: legacy) }
+    }
+
     @Test func pathReferencesNormalizeWithoutChangingBinding() throws {
         let binding = RemoteSourceBinding(kind: .webdav, identity: "dav-account-root")
         let reference = RemoteFileReference(source: binding, path: "folder/../file.txt")
@@ -13,7 +29,7 @@ import BoneRemoteSyncCore
     }
 
     @Test func itemReferencesRemainDistinctFromPaths() {
-        let binding = RemoteSourceBinding(kind: .cloudAPI, identity: "personal-drive")
+        let binding = RemoteSourceBinding(kind: .oneDrive, identity: "personal-drive")
         let path = RemoteFileReference(source: binding, path: "/file.txt")
         let item = RemoteFileReference(source: binding, itemID: "file-id")
 

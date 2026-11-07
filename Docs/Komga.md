@@ -4,6 +4,8 @@
 
 Swift tools 6.0 / Swift 6，最低 macOS 12、iOS/tvOS 15、visionOS 1。宿主统一 `import BoneRemoteSyncKit`；按需模块为 `BoneRemoteSyncKomga`，依赖共享 Content/Core。运行时没有第三方依赖或 Python 依赖。
 
+模块已在推送的开发提交 `fe8cfc2` 中，未纳入 `v0.8.2` 标签；与工作区统一枚举的版本区别见[版本对照](../README.md#开发源码与版本范围)。跨来源页面可以使用 [Browser](Browser.md)，专属阅读位置仍通过本页原生 API 操作。
+
 ## 连接与账号隔离
 
 `KomgaConfiguration` 是 `ContentServerConfiguration` 的别名。`baseURL` 指向实例公开根地址，例如 `https://books.example.invalid/komga/`，保留反代子路径。认证验证使用 `GET api/v2/users/me`，其余主要端点使用 `api/v1`。不要将 baseURL 配置为 `/api/v1`。

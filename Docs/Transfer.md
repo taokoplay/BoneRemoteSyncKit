@@ -2,16 +2,17 @@
 
 [首页](../README.md) · [通用 API](API.md) · [百度接入](BaiduDrive.md) · [验证记录](Validation.md)
 
-> Transfer API 自 **`v0.4.0`** 提供，最新发布版本为 `v0.8.2`；本页另列当前工作区未发布的百度及三种原生内容服务接入，需使用包含本次实现的源码。它是通用文件能力，不解析文件格式，也不是自动同步引擎；版本发布不代表真实服务、最低系统运行或性能验收已完成。
+> Transfer 基础 API 自 **`v0.4.0`** 提供，最新标签为 `v0.8.2`；百度、三种原生内容服务及 Browser 已在推送的开发源码中，统一来源枚举仍在工作区，详见[版本对照](../README.md#开发源码与版本范围)。Transfer 不解析文件格式，不是自动同步引擎；代码可接入不代表真实服务、最低系统或性能验收完成。
 
 ## 一个 Kit，内部按职责分层
 
 宿主只需依赖 `BoneRemoteSyncKit` 产品并 `import BoneRemoteSyncKit`。新增 `BoneRemoteSyncTransfer` target 依赖 Core，不依赖 Catalog、SQLite 或具体来源。Kit 重新导出所有模块，不复制公共类型。
 
 - **Core**：来源协议、条目、绑定引用、版本强度、条件读写值类型、任务状态。
-- **Providers**：Local、iCloud、WebDAV、OneDrive、百度（未发布）各自实现会话、路径、网络/文件协调及底层下载；OPDS 提供专用只读内容访问。
+- **Providers**：五种文件来源各自实现路径/会话和底层文件操作；OPDS/Komga/Kavita/Audiobookshelf 提供原生内容浏览及已登记文件下载。
 - **Transfer**：本地文件物化、受管理 staging、校验、原子发布、lease、前台任务调度，以及独立的显式恢复下载/上传入口。
 - **Catalog**：来源配置与远端目录元数据索引；不存正文，不因查询或刷新而下载。
+- **Browser**：依赖现有来源，统一文件与书库的展示模型、分页、详情、封面和下载资源选择；不管理登录、Catalog 持久索引或实际播放。
 
 来源连接、账号授权、entitlement、安全作用域和文件访问授权仍由宿主负责。Transfer 不自动 connect/disconnect，不迁移账号或根目录绑定。
 

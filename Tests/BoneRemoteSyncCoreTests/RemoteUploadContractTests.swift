@@ -4,7 +4,7 @@ import Testing
 
 @Suite struct RemoteUploadContractTests {
     private func handle() throws -> RemoteUploadHandle {
-        let binding = RemoteSourceBinding(kind: .cloudAPI, identity: "test")
+        let binding = RemoteSourceBinding(kind: .oneDrive, identity: "test")
         return try RemoteUploadHandle(source: binding, target: .init(source: binding, path: "/file"),
                                       sourceSize: 10, sourceFingerprint: "digest")
     }

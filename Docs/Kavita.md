@@ -4,6 +4,8 @@
 
 合同固定为官方 **Kareadita/Kavita v0.9.1.4**，commit **879b8b73eb41d66f88dde8eb874cc99a3397eb11**。实现和 localhost fixture 根据该版本源码及 OpenAPI 编写，**尚未在真实部署、真实账号或反向代理上验收**。其他版本的认证、分页和 reader 行为不在此次验证范围内。
 
+模块已在推送的开发提交 `fe8cfc2` 中，未纳入 `v0.8.2` 标签；与工作区统一枚举的版本区别见[版本对照](../README.md#开发源码与版本范围)。跨来源页面可以使用 [Browser](Browser.md)，章节祖先引用和 XPath 进度仍按本页原生合同执行。
+
 ```swift
 import BoneRemoteSyncKit
 

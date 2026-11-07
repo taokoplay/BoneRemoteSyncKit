@@ -2,6 +2,34 @@
 
 [返回项目首页](../README.md)
 
+本页按实施阶段保留验证证据。旧章节的“未提交/未推送”“未集成”和测试数量描述当时状态，不覆盖后续实现；当前工作区、已推送源码和发布标签的区别以[首页版本对照](../README.md#开发源码与版本范围)为准。旧 API 名称只在迁移说明、负向测试或历史记录中保留。
+
+## 说明文档与当前功能对齐（文档校正）
+
+本轮复核并修正首页、API/Browser/内容服务、Catalog/Transfer、来源路线图及相关指南的现状描述：明确 `v0.8.2` 标签、已推送 `fe8cfc2` 开发源码和本地统一枚举改动的区别；补齐原生内容协议表、Browser 业务入口、OPDS 封面版本范围，澄清 Local/WebDAV 与 Transfer 调度的分工。Audiobookshelf 文档补齐导入和失败清理，示例注释区分提交前拒绝与已提交后的未知结果；生产逻辑未改动。
+
+已通过全库 Markdown 本地链接/锚点/代码块和差异格式检查；Audiobookshelf 五个文档片段在提供宿主参数后，与其示例文件一起通过 macOS 12、iOS 15/tvOS 15/visionOS 1 Simulator 的 Swift 6 类型检查，零 warning/error。本轮没有重跑未改动生产代码的全包测试，下方 740 项结果继续作为最近完整回归；未增加真实服务或设备验收。远端 main 已用 `git ls-remote` 核对为 `fe8cfc2bad65b02fe5ef5e946619af71e7287e1f`。记录在会话工作台 `docs-alignment-links.json`、`docs-alignment-check/results.json`，不随 SDK 分发。
+
+## 来源枚举统一（未发布，最终验证）
+
+来源身份统一为 `RemoteSourceKind`：OneDrive、Google Drive、阿里云盘分别为 `.oneDrive`、`.googleDrive`、`.aliyun`，移除 `.cloudAPI`；网盘目录 id 改为同一枚举，Catalog 的 provider 同样返回该类型，不再单独定义 `RemoteCatalogProvider`。OneDrive 普通/恢复上传绑定已更新，新增 `hasBuiltInAdapter` 和宿主筛选示例，旧数据影响见 [来源枚举升级](API.md#来源枚举升级)。本轮核验未追加生产源码修改，来源枚举改动保留在本地，尚未推送。
+
+| 检查 | 实际结果 |
+| --- | --- |
+| 旧引用清理 | 扫描 Sources/Tests/Examples 中 290 个已跟踪 Swift 文件，生产代码没有 cloudAPI、RemoteCatalogProvider 或另设的 RemoteProviderKind；只保留一个验证拒绝旧 cloudAPI 编码的负向 fixture。旧字符串 id 和 init(id:displayName:icon:kind:) 已从网盘目录模型移除 |
+| 公开 API 编译 | 独立消费端模块上，新枚举/强类型 id/provider 构造和筛选编译成功；旧 .cloudAPI、RemoteCatalogProvider、旧 init(id:...) 和将新 id 赋给 String 的四个探针均按预期编译失败，并核对了具体诊断，证明不是单纯内部不再调用 |
+| 全包回归 | `swift test --no-parallel` 退出 0，**740 个去重测试函数通过，0 失败、0 跳过**；运行器执行 812 次（39 XCTest + 773 Swift Testing），TestSupport 8 个函数在十个 bundle 执行，额外重复 72 次。相对上一阶段新增 Core 2 项、Kit 2 项；listing 与实际运行标识匹配 |
+| 构建 | 随后 `swift build -c release`、`swift test list` 退出 0；三条命令本轮各执行一次。Release 保留既有 TestSupport 模块自导入 warning；iCloud 沙盒 Code=2 诊断对应测试通过 |
+| 四个平台 | macOS 12、iOS 15 Simulator、tvOS 15 Simulator、visionOS 1 Simulator：每个平台重编并链接全部 15 个生产模块，两个统一浏览示例及七个业务指南片段类型检查通过，四平台无 warning/error |
+| 独立 Kit 消费端 | 构建运行通过：枚举白名单、六个 PNG 映射、OneDrive 来源类型、五种 Catalog 配置 Codable、同名厂商绑定互异、旧模糊绑定拒绝，确认 16 个来源枚举值及 9 个已有内置适配器 |
+| 文档与格式 | 本地文件链接/标题锚点、代码块和 `git diff --check` 通过；旧名称在迁移说明与历史记录中作为说明保留，不是仍可调用的兼容入口 |
+
+首轮定向验证曾在 60 秒工具时限内停于构建，随后主任务及独立任务的 `pwd` 均触发宿主 RPC 超时；这些中断不计为测试结果。当前命令通道已恢复，上表为恢复后实际执行的完整验证，无遗留执行阻塞。未进行真实网盘/书库、最低系统真机或外部账号联调；此次身份类型统一不改变这些历史验收边界。
+
+评估结论：具体来源身份由一个枚举表达，避免泛化 cloudAPI 和重复 provider 类型造成歧义；配置关联值、图标资源及目录视图各自承担不同职责，继续保留。`hasBuiltInAdapter` 不替代权限/能力检查，闭集枚举新增来源需更新 SDK。旧绑定/上传恢复记录不自动迁移，宿主需按升级指南先核对旧任务，不能盲目改写编码或重放上传。
+
+原始证据在会话工作台：`source-kind-reference-audit.json`、`source-kind-api-check/results.json`、`source-kind-final-full.log`、`source-kind-final-release.log`、`source-kind-final-list.log`、`source-kind-final-counts.json`、`source-kind-platform-results.json`、`source-kind-consumer.log`、`source-kind-docs-check.json`。临时探针和日志不随 SDK 分发。
+
 ## 统一 Browser 使用说明补全（未发布）
 
 本轮只补充文档和宿主示例，未修改 `Sources`、测试目标或 Package 配置。新增 [九种来源连接示例](../Examples/UnifiedBrowser/BrowserConnectionExamples.swift)，扩充 [通用操作示例](../Examples/UnifiedBrowser/UnifiedBrowserExample.swift)和 [完整使用指南](Browser.md)，覆盖本地源码安装、凭据/binding、分页搜索、详情封面、下载进度/取消、lease、原生阅读/播放、快照重连及错误处理；纠正了 Catalog 内部扫描会话不能直接借给 Browser 的说明。
@@ -453,7 +481,7 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 
 1. 完成 WebDAV、OneDrive 与百度的真实服务读写及异常验收；百度 SecretKey 留在宿主后端。
 2. 完成 OneDrive Upload Session 的真实 Microsoft 账号、Keychain entitlement、大文件、断电/权限和最低系统验收；实现已在受控 localhost fixture 中覆盖。
-3. iCloud Drive 已有文件来源实现；继续真实宿主验收、NSFileVersion/元数据观察与 Catalog 账号绑定设计。SMB 或其他来源按产品需求选择。
+3. iCloud Drive 已有文件来源、Catalog 配置与离线索引；继续真实宿主/系统账号切换/多设备验收，以及 NSFileVersion、元数据观察和持久账号身份约束设计。SMB 或其他来源按产品需求选择。
 4. 独立同步层：快照、差异、可预览计划、执行与状态存储，再考虑双向冲突策略。
 
 当前没有自动同步、后台传输、变更流、统一跨来源上传续传或统一跨来源事务。OneDrive 专用 Upload Session 不由 Transfer 自动调度，且只有专用构造器声明可恢复上传；尚未实现的来源不得通过空实现或能力声明伪装为可用。

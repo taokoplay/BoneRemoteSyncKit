@@ -47,7 +47,7 @@ func listWebDAVRoot(baseURL: URL, credential: RemoteCredential) async throws -> 
 
 - **本地目的路径。** 目标及 part 必须是普通文件；拒绝最终 symlink、目录，以及多硬链接 part，避免清空其他文件。父目录可以是调用方授权的链接。单个 `WebDAVSource` 同时预留目标、`.part` 与 `.part.checkpoint.json`，拒绝三者重叠的并发下载目标，并保守折叠 Unicode/大小写/字符宽度等价路径；这可能在大小写敏感卷误拒绝部分并发。**调用方必须跨来源实例与进程协调目标、part 及 checkpoint 的独占使用**，不得让外部进程同时改写。不是系统级 sandbox，不抵抗恶意父目录替换 TOCTOU。
 - **限流。** 429 映射为 `.rateLimited`；`Retry-After` 仅接受非负整数秒或 HTTP 日期，超过一年/非法输入视为无可用间隔，不会因非有限值导致显示崩溃。
-- **非后台传输。** `timeout` 是请求超时（默认 60 秒），资源总超时至少 24 小时；显式 retry policy 可另外设置总 deadline，默认 `.none` 不增加总 deadline 或重试。没有后台 session、限速或全局并发调度器。`maxConcurrentTransfers` 只是建议值，实际并行度由调用方控制。
+- **非后台传输。** `timeout` 是请求超时（默认 60 秒），资源总超时至少 24 小时；显式 retry policy 可另外设置总 deadline，默认 `.none` 不增加总 deadline 或重试。WebDAV 适配器本身没有后台 session、限速或跨来源调度；宿主可用 [Transfer](Transfer.md) 的 coordinator 控制前台全局/每来源并发。低层 `maxConcurrentTransfers` 是建议上限，绕过 coordinator 的并发由调用方管理。
 
 ## 写入与文件管理
 

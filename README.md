@@ -12,11 +12,13 @@
 >
 > **v0.8.0 新增：** 独立 `BoneRemoteSyncOPDS` 提供 OPDS 1.2 书目浏览、分页、详情、OpenSearch 和只读文件获取，可接入 Transfer；使用专用浏览 API，尚未接入 Catalog。见 [OPDS 指南](Docs/OPDS.md)。
 >
-> **当前工作区未发布新增：** `BoneRemoteSyncBaidu` 基于百度官方开放 API，提供已授权应用目录的读写、Catalog 与 Transfer 接入。最新发布版本 `v0.8.2` 不包含百度；开发接入需使用包含本次实现的源码，不代表远端 `main` 已可安装。尚无真实百度应用或 token，线上验收待完成，见 [百度指南](Docs/BaiduDrive.md)。
+> **开发源码新增，未发布标签：** `BoneRemoteSyncBaidu` 基于百度官方开放 API，提供已授权应用目录的读写、Catalog 与 Transfer 接入；代码已推送至 `main`，但 `v0.8.2` 不包含百度。尚无真实百度应用或 token，线上验收待完成，见 [百度指南](Docs/BaiduDrive.md)。
 >
 > **原生内容服务（未发布）：** `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 提供认证、书库/系列/卷章或节目浏览、搜索、封面、完整文件下载和显式阅读/收听进度；Audiobookshelf 另提供直放会话及宿主播放器认证请求。见 [内容服务总览](Docs/ContentServices.md)。需要包含本次实现的源码；`v0.8.2` 不包含这些模块，真实部署验收待完成。
 >
 > **统一浏览层（未发布）：** `RemoteBrowser` 将五类文件来源及 OPDS/Komga/Kavita/Audiobookshelf 转为 `RemoteBrowsePage`、`RemoteBrowseItem` 和可编码展示快照。统一浏览/搜索/详情/封面/下载选择，保留来源完整性与原生进度语义；见 [Browser 指南](Docs/Browser.md)和[宿主示例](Examples/UnifiedBrowser/README.md)。
+>
+> **当前文档以工作区 API 为准。** 已推送开发代码与本地统一枚举调整的范围不同，安装前请核对[版本对照](#开发源码与版本范围)；不要将最新指南直接套到 `v0.8.2`。
 
 [支持的来源](#支持的来源) · [能力矩阵](#能力矩阵) · [业务场景](Docs/UseCases.md) · [安装](#安装) · [快速上手](#快速上手) · [更新说明](CHANGELOG.md) · [详细文档](#详细文档) · [验证状态](Docs/Validation.md)
 
@@ -97,6 +99,8 @@ Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFT
 
 **v0.8.0 OPDS 能力：** 书目浏览/搜索/分页/详情支持；完整文件下载、Transfer 进度/取消/lease 支持；通用 `list/walk`、稳定 ID 寻址、写操作、Range/恢复、文件版本缓存及 Catalog 均不支持。`stat` 仅返回会话内登记描述，详情见 [OPDS](Docs/OPDS.md)。
 
+**开发源码新增 OPDS 封面：** `cover(_:)` 有界读取当前书目的 thumbnail/image，返回可选 Data；该方法和 `RemoteBrowser` 均不在 `v0.8.2` 标签中。Browser 统一九种已实现来源的展示、分页、详情、封面和下载选择，搜索范围仍取决于来源，不新增文件树写入或 Catalog 集成。
+
 **百度网盘能力矩阵（当前工作区，未发布）：**
 
 | 功能 | 百度应用目录范围 |
@@ -141,11 +145,21 @@ Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFT
 
 ### Xcode
 
-添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择版本 **`0.8.2`**，为 App target 选择 **`BoneRemoteSyncKit`** 产品。无需再分别选择 Core 或来源产品。
+按已发布版本接入时，添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择 **`0.8.2`** 和 **`BoneRemoteSyncKit`** 产品。使用本文新增内容服务、Browser 或统一枚举时，按下表选择对应源码；本地工作区可通过 **Add Local…** 加入。
+
+### 开发源码与版本范围
+
+| 代码范围 | 包含的功能 | 接入方式 |
+| --- | --- | --- |
+| 已发布标签 `v0.8.2` | Local、WebDAV、OneDrive Personal、iCloud、OPDS 1.2、Catalog、Transfer；不含下两行新增能力 | `exact: "0.8.2"` |
+| 已推送开发提交 `fe8cfc2bad65b02fe5ef5e946619af71e7287e1f`（本轮核对的 `main`） | 增加百度、Catalog 请求间隔、Komga/Kavita/Audiobookshelf、Browser、OPDS 封面及使用说明 | 固定该 revision 或跟随 `main`；尚无新版本标签 |
+| 本地源码，尚未推送的来源枚举统一 | 移除 `.cloudAPI` / `RemoteCatalogProvider`，采用 `.oneDrive` 等精确来源，网盘 id 改为枚举并新增 `hasBuiltInAdapter` | 使用本地工作区；不要将本页枚举筛选示例直接用于上行旧 API |
+
+推送提交、发布版本和真实服务验收是三个状态。已推送开发代码可以按源码接入，但没有因此增加真实账号、最低 OS 真机或媒体格式验收。历史版本用对应标签中的文档；本页后续枚举/API 示例按当前工作区说明。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用当前发布版本 `0.8.2`；升级时显式调整版本并核对[更新说明](CHANGELOG.md)。需要跟随远端开发分支时，可将 `exact: "0.8.2"` 改为 `branch: "main"`，但这不保证包含当前工作区未发布的百度实现；百度开发接入需使用包含本次实现的源码。图标资源和类型列表自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用已发布 `0.8.2`；需开发能力时按[版本对照](#开发源码与版本范围)改用 `revision: "fe8cfc2bad65b02fe5ef5e946619af71e7287e1f"` 或 `branch: "main"`。当前统一来源枚举尚未推送，应使用 `.package(path: "../BoneRemoteSyncKit")` 指向本地源码。图标目录自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
 
 ```swift
 // Package.dependencies
@@ -181,9 +195,22 @@ let iconURL = BoneRemoteSyncIcons.iconURL(for: .iCloud)
 let iconData = try BoneRemoteSyncIcons.iconData(for: .webdav)
 ```
 
-`driveTypes()` 返回 `[BoneRemoteSyncDriveType]`。每一项包含 `id`、`displayName`、`icon` 和对应的 `RemoteSourceKind`；当前工作区的百度项对应新增 `.baidu`，由 `BaiduDriveSource` 实现，尚未发布。Google Drive、阿里云盘仍仅有图标目录项，SDK 尚未提供它们的原生来源适配器。`sourceTypes()` 则返回所有 `RemoteSourceKind`，没有内置图标的预留来源会返回 `icon == nil`。
+`driveTypes()` 返回 `[BoneRemoteSyncDriveType]`，其中 `id` 和 `kind` 都是同一个 `RemoteSourceKind`，不再用字符串或通用 `.cloudAPI` 区分网盘。OneDrive、Google Drive、阿里云盘分别对应 `.oneDrive`、`.googleDrive`、`.aliyun`；`sourceTypes()` 使用同一枚举，还包含本地、协议和书库来源。
 
 `BoneRemoteSyncIcon.url` 返回 bundle 内 PNG 的 `URL?`；`BoneRemoteSyncIcon.data()` 返回 PNG `Data`，资源不存在时抛出 `BoneRemoteSyncIconError.missingResource`。`RemoteSourceKind.iconResourceName` 和 `displayName` 只提供稳定资源名与默认英文 UI 标签，宿主可自行本地化。
+
+接入方用枚举选择显示哪些来源：
+
+```swift
+let enabled: Set<RemoteSourceKind> = [.webdav, .oneDrive, .baidu]
+let visibleDrives = BoneRemoteSyncIcons.driveTypes().filter {
+    enabled.contains($0.kind) && $0.kind.hasBuiltInAdapter
+}
+```
+
+要同时显示 OPDS/Komga 等书库，将 `driveTypes()` 换成 `sourceTypes()`，并在集合中加入相应枚举值。集合不决定显示顺序；需要固定顺序时使用 `[RemoteSourceKind]` 并映射为 `BoneRemoteSyncSourceType(kind:)`。`hasBuiltInAdapter` 仅表示 SDK 有内置实现，Google Drive、阿里云盘目前为 false，不代表账号已授权或所有操作可用。
+
+此枚举调整为未发布的 API/编码格式变更：移除 `.cloudAPI` 和 `RemoteCatalogProvider`，`configuration.provider` 返回 `RemoteSourceKind`。旧字符串目录 ID、绑定和恢复记录的处理见 [来源枚举升级](Docs/API.md#来源枚举升级)。
 
 ## 路径与存储统计
 
@@ -360,7 +387,7 @@ script/api-baseline.sh check api-baseline.txt   # 存在移除时退出码 2
 
 截至 **2026-10-28（GMT+8）**，`v0.4.0` 发布前重新运行串行全包，**506 项测试通过**，并通过 Release 与独立 Kit 分片消费端检查。八模块四目标编译链接、文档示例类型检查及恢复传输的受控跨进程证据沿用同一实现的既有结果，不代表真实账号、Keychain、最低系统运行或大文件性能已验收。
 
-本次结果见 [v0.4.0 发布前验证](Docs/Validation.md#v040-发布前验证)，详细证据见[分片下载验证](Docs/Validation.md#v040可插拔单文件并行分片下载)与[阶段5上传验证](Docs/Validation.md#v040阶段5-onedrive-upload-session-验证)。[v0.3.0 验证](Docs/Validation.md#v030-icloud-备份-r1r2-验证)保留为历史结果。历史 WebDAV 并发短 deadline 风险仍保留；旧 `v0.1.0`、`v0.2.0`、`v0.3.0` 标签不变，不包含后续新增功能。
+以上为历史验证快照，分别见 [v0.4.0 发布前验证](Docs/Validation.md#v040-发布前验证)、[分片下载验证](Docs/Validation.md#v040可插拔单文件并行分片下载)、[阶段5上传验证](Docs/Validation.md#v040阶段5-onedrive-upload-session-验证)及 [v0.3.0 验证](Docs/Validation.md#v030-icloud-备份-r1r2-验证)。当前工作区最新全包结果为 **740 个去重测试函数通过**，详见[验证记录顶部](Docs/Validation.md)；本轮文档校正未修改生产代码。旧标签不变，不包含后续新增功能。
 
 ### 错误日志
 

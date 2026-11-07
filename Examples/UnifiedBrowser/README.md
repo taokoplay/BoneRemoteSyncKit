@@ -2,7 +2,7 @@
 
 [完整使用指南](../../Docs/Browser.md) · [连接示例](BrowserConnectionExamples.swift) · [通用操作示例](UnifiedBrowserExample.swift) · [内容服务](../../Docs/ContentServices.md)
 
-适用于需要统一展示本地/iCloud/WebDAV/OneDrive/百度文件及 OPDS/Komga/Kavita/Audiobookshelf 内容的 Apple App。当前功能未发布，需依赖包含本次实现的源码；`v0.8.2` 没有 Browser。安装方式见 [本地源码安装](../../Docs/Browser.md#安装与导入)。
+适用于统一展示五种文件来源及 OPDS/Komga/Kavita/Audiobookshelf 的 Apple App。Browser 已在推送的开发提交 `fe8cfc2` 中，尚未发布版本标签，`v0.8.2` 不包含它；本目录的枚举筛选示例使用尚未推送的统一来源 API，需要当前工作区。安装前见[版本对照](../../README.md#开发源码与版本范围)和[本地源码安装](../../Docs/Browser.md#安装与导入)。
 
 ## 如何使用示例
 
@@ -12,6 +12,8 @@
 4. 选择对应连接函数，保留返回的 typed `source` 和 `browser`。已有连接时直接用 SDK 的 `RemoteBrowser` 工厂。
 5. 用统一接口展示页面、取得详情和下载选项。选择由宿主 UI 完成；不自动选择第一个文件或格式。
 6. 消费结束后先清理播放器/Transfer，再 `await browser.close()`，最后 `await source.disconnect()`；失败路径同样清理。
+
+显示范围用同一个来源枚举管理，例如 `browserSourceChoices(enabled: [.webdav, .oneDrive, .baidu, .komga])`。该函数过滤 SDK 已有内置适配器的来源，不连接服务；`driveTypes()` 和 `sourceTypes()` 的 id/kind 都为 `RemoteSourceKind`。详细用法与顺序控制见 [入口筛选](../../Docs/Browser.md#选择显示哪些网盘和书库)。
 
 ## 连接示例索引
 
@@ -37,6 +39,7 @@
 
 | 函数 | 用途与边界 |
 | --- | --- |
+| `browserSourceChoices` | 用 `Set<RemoteSourceKind>` 筛选网盘、协议及书库入口，并排除未实现的预留来源 |
 | `connectKomgaBrowser` | 原有 Komga 连接入口，成功返回来源与 Browser；连接失败会断开 |
 | `loadBrowserPage` | 加载根/子层或下一页；传 cursor 时忽略 parent，以 cursor 原有范围为准 |
 | `visitBrowserPages` | 逐页回调当前层或搜索结果，不递归；最多 maxPages 页，未耗尽时显式抛错 |

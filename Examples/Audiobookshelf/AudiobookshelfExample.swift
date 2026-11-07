@@ -60,7 +60,8 @@ public enum AudiobookshelfExample {
     }
 
     /// Explicit close may update progress; disconnect itself performs no server write.
-    /// A thrown close is an unknown server outcome and must not be blindly replayed.
+    /// A failure after submission may leave an unknown server outcome; do not blindly replay it.
+    /// Local admission rejection or cancellation before submission preserves the session handle.
     public static func endPlayback(source: AudiobookshelfSource, session: AudiobookshelfPlaybackSession,
                                    absoluteItemTime: Double, listenedSinceLastSync: Double) async throws {
         try await source.closePlaybackSession(session, update: .init(

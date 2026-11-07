@@ -1,15 +1,19 @@
 import Foundation
 
-/// 来源类型。用于 UI 分组、能力预设和诊断，不参与业务分支判断。
-public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
+/// 精确的来源标识。来源、绑定、目录展示与配置提供方共用；操作仍须检查 capabilities。
+public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable, Hashable {
     case local
     case smb
     case webdav
     case ftp
     case sftp
     case nfs
-    /// 厂商 OpenAPI（百度网盘、阿里云盘、OneDrive、Google Drive…）。
-    case cloudAPI
+    /// Microsoft OneDrive Personal；独立于其他厂商网盘。
+    case oneDrive
+    /// Google Drive，仅预留标识及图标，尚无内置适配器。
+    case googleDrive
+    /// 阿里云盘，仅预留标识及图标，尚无内置适配器。
+    case aliyun
     /// iCloud Drive：本质是本地文件 + 协调器，不是网络协议。
     case iCloud
     /// 只读媒体源，不具备文件系统语义。
@@ -30,7 +34,9 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
     public var iconResourceName: String? {
         switch self {
         case .webdav: "webdav"
-        case .cloudAPI: "onedrive"
+        case .oneDrive: "onedrive"
+        case .googleDrive: "google-drive"
+        case .aliyun: "aliyun"
         case .iCloud: "icloud"
         case .baidu: "baidu"
         case .local, .smb, .ftp, .sftp, .nfs, .dlna, .opds, .komga, .kavita, .audiobookshelf: nil
@@ -46,7 +52,9 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .ftp: "FTP"
         case .sftp: "SFTP"
         case .nfs: "NFS"
-        case .cloudAPI: "Cloud API"
+        case .oneDrive: "OneDrive"
+        case .googleDrive: "Google Drive"
+        case .aliyun: "Aliyun Drive"
         case .iCloud: "iCloud Drive"
         case .dlna: "DLNA"
         case .opds: "OPDS"
@@ -54,6 +62,15 @@ public enum RemoteSourceKind: String, Sendable, Codable, CaseIterable {
         case .komga: "Komga"
         case .kavita: "Kavita"
         case .audiobookshelf: "Audiobookshelf"
+        }
+    }
+
+    /// SDK 是否提供此来源的内置适配器；不表示账号已授权或服务已完成真实环境验收。
+    /// 自定义适配器由宿主另行管理，不会改变此静态标记。
+    public var hasBuiltInAdapter: Bool {
+        switch self {
+        case .local, .webdav, .oneDrive, .iCloud, .opds, .baidu, .komga, .kavita, .audiobookshelf: true
+        case .smb, .ftp, .sftp, .nfs, .dlna, .googleDrive, .aliyun: false
         }
     }
 }

@@ -476,7 +476,7 @@ extension OneDriveSource: RemoteResumableUploadSource {
     }
 
     private func validateResumableTarget(_ target: RemoteFileReference, context: ODContext) throws {
-        let binding = RemoteSourceBinding(kind: .cloudAPI, identity: "onedrive:" + context.drive)
+        let binding = RemoteSourceBinding(kind: .oneDrive, identity: "onedrive:" + context.drive)
         guard target.source == binding, case .path(let path) = target.locator, path != "/" else {
             throw RemoteSyncError.conflict(path: "upload-binding")
         }
@@ -504,7 +504,7 @@ extension OneDriveSource: RemoteResumableUploadSource {
     }
 
     private func validateRecord(_ record: ODUploadSessionRecord, context: ODContext) throws {
-        let binding = RemoteSourceBinding(kind: .cloudAPI, identity: "onedrive:" + context.drive)
+        let binding = RemoteSourceBinding(kind: .oneDrive, identity: "onedrive:" + context.drive)
         guard record.binding == binding, record.driveID == context.drive else {
             throw RemoteSyncError.conflict(path: "upload-binding")
         }

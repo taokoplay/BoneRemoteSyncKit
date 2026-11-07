@@ -4,6 +4,8 @@
 
 `OneDriveSource` 支持 Personal 主盘文件访问与写入，使用 `import BoneRemoteSyncKit`。组织账号、SharePoint 与共享 `remoteItem` 仍未接入。OneDrive Upload Session 可恢复上传通过专用构造器 opt-in；普通 `OneDriveSource(configuration:)` 不启用该能力。真实 Microsoft 账号、大文件与 Keychain entitlement 验收仍待完成。
 
+当前未发布的来源枚举统一后，`OneDriveSource.kind`、`connectedBinding().kind` 及上传恢复绑定均为 `.oneDrive`。不再使用 `.cloudAPI`；旧引用、快照和上传恢复记录不能直接跨版本复用。升级前先用旧版本核对并完成/中止未结上传，重新连接后重建引用，详见 [枚举升级说明](API.md#来源枚举升级)。
+
 ## 授权接入步骤
 
 1. 在 Microsoft Entra 注册支持个人账号的原生 public-client 应用，取得公开 client ID，配置与宿主一致的 redirect URI。

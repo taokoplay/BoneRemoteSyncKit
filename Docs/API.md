@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [百度](BaiduDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页描述已发布 `v0.8.2` API 与当前工作区未发布的百度、Komga、Kavita、Audiobookshelf 扩展；新模块需使用包含本次实现的源码，不代表远端 `main` 已可安装。OPDS 只读书库自 `v0.8.0`、可组合网盘权限自 `v0.7.0`、Catalog 统计/缓存失效/iCloud 配置自 `v0.6.0` 提供。图标资源、来源显示名称和网盘类型列表自 `v0.5.0` 提供；R3 批量状态、Transfer、公共区间/恢复协议与 OneDrive Upload Session 自 `v0.4.0` 提供。
+> 本页以当前工作区 API 为准，区分已发布 `v0.8.2`、已推送开发提交 `fe8cfc2` 和尚未推送的来源枚举统一，见[版本对照](../README.md#开发源码与版本范围)。百度、三种原生内容服务、Browser、OPDS 封面及 Catalog 扫描间隔已在开发提交中，尚无新标签；本页的精确来源枚举和强类型网盘 id 需要当前工作区。OPDS 基础能力自 `v0.8.0`、可组合权限自 `v0.7.0`、Catalog 统计/iCloud 配置自 `v0.6.0`、图标自 `v0.5.0`、Transfer 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -19,7 +19,7 @@
 | `BoneRemoteSyncBaidu` | **未发布**：百度官方开放 API 的应用目录来源与 OAuth URL/回调辅助，仅依赖 Core 与系统框架，由 Kit 重导出 |
 | `BoneRemoteSyncTransfer` | **自 v0.4.0 提供**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
-| `BoneRemoteSyncOPDS` | **自 v0.8.0**：OPDS 1.2 专用书目浏览/搜索/详情与只读下载，仅依赖 Core；不集成 Catalog |
+| `BoneRemoteSyncOPDS` | **基础自 v0.8.0；封面读取在未发布开发源码**：OPDS 1.2 书目浏览/搜索/详情、封面与只读下载，仅依赖 Core；不集成 Catalog |
 | `BoneRemoteSyncContent` | **未发布**：内容服务共享配置、分页、认证播放请求及受限 HTTP/下载设施，仅依赖 Core |
 | `BoneRemoteSyncKomga` | **未发布**：Komga 原生书库、下载与阅读进度，依赖 Content/Core |
 | `BoneRemoteSyncKavita` | **未发布**：Kavita 原生系列/卷章、下载与阅读进度，依赖 Content/Core |
@@ -42,7 +42,29 @@
 | `BoneRemoteSyncIcon.url` | 无 | 当前图标资源的 PNG URL |
 | `BoneRemoteSyncIcon.data()` | 无 | 当前图标的 PNG 数据 |
 
-`BoneRemoteSyncDriveType` 的字段为：`id: String`、`displayName: String`、`icon: BoneRemoteSyncIcon` 和 `kind: RemoteSourceKind`。`BoneRemoteSyncSourceType` 的字段为：`kind`、`displayName` 和可选 `icon`。当前工作区新增 `.baidu`，`driveTypes()` 的百度项对应此类型及 `BaiduDriveSource`；Google Drive、阿里云盘仍只有图标目录项。图标存在不等于来源已实现，实际来源能力仍需检查 `RemoteSource.capabilities`。
+来源实例 `source.kind`、`RemoteSourceBinding.kind`、网盘/来源目录项的 `id` 与 `kind`，以及 `RemoteSourceConfiguration.provider` 均使用 **`RemoteSourceKind`**。具体厂商为 `.oneDrive`、`.googleDrive`、`.aliyun`、`.baidu`；本地/协议/书库同样由该枚举表示，不另设 `RemoteProviderKind` 或 `RemoteCatalogProvider`。
+
+`BoneRemoteSyncDriveType` 提供 `id: RemoteSourceKind`（计算属性，等于 kind）、`kind`、`displayName` 和 `icon`；构造器为 `init(kind:displayName:icon:)`。`BoneRemoteSyncSourceType` 提供相同类型的 id/kind、displayName 和可选 icon。图标枚举 `BoneRemoteSyncIcon` 仅表示资源，诸如 `onedrive`、`google-drive` 的图标文件名不用于业务筛选。
+
+`RemoteSourceKind.hasBuiltInAdapter` 对 Local、WebDAV、OneDrive、iCloud、OPDS、百度、Komga、Kavita、Audiobookshelf 返回 true；其他预留来源返回 false。目录和 allCases 仍包含预留项，宿主按需求选择。该属性不替代账号授权或 `source.capabilities`。
+
+### 来源枚举升级
+
+本轮按当前 API 统一类型，不保留旧类型别名或模糊编码的自动推断。接入方需要同步修改：
+
+| 旧用法 | 当前用法 |
+| --- | --- |
+| 用 `.cloudAPI` 表示 OneDrive | 改为 `.oneDrive`，并补齐 `.googleDrive`、`.aliyun` 等穷举分支 |
+| `Set<String>` 网盘白名单 | 使用 `Set<RemoteSourceKind>`，如 `[.webdav, .oneDrive, .baidu]` |
+| `drive.id == "onedrive"` | `drive.id == .oneDrive`；旧 `"google-drive"` / `"icloud"` 分别改为 `.googleDrive` / `.iCloud` |
+| `BoneRemoteSyncDriveType(id:displayName:icon:kind:)` | `BoneRemoteSyncDriveType(kind:displayName:icon:)`，只保留一份来源身份 |
+| `RemoteCatalogProvider` / `.webDAV` 提供方值 | 类型改 `RemoteSourceKind`，提供方值为 `.webdav`；配置载荷构造器 `RemoteSourceConfiguration.webDAV(...)` 保持原样 |
+
+`RemoteSourceKind` 的 String rawValue 使用枚举名：`oneDrive`、`googleDrive`、`aliyun`、`iCloud`、`webdav` 等，可通过 Codable 保存；它们不等于历史图标目录的字符串 ID。旧 `"cloudAPI"` 可能代表不同厂商，解码明确失败，不自动映射为 OneDrive。宿主只在已经核对具体来源的上下文中转换自己的启用列表；不批量替换所有历史绑定数据。
+
+OneDrive 的新绑定 kind 为 `.oneDrive`，identity 仍由 `connectedBinding()` 给出。升级前应结束旧任务，重连后重建 Browser、materializer、文件引用与展示快照。旧 OneDrive 上传恢复记录同样包含旧 kind，不能跨版本直接恢复；应先使用旧版本核对并完成或中止未结任务，再升级，不能把未知远端结果当作失败而盲目重新上传。
+
+Catalog 的 `provider` 是计算属性；本轮不改变 `RemoteSourceConfiguration` 的关联值 case、已保存配置载荷或数据库 schema。若宿主曾单独保存 `RemoteCatalogProvider`，其 WebDAV rawValue 从 `webDAV` 变为 `webdav`，需按新枚举重新保存。图标目录升级不会新增 Google Drive/阿里云盘适配器。
 
 ## Catalog 路径与统计
 
@@ -88,15 +110,15 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource / BaiduDrive
 
 | 协议 | 主要接口 | 当前实现 |
 | --- | --- | --- |
-| `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 文件来源；OPDS 仅提供登记描述 stat/下载，list 明确不支持 |
-| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 五类文件来源（含未发布百度）；OPDS 不遵循 |
+| `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 五类文件来源；OPDS/Komga/Kavita/Audiobookshelf 仅桥接会话内登记描述的 stat/下载，list 不支持 |
+| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 五类文件来源（含开发版百度）；四种内容来源不遵循 |
 | `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件）、百度（未发布） |
 | `RemoteIDAddressableSource` | `stat(id:)`、`list(parentID:request:)`、`download(id:to:options:)` | OneDrive Personal、百度（未发布）；仅在各自绑定范围内读取 |
 | `RemoteByteRangeSource` | **自 v0.4.0 提供**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
 | `RemoteResumableDownloadSource` | **自 v0.4.0 提供**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
 | `RemoteResumableUploadSource` | **自 v0.4.0 提供**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
 
-自 `v0.8.0` 提供的 `OPDSSource` 使用 `browse`、`nextPage`、`publication`、`search` 处理书库链接，通过 `prepareDownload` 签发会话内合成路径，交给 Transfer。`sourceBinding()` 每次连接变化；stat 不做远端 HEAD，文件版本及大小保持未知，不支持强版本缓存、递归目录或 Catalog。不要把书目 Atom ID、Feed ETag 或 updated 当作文件版本。详见 [OPDS API](OPDS.md)。
+`OPDSSource` 使用 `browse`、`nextPage`、`publication`、`search` 处理书库链接，通过 `prepareDownload` 签发会话内合成路径，交给 Transfer；未发布开发源码另有 `cover(_:)` 有界读取封面。`sourceBinding()` 每次连接变化；stat 不做远端 HEAD，文件版本及大小保持未知，不支持强版本缓存、递归目录或 Catalog。不要把书目 Atom ID、Feed ETag 或 updated 当作文件版本。详见 [OPDS API](OPDS.md)。
 
 未发布 `BaiduDriveSource` 使用已存在且获授权的 `/apps/{app}` 或子目录作为 `rootPath`，不提供全盘浏览。`BaiduDriveOAuth` 生成简化/授权码模式 URL 并校验回调；code 交换和令牌刷新交给宿主后端保护 SecretKey，无 PKCE 承诺。`BaiduDriveTokenRefresher` 由宿主调用后端并安全持久化新令牌，单实例合并刷新、核对账号，失败使会话失效；Catalog 的固定引用回调另见 [Catalog](Catalog.md)。尚无真实百度应用或 token，接入合同见 [百度指南](BaiduDrive.md)。
 

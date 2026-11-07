@@ -189,9 +189,9 @@ func openBackupSource(containerIdentifier: String) async throws -> ICloudDriveSo
 | Q6 | 单实例阻塞文件工作确实串行；占位等待可交错，不保证整次操作或业务序列排他，多实例可并行。自动备份/恢复的业务互斥由宿主负责。 |
 | Q7 | upload 返回只确认本地协调与原子提交，没有“云端已传播”查询保证。建议文案：“已保存，iCloud 将继续同步，其他设备可能稍后可见”。 |
 
-## 未集成范围
+## Catalog 与集成边界
 
-- **Catalog：** `RemoteCatalogProvider`、`RemoteSourceConfiguration` 和默认 session factory 仍只支持 Local、WebDAV、OneDrive。不要把 iCloud 容器作为 `.local` 绕过来源语义；直接持有 `ICloudDriveSource` 使用。Catalog 的持久化 iCloud 配置与账户绑定需后续独立设计。
+- **Catalog：** 已支持 `RemoteSourceConfiguration.iCloud(...)` 和对应的默认 session factory；`configuration.provider` 与来源实例共用 `RemoteSourceKind.iCloud`。通过 [Catalog 指南](Catalog.md)保存 iCloud 配置并索引选定目录，宿主仍须提供 entitlement、容器及权限；不要将 iCloud 容器伪装成 `.local`。
 - 无 `NSMetadataQuery` 变更监听、`NSFilePresenter` 长期观察者、后台传输队列、跨设备一致性协议、tombstone、差异计划或自动同步。
 - 无 CloudKit record/zone、`CKSyncEngine`、Core Data/SwiftData 同步接入。
 - 无递归目录复制、上传续传、对外内容哈希、云端上传完成等待或真实账号自动测试。

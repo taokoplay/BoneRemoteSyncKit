@@ -59,7 +59,7 @@ private final class RecordingUploadSecurityBackend: ODUploadSecurityBackend, @un
     @Test func keychainStoreUsesDeviceOnlyNonSynchronizingPrivateService() throws {
         let backend = RecordingUploadSecurityBackend()
         let service = try OneDriveUploadSessionStore(service: "fixture-session", backend: backend)
-        let binding = RemoteSourceBinding(kind: .cloudAPI, identity: "onedrive:D")
+        let binding = RemoteSourceBinding(kind: .oneDrive, identity: "onedrive:D")
         let target = RemoteFileReference(source: binding, path: "/file.bin")
         let handle = try RemoteUploadHandle(source: binding, target: target, sourceSize: 3, sourceFingerprint: "abc")
         let id = handle.id

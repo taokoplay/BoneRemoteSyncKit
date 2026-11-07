@@ -4,6 +4,46 @@ import BoneRemoteSyncKit
 
 /// Deliberately imports only the umbrella SDK, without @testable or individual source modules.
 @Suite struct UnifiedImportTests {
+    @Test func oneEnumFiltersSourcesAndDrivesWithoutVendorCollisions() throws {
+        let enabled: Set<RemoteSourceKind> = [.webdav, .oneDrive, .baidu]
+        let drives = BoneRemoteSyncIcons.driveTypes().filter { enabled.contains($0.kind) }
+        #expect(Set(drives.map(\.id)) == enabled)
+        #expect(drives.allSatisfy { $0.id == $0.kind && $0.kind.hasBuiltInAdapter })
+        let oneDriveOnly = BoneRemoteSyncIcons.driveTypes().filter { $0.id == .oneDrive }
+        #expect(oneDriveOnly.count == 1 && oneDriveOnly.first?.displayName == "OneDrive")
+        for drive in BoneRemoteSyncIcons.driveTypes() {
+            #expect(BoneRemoteSyncIcons.icon(for: drive.kind) == drive.icon)
+        }
+        #expect(!RemoteSourceKind.googleDrive.hasBuiltInAdapter && !RemoteSourceKind.aliyun.hasBuiltInAdapter)
+        let appOrder: [RemoteSourceKind] = [.oneDrive, .webdav, .opds, .komga]
+        let rows = appOrder.map { BoneRemoteSyncSourceType(kind: $0) }
+        #expect(rows.map(\.id) == appOrder)
+        let restored = try JSONDecoder().decode(Set<RemoteSourceKind>.self, from: JSONEncoder().encode(enabled))
+        #expect(restored == enabled)
+    }
+
+    @Test func catalogConfigurationsExposeTheSameSourceEnum() throws {
+        let configurations: [RemoteSourceConfiguration] = [
+            .local(accessReference: "host-bookmark"),
+            .webDAV(baseURL: URL(string: "https://dav.example/files")!),
+            .oneDrive(clientID: "test-client", redirectURI: URL(string: "example-app://oauth")!, driveID: "D"),
+            .iCloud(.standard),
+            .baidu(configuration: try .init(appKey: "fixture-app", rootPath: "/apps/Fixture"), userID: "111")
+        ]
+        let expected: [RemoteSourceKind] = [.local, .webdav, .oneDrive, .iCloud, .baidu]
+        for (configuration, kind) in zip(configurations, expected) {
+            try configuration.validate()
+            let provider: RemoteSourceKind = configuration.provider
+            #expect(provider == kind && provider.hasBuiltInAdapter)
+            let decoded = try JSONDecoder().decode(RemoteSourceConfiguration.self, from: JSONEncoder().encode(configuration))
+            #expect(decoded == configuration && decoded.provider == kind)
+        }
+        // Configuration payload cases keep their existing spelling; provider values use Core's enum.
+        let encoded = try JSONEncoder().encode(configurations[1])
+        let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        #expect(object["webDAV"] != nil && configurations[1].provider.rawValue == "webdav")
+    }
+
     @Test func exposesUnifiedBrowserThroughKit() async throws {
         let source = LocalFileSource(root: FileManager.default.temporaryDirectory)
         let binding = RemoteSourceBinding(kind: .local, identity: "kit-browser")
@@ -43,7 +83,7 @@ import BoneRemoteSyncKit
         #expect(writable.capabilities.upload && writable.capabilities.copy && !writable.capabilities.resumableUpload)
         #expect(!writable.capabilities.conditionalUpload && !writable.capabilities.rangedDownload && !writable.capabilities.contentHash)
         #expect(BoneRemoteSyncIcons.icon(for: .baidu) == .baidu)
-        #expect(BoneRemoteSyncIcons.driveTypes().first(where: { $0.id == "baidu" })?.kind == .baidu)
+        #expect(BoneRemoteSyncIcons.driveTypes().first(where: { $0.id == .baidu })?.kind == .baidu)
         let saved = RemoteSourceConfiguration.baidu(configuration: configuration, userID: "111")
         try saved.validate()
         #expect(saved.provider == .baidu)
@@ -76,7 +116,7 @@ import BoneRemoteSyncKit
         let oneDrive = OneDriveSource(configuration: configuration)
         let iCloud = ICloudDriveSource()
         let sources: [any RemoteSource] = [local, webDAV, oneDrive, iCloud]
-        #expect(sources.map(\.kind) == [.local, .webdav, .cloudAPI, .iCloud])
+        #expect(sources.map(\.kind) == [.local, .webdav, .oneDrive, .iCloud])
         let copyingSources: [any RemoteCopyingSource] = [local, webDAV, iCloud]
         #expect(copyingSources.allSatisfy { $0.capabilities.copy })
         let writable: any RemoteWritableSource = oneDrive
@@ -128,13 +168,13 @@ import BoneRemoteSyncKit
         let types = BoneRemoteSyncIcons.sourceTypes()
         #expect(types.map(\.kind) == RemoteSourceKind.allCases)
         #expect(types.first(where: { $0.kind == .webdav })?.icon == .webdav)
-        #expect(types.first(where: { $0.kind == .cloudAPI })?.icon == .onedrive)
+        #expect(types.first(where: { $0.kind == .oneDrive })?.icon == .onedrive)
         #expect(types.first(where: { $0.kind == .iCloud })?.icon == .icloud)
         #expect(types.first(where: { $0.kind == .local })?.icon == nil)
 
         let drives = BoneRemoteSyncIcons.driveTypes()
         #expect(drives.count == 6)
-        #expect(drives.map(\.id) == ["google-drive", "aliyun", "baidu", "onedrive", "icloud", "webdav"])
+        #expect(drives.map(\.id) == [.googleDrive, .aliyun, .baidu, .oneDrive, .iCloud, .webdav])
         for drive in drives {
             #expect(drive.icon.url?.pathExtension == "png")
             #expect(try drive.icon.data().count > 0)

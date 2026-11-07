@@ -4,7 +4,7 @@ import BoneRemoteSyncCore
 import BoneRemoteSyncTransfer
 
 @Suite struct SegmentedDownloadTests {
-    private let binding = RemoteSourceBinding(kind: .cloudAPI, identity: "range-fixture")
+    private let binding = RemoteSourceBinding(kind: .oneDrive, identity: "range-fixture")
     private let config = RemoteSegmentedDownloadOptions(segmentSize: 8, maxConcurrentSegments: 3, minimumFileSize: 1)
 
     @Test func protocolAloneEnablesAnotherProviderAndAssemblesOutOfOrder() async throws {
@@ -216,7 +216,7 @@ import BoneRemoteSyncTransfer
 private actor RangeSource: RemoteByteRangeSource {
     enum Mode: Sendable { case normal, unavailable, lateUnavailable, short, oversized, conflict, network, slow, changedAfter }
     static let payload = Data((0..<59).map(UInt8.init))
-    nonisolated let kind: RemoteSourceKind = .cloudAPI
+    nonisolated let kind: RemoteSourceKind = .oneDrive
     // Deliberately no rangedDownload flag: the optional protocol is authoritative.
     nonisolated let capabilities = RemoteCapabilities(maxConcurrentTransfers: 3)
     let mode: Mode
@@ -267,7 +267,7 @@ private final class SegmentProgress: @unchecked Sendable {
 /// A rangedDownload flag does not supply the stronger closed-range contract.
 private struct OrdinaryRangeFixture: RemoteSource {
     let backing = RangeSource()
-    let kind: RemoteSourceKind = .cloudAPI
+    let kind: RemoteSourceKind = .oneDrive
     let capabilities = RemoteCapabilities(rangedDownload: true)
     func connect(_ credential: RemoteCredential) async throws {}
     func disconnect() async {}

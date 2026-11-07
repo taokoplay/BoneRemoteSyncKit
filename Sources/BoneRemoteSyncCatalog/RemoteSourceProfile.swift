@@ -37,9 +37,6 @@ public enum RemoteCatalogError: Error, Sendable, Equatable {
     case interrupted
 }
 
-/// Catalog 中用于区分具体来源适配器的提供方标识。
-public enum RemoteCatalogProvider: String, Sendable, Codable { case local, webDAV, oneDrive, iCloud, baidu }
-
 /// 网盘非敏感配置；密码、令牌、bookmark 和运行时连接对象不保存于此。
 public enum RemoteSourceConfiguration: Sendable, Codable, Equatable {
     case local(accessReference: String)
@@ -48,9 +45,9 @@ public enum RemoteSourceConfiguration: Sendable, Codable, Equatable {
     case iCloud(ICloudDriveConfiguration)
     case baidu(configuration: BaiduDriveConfiguration, userID: String)
 
-    /// 返回配置对应的明确提供方，不根据通用 cloudAPI 猜测品牌。
-    public var provider: RemoteCatalogProvider {
-        switch self { case .local: .local; case .webDAV: .webDAV; case .oneDrive: .oneDrive; case .iCloud: .iCloud; case .baidu: .baidu }
+    /// 与来源实例、绑定和选择器共用的精确来源枚举。
+    public var provider: RemoteSourceKind {
+        switch self { case .local: .local; case .webDAV: .webdav; case .oneDrive: .oneDrive; case .iCloud: .iCloud; case .baidu: .baidu }
     }
     /// 校验来源参数、URL、超时、容器和凭据引用的组合。
     public func validate() throws {

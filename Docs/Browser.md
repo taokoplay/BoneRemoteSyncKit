@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [内容服务](ContentServices.md) · [Transfer](Transfer.md) · [完整示例](../Examples/UnifiedBrowser/README.md)
 
-`BoneRemoteSyncBrowser` 将文件网盘、OPDS、Komga、Kavita、Audiobookshelf 的浏览结果转换为同一组展示类型。它由 Kit 导出，宿主继续只需 `import BoneRemoteSyncKit`。本功能尚未发布，`v0.8.2` 不包含 Browser 或三种原生内容服务，需要使用包含本次实现的源码。
+`BoneRemoteSyncBrowser` 将文件网盘、OPDS、Komga、Kavita、Audiobookshelf 的浏览结果转换为同一组展示类型，由 Kit 导出。Browser 已包含在推送的开发提交 `fe8cfc2` 中，尚无版本标签；`v0.8.2` 不包含它。本页使用的统一来源枚举仍为工作区改动，详见[版本对照](../README.md#开发源码与版本范围)。
 
 原生来源负责认证和实际 API；Browser 负责展示模型、分页、详情、封面、下载选择和错误分类；Transfer 负责完整文件下载与 lease。Browser 不实现登录、文件写操作、后台队列、Catalog 索引、阅读器或播放器。
 
@@ -10,7 +10,7 @@
 
 ## 安装与导入
 
-当前先使用包含本次实现的本地源码。在 Xcode 中通过 **File → Add Package Dependencies → Add Local…** 选择 `BoneRemoteSyncKit` 目录，再将 `BoneRemoteSyncKit` 产品加入宿主 target。远端 `main` 是否包含本次改动需另行核对；固定 `0.8.2` 无法使用 Browser。
+要完整使用本页的统一来源枚举示例，先依赖当前本地工作区。在 Xcode 中通过 **File → Add Package Dependencies → Add Local…** 选择 `BoneRemoteSyncKit` 目录，再将 `BoneRemoteSyncKit` 产品加入宿主 target。已推送 `main` 的 `fe8cfc2` 提供 Browser 本身，但仍使用统一枚举前的来源标识；固定 `0.8.2` 没有 Browser。
 
 SwiftPM 宿主若与 SDK 目录同级，可以使用以下完整清单；目录不同则调整 `path`：
 
@@ -36,6 +36,25 @@ let package = Package(
 `RemoteBrowser` 等是 SDK API；下文的 `BrowserConnectionExamples`、`visitBrowserPages`、`consumeBrowserDownload` 等是**示例辅助代码**，不随 `import` 自动出现。使用它们时，将 [BrowserConnectionExamples.swift](../Examples/UnifiedBrowser/BrowserConnectionExamples.swift) 与 [UnifiedBrowserExample.swift](../Examples/UnifiedBrowser/UnifiedBrowserExample.swift) **一起加入宿主 target**，或将所需函数复制到自己的服务层。
 
 Browser 独立产品可供按需依赖；若同时需要各来源配置和 Transfer，优先选择 Kit，避免漏配产品。
+
+## 选择显示哪些网盘和书库
+
+所有入口共用 `RemoteSourceKind`，接入方决定白名单，不需要字符串 ID 或额外提供方枚举：
+
+```swift
+func enabledBrowserSources() -> [BoneRemoteSyncSourceType] {
+    let enabled: Set<RemoteSourceKind> = [.webdav, .oneDrive, .baidu, .opds, .komga]
+    return BoneRemoteSyncIcons.sourceTypes().filter {
+        enabled.contains($0.kind) && $0.kind.hasBuiltInAdapter
+    }
+}
+```
+
+只展示六项网盘图标目录中的部分时，用同样的集合过滤 `driveTypes()`；这里每项 `id` 和 `kind` 也都是 `RemoteSourceKind`。只选 `.oneDrive` 不会选中 `.googleDrive` 或 `.aliyun`。用户选择后才创建对应来源并连接，显示列表本身不访问网络。
+
+需要按产品顺序展示时，使用数组而非 Set，例如 `[RemoteSourceKind.oneDrive, .webdav, .komga].map { BoneRemoteSyncSourceType(kind: $0) }`。显示名称可覆盖为宿主本地化文案；图标枚举只负责资源。`hasBuiltInAdapter` 不表示已授权或所有操作可用；枚举中预留但未实现的来源不会因有图标而获得连接能力。
+
+从旧 `.cloudAPI` 或字符串目录 ID 升级时，请同步更新白名单、绑定/快照与恢复记录，见 [API 升级说明](API.md#来源枚举升级)。可复制的 `browserSourceChoices` 函数见 [通用示例](../Examples/UnifiedBrowser/UnifiedBrowserExample.swift)。
 
 ## 创建与使用
 

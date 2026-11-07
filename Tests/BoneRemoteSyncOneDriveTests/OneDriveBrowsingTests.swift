@@ -20,7 +20,7 @@ final class TokenProbe: @unchecked Sendable {
     @Test func paginatesWithStableIDsAndHiddenFiltering() async throws {
         let server = try OneDriveTestServer(); defer { server.cleanUp() }; let source = server.source()
         try await source.connect(server.credential)
-        #expect(source.kind == .cloudAPI)
+        #expect(source.kind == .oneDrive)
         // Write-capable since v1.1, but still no ranged download, resumable upload or server-side copy.
         #expect(source.capabilities.upload); #expect(source.capabilities.remove)
         #expect(!source.capabilities.rangedDownload); #expect(!source.capabilities.resumableUpload); #expect(!source.capabilities.copy)

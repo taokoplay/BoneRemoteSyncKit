@@ -2,11 +2,11 @@
 
 [首页](../README.md) · [Swift 示例](../Examples/BaiduDrive/README.md) · [Catalog](Catalog.md) · [Transfer](Transfer.md) · [验证记录](Validation.md)
 
-> 未发布新增能力：独立 `BoneRemoteSyncBaidu` 仅依赖 Core 与系统框架，通过 Kit 重新导出。实现依据百度开放平台公开文档；真实应用审核、OAuth 登录、用户目录权限及线上文件操作尚未验收。本地合成服务测试不能代替真实百度账号验收。
+> 百度模块已在推送的开发源码中，尚未纳入版本标签，`v0.8.2` 不包含它；最新统一来源枚举仍需当前工作区，见[版本对照](../README.md#开发源码与版本范围)。独立 `BoneRemoteSyncBaidu` 仅依赖 Core 与系统框架，由 Kit 导出。实现依据官方开放 API；真实应用审核、OAuth、用户目录权限及线上文件操作尚未验收，本地 fixture 不能替代真实账号验收。
 
 ## 接入范围
 
-提供 `BaiduDriveSource`，遵循 `RemoteCopyingSource`、`RemoteIDAddressableSource`。`RemoteSourceKind.baidu` 使用既有百度图标，`driveTypes()` 的百度项现在指向 `.baidu`；其他厂商仍使用其现有类型。
+提供 `BaiduDriveSource`，遵循 `RemoteCopyingSource`、`RemoteIDAddressableSource`。`RemoteSourceKind.baidu` 使用既有百度图标，`driveTypes()` 中百度项的 id/kind 都是 `.baidu`。具体厂商、协议与书库统一用 `RemoteSourceKind`，接入方可用 `Set<RemoteSourceKind>` 筛选显示范围，见 [来源类型 API](API.md#图标与来源类型-api)。
 
 | 能力 | 当前范围 |
 | --- | --- |

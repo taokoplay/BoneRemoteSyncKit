@@ -4,11 +4,15 @@
 
 The protocol baseline is official **v2.37.2**, commit **edb1f7efc92ecacdef51aafb4d9d5054ce10604f**. The tests use a synthetic Python HTTP server on `127.0.0.1`; no real Audiobookshelf deployment or credentials were supplied. Passing fixtures proves the documented wire contract and lifecycle behavior, not acceptance against a deployed server.
 
+The adapter is available in pushed development commit `fe8cfc2`, but is not part of the `v0.8.2` release tag. See the [version matrix](../README.md#开发源码与版本范围). Import the Kit product for the unified API, or select the individual products used by the host. For shared browser screens, see [RemoteBrowser](Browser.md); native progress and playback methods remain separate.
+
+The snippets below run inside host-owned async code. Supply the saved credential/user ID, selected library/item/episode/file IDs, a private cache directory and the media-consumer callback. Keep the source connected while using it; stop playback and shut down Transfer before disconnecting it on both success and failure. These snippets do not constitute a standalone player.
+
 ## Connect and verify the account
 
 ```swift
-import BoneRemoteSyncAudiobookshelf
-import BoneRemoteSyncCore
+import Foundation
+import BoneRemoteSyncKit
 
 let source = AudiobookshelfSource(configuration: try .init(
     baseURL: URL(string: "https://books.example.org/abs/")!,
@@ -59,11 +63,16 @@ let materializer = RemoteFileMaterializer(
     sourceBinding: try await source.sourceBinding(),
     cacheDirectory: privateCacheDirectory
 )
-let lease = try await materializer.materialize(reference)
-try await lease.withAccess { localURL in
-    try await hostOpenLocalMedia(localURL)
+do {
+    let lease = try await materializer.materialize(reference)
+    try await lease.withAccess { localURL in
+        try await hostOpenLocalMedia(localURL)
+    }
+    await materializer.shutdown()
+} catch {
+    await materializer.shutdown()
+    throw error
 }
-await materializer.shutdown()
 ```
 
 `prepareTrackDownload(itemID:trackIndex:episodeID:)` selects a track by the server's index and resolves its concrete file; a podcast requires its episode ID. `prepareDownload(itemID:fileID:)` selects one actual library/audio/episode file after re-fetching details. The server's download permission is checked, and bytes come from `/api/items/{itemID}/file/{fileID}/download`. A multi-file book is never represented as a fictitious single download.
