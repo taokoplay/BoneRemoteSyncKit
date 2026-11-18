@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [Swift 示例](../Examples/BaiduDrive/README.md) · [Catalog](Catalog.md) · [Transfer](Transfer.md) · [验证记录](Validation.md)
 
-> 百度模块已在推送的开发源码中，尚未纳入版本标签，`v0.8.2` 不包含它；最新统一来源枚举仍需当前工作区，见[版本对照](../README.md#开发源码与版本范围)。独立 `BoneRemoteSyncBaidu` 仅依赖 Core 与系统框架，由 Kit 导出。实现依据官方开放 API；真实应用审核、OAuth、用户目录权限及线上文件操作尚未验收，本地 fixture 不能替代真实账号验收。
+> 百度模块自 `v0.9.0` 提供。独立 `BoneRemoteSyncBaidu` 仅依赖 Core 与系统框架，由 Kit 导出。实现依据官方开放 API；真实应用审核、OAuth、用户目录权限及线上文件操作尚未验收，本地 fixture 不能替代真实账号验收。
 
 ## 接入范围
 

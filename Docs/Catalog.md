@@ -2,11 +2,11 @@
 
 [首页](../README.md) · [通用 API](API.md) · [接入示例](../Examples/CatalogIndex/README.md) · [百度接入](BaiduDrive.md) · [验证边界](Validation.md) · [错误日志](Logging.md)
 
-> 本页描述当前 Catalog API。百度配置和 `requestInterval` 已在开发提交 `fe8cfc2`，尚未纳入标签；`configuration.provider` 的统一枚举调整仍在工作区，见[版本对照](../README.md#开发源码与版本范围)。可组合权限自 `v0.7.0`，统计/失效/iCloud 配置和 schema v2 自 `v0.6.0` 提供。OPDS/Komga/Kavita/Audiobookshelf 均未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成；fixture 不等于线上验收。
+> 百度配置、`requestInterval` 和返回统一枚举的 `configuration.provider` 自 `v0.9.0` 提供，见[来源枚举升级](API.md#来源枚举升级)。可组合权限自 `v0.7.0`，统计/失效/iCloud 配置和 schema v2 自 `v0.6.0` 提供。OPDS/Komga/Kavita/Audiobookshelf 均未接入 Catalog。真实 Keychain、账号及宿主授权验收仍待完成；fixture 不等于线上验收。
 
 ## 能力与层次
 
-`BoneRemoteSyncCatalog` 是可选上层模块：保存 Local、WebDAV、OneDrive Personal、iCloud Drive 和百度（未发布）的非敏感配置、选定目录、文件元数据及刷新状态。`BoneRemoteSyncKit` 统一导出它；只需要传输时仍可单独依赖 Core 和来源产品，基础模块不依赖数据库。
+`BoneRemoteSyncCatalog` 是可选上层模块：保存 Local、WebDAV、OneDrive Personal、iCloud Drive 和百度的非敏感配置、选定目录、文件元数据及刷新状态。`BoneRemoteSyncKit` 统一导出它；只需要传输时仍可单独依赖 Core 和来源产品，基础模块不依赖数据库。
 
 - `RemoteSourceProfile`：稳定来源 ID、账号/端点绑定 ID、配置修订、typed configuration 和凭据引用。
 - `RemoteCatalogRoot`：选定目录的路径与来源 ID、过滤规则、默认刷新范围和 selection revision。
@@ -72,7 +72,7 @@ func openCatalogStore(privateDirectory: URL) throws -> SQLiteRemoteCatalogStore 
 | `.webDAV(baseURL:timeout:retry:)` | collection URL、请求与只读重试参数 | URL userinfo、密码、Authorization |
 | `.oneDrive(clientID:redirectURI:driveID:timeout:)` | public-client 应用参数、已核对的 Personal 主盘 ID | token、nextLink、预授权下载 URL |
 | `.iCloud(configuration)` | 容器标识和配置目录等 `ICloudDriveConfiguration` | 系统账号凭据、entitlement、已连接状态 |
-| `.baidu(configuration:userID:)`（未发布） | `BaiduDriveConfiguration` 的公开 AppKey、授权根、超时/并发/上传上限及已核对用户 ID | SecretKey、token、dlink、远端 cursor；凭据仅保存 UUID 引用 |
+| `.baidu(configuration:userID:)` | `BaiduDriveConfiguration` 的公开 AppKey、授权根、超时/并发/上传上限及已核对用户 ID | SecretKey、token、dlink、远端 cursor；凭据仅保存 UUID 引用 |
 
 百度配置必须指向已存在且获授权的 `/apps/{app}` 或子目录，来源 `/` 仅表示这个配置根；Catalog 选根不能扩大为全盘权限。新增 provider 沿用当前数据库 schema，无需升级表结构；旧 SDK 不能理解百度配置。
 
@@ -133,7 +133,7 @@ SQLite 与 Keychain **没有跨存储事务**：DB 失败只清理能证明是�
 
 `revokeCredential(reference:remove:)` 序列化撤销与写入，旧回调不能重新创建已删除凭据；撤销不代表旧会话已经断开或远端 token 已撤销。宿主仍须取消并等待关联任务。活动引用上的重绑返回 busy，不中断另一个合法会话正在保存的 token。
 
-## 百度身份与后端刷新（未发布）
+## 百度身份与后端刷新
 
 首次用 `BaiduDriveSource` 连接后，从 `connectedUserID()` 获取已核对的用户 ID，再保存 `.baidu(configuration:userID:)` 与完整 OAuth 凭据或 `.apiToken`。`uk` 以精确 uint64 值读取并保留为字符串，不从文件、路径或浮点数推测用户。百度条目 ID 和来源 binding 包含应用/用户/根作用域；AppKey、账号或 `rootPath` 变化需要新的 binding、凭据引用及重新选根。
 
@@ -186,7 +186,7 @@ func indexSelection(catalog: RemoteCatalog, profile: RemoteSourceProfile) async 
 - 刷新已缓存的子目录可传其规范来源路径；不是任意越过缓存父链的路径查询。
 - 同根同一时间只接受一轮刷新，重复或冲突请求返回 busy；首版不合并等待。
 - 默认并发 4、最大 16；条目数、目录数、深度、单目录页数和整轮 timeout 均有限。pageSize 是提示，Local/WebDAV 可能一次物化整个大目录。
-- **未发布新增 `requestInterval`**：扫描阶段 `list/stat` 调用之间的最小放行间隔，单位秒，默认 `0`，合法范围 `0...86400`（有限值）。首个调用立即放行；同一轮扫描的所有并发目录和分页共享间隔，唤醒延迟不会积攒可突发放行的名额。不是每个目录各自计时，也不是每个文件等待一次。
+- **`v0.9.0` 新增 `requestInterval`**：扫描阶段 `list/stat` 调用之间的最小放行间隔，单位秒，默认 `0`，合法范围 `0...86400`（有限值）。首个调用立即放行；同一轮扫描的所有并发目录和分页共享间隔，唤醒延迟不会积攒可突发放行的名额。不是每个目录各自计时，也不是每个文件等待一次。
 - 请求间隔与并发数分别控制频率和同时执行的目录任务数；慢请求仍可能重叠。对限制严格的网盘，建议先设 `concurrency: 1, requestInterval: 0.5`，再按实际配额调整。间隔等待计入扫描 timeout，取消或超时会中断等待并保留旧完整缓存。
 - 间隔仅约束本轮扫描主动调用来源的 `list/stat`；连接、认证、刷新前选根预检、适配器内部重试及其他刷新/下载不共用此限制，不保证每条底层 HTTP 请求的发送间隔。它适用于所有 Catalog 来源，不改变直接使用 `source.walk/list/stat` 的行为。参数按次传入，不自动持久化。
 - 整轮 timeout 使用单调时钟计时，关闭后续提交资格并取消任务，但仍等待网络/lease 清理。取消是协作式的，不保证精确时间点返回；已提交目录不回滚。

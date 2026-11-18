@@ -2,7 +2,7 @@
 
 [返回项目首页](../README.md) · [业务场景与选型](UseCases.md) · [本地目录](Local.md) · [iCloud Drive](ICloudDrive.md) · [WebDAV](WebDAV.md) · [OneDrive](OneDrive.md) · [百度](BaiduDrive.md) · [Catalog](Catalog.md) · [错误日志](Logging.md)
 
-> 本页以当前工作区 API 为准，区分已发布 `v0.8.2`、已推送开发提交 `fe8cfc2` 和尚未推送的来源枚举统一，见[版本对照](../README.md#开发源码与版本范围)。百度、三种原生内容服务、Browser、OPDS 封面及 Catalog 扫描间隔已在开发提交中，尚无新标签；本页的精确来源枚举和强类型网盘 id 需要当前工作区。OPDS 基础能力自 `v0.8.0`、可组合权限自 `v0.7.0`、Catalog 统计/iCloud 配置自 `v0.6.0`、图标自 `v0.5.0`、Transfer 自 `v0.4.0` 提供。
+> 本页描述 `v0.9.0` 的公共 API。百度、三种原生内容服务、Browser、OPDS 封面、Catalog 扫描间隔及统一来源枚举自此版本提供；升级调用与旧数据前见[来源枚举升级](#来源枚举升级)。OPDS 基础能力自 `v0.8.0`、可组合权限自 `v0.7.0`、Catalog 统计/iCloud 配置自 `v0.6.0`、图标自 `v0.5.0`、Transfer 自 `v0.4.0` 提供。
 
 ## 统一入口与模块
 
@@ -16,15 +16,15 @@
 | `BoneRemoteSyncICloud` | iCloud Drive 文件协调、占位下载及状态快照 |
 | `BoneRemoteSyncWebDAV` | WebDAV 文件读写与下载恢复 |
 | `BoneRemoteSyncOneDrive` | OneDrive Personal 主盘与 OAuth/PKCE 辅助 |
-| `BoneRemoteSyncBaidu` | **未发布**：百度官方开放 API 的应用目录来源与 OAuth URL/回调辅助，仅依赖 Core 与系统框架，由 Kit 重导出 |
+| `BoneRemoteSyncBaidu` | **自 v0.9.0**：百度官方开放 API 的应用目录来源与 OAuth URL/回调辅助，仅依赖 Core 与系统框架，由 Kit 重导出 |
 | `BoneRemoteSyncTransfer` | **自 v0.4.0 提供**：通用文件物化、lease、前台下载调度、可插拔单文件分片下载、显式 WebDAV 恢复下载与 OneDrive 恢复上传入口（见 [Transfer](Transfer.md)） |
 | `BoneRemoteSyncCatalog` | 可选配置、凭据桥接与离线目录索引（见 [Catalog](Catalog.md)） |
-| `BoneRemoteSyncOPDS` | **基础自 v0.8.0；封面读取在未发布开发源码**：OPDS 1.2 书目浏览/搜索/详情、封面与只读下载，仅依赖 Core；不集成 Catalog |
-| `BoneRemoteSyncContent` | **未发布**：内容服务共享配置、分页、认证播放请求及受限 HTTP/下载设施，仅依赖 Core |
-| `BoneRemoteSyncKomga` | **未发布**：Komga 原生书库、下载与阅读进度，依赖 Content/Core |
-| `BoneRemoteSyncKavita` | **未发布**：Kavita 原生系列/卷章、下载与阅读进度，依赖 Content/Core |
-| `BoneRemoteSyncAudiobookshelf` | **未发布**：有声书/播客、文件下载、收听进度与直放会话，依赖 Content/Core |
-| `BoneRemoteSyncBrowser` | **未发布**：文件与四种书库的统一浏览/分页/搜索/详情/封面/下载选择、Codable 展示快照及错误分类；保留原生引用，见 [Browser](Browser.md) |
+| `BoneRemoteSyncOPDS` | **基础自 v0.8.0；封面自 v0.9.0**：OPDS 1.2 书目浏览/搜索/详情、封面与只读下载，仅依赖 Core；不集成 Catalog |
+| `BoneRemoteSyncContent` | **自 v0.9.0**：内容服务共享配置、分页、认证播放请求及受限 HTTP/下载设施，仅依赖 Core |
+| `BoneRemoteSyncKomga` | **自 v0.9.0**：Komga 原生书库、下载与阅读进度，依赖 Content/Core |
+| `BoneRemoteSyncKavita` | **自 v0.9.0**：Kavita 原生系列/卷章、下载与阅读进度，依赖 Content/Core |
+| `BoneRemoteSyncAudiobookshelf` | **自 v0.9.0**：有声书/播客、文件下载、收听进度与直放会话，依赖 Content/Core |
+| `BoneRemoteSyncBrowser` | **自 v0.9.0**：文件与四种书库的统一浏览/分页/搜索/详情/封面/下载选择、Codable 展示快照及错误分类；保留原生引用，见 [Browser](Browser.md) |
 
 分模块产品供按需依赖使用，不是旧版兼容层。接入以当前版本的 API 和数据格式为准，不承诺保留旧接口或跨版本数据迁移；宿主应同步更新调用代码。统一导出目前使用 Swift 编译器的 `@_exported import` 下划线属性，它不是应当在业务代码中复制的接入方式；本轮消费端验证结果以[验证记录](Validation.md)为准。
 
@@ -90,7 +90,7 @@ print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
 
 只有保存 root 的完整 `subtree` 刷新成功后才生成或替换递归统计；`children` 刷新不改递归统计。宿主通过来源的上传、删除或移动接口改变远端内容后，应调用 `catalog.invalidateCache(rootID:directory:)` 或执行刷新。`clearIndex`、root 替换、binding 重绑和 profile 删除会清除对应 summary；路径失效自动回退到 `/` 时旧路径统计也不会沿用。
 
-**扫描节流（未发布）：** `RemoteCatalogRefreshOptions.requestInterval: TimeInterval` 表示同一次扫描的 `list/stat` 最小放行间隔，单位秒，默认 `0`，范围 `0...86400`；所有并发目录和分页共享。可用 `.init(scope: .subtree, concurrency: 1, requestInterval: 0.5)` 串行扫描并间隔 500 ms。等待计入 timeout，可被取消；连接/认证、选根预检、适配器内部重试和其他任务不在此限制内，不是全局 HTTP 限流。详细语义见 [Catalog 刷新](Catalog.md#选择目录刷新与离线查询)。
+**扫描节流（自 v0.9.0）：** `RemoteCatalogRefreshOptions.requestInterval: TimeInterval` 表示同一次扫描的 `list/stat` 最小放行间隔，单位秒，默认 `0`，范围 `0...86400`；所有并发目录和分页共享。可用 `.init(scope: .subtree, concurrency: 1, requestInterval: 0.5)` 串行扫描并间隔 500 ms。等待计入 timeout，可被取消；连接/认证、选根预检、适配器内部重试和其他任务不在此限制内，不是全局 HTTP 限流。详细语义见 [Catalog 刷新](Catalog.md#选择目录刷新与离线查询)。
 
 
 
@@ -99,7 +99,7 @@ App：import BoneRemoteSyncKit
     ↓
 RemoteSource / RemoteWritableSource / RemoteCopyingSource
     ↓
-LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource / BaiduDriveSource（未发布）
+LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource / BaiduDriveSource
     ↓
 本地文件系统 / iCloud 容器与 NSFileCoordinator / URLSession
 ```
@@ -111,18 +111,18 @@ LocalFileSource / ICloudDriveSource / WebDAVSource / OneDriveSource / BaiduDrive
 | 协议 | 主要接口 | 当前实现 |
 | --- | --- | --- |
 | `RemoteSource` | `connect`、`disconnect`、`list`、`stat`、`download` | 五类文件来源；OPDS/Komga/Kavita/Audiobookshelf 仅桥接会话内登记描述的 stat/下载，list 不支持 |
-| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 五类文件来源（含开发版百度）；四种内容来源不遵循 |
-| `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件）、百度（未发布） |
-| `RemoteIDAddressableSource` | `stat(id:)`、`list(parentID:request:)`、`download(id:to:options:)` | OneDrive Personal、百度（未发布）；仅在各自绑定范围内读取 |
+| `RemoteWritableSource` | `upload`、`makeDirectory`、`remove`、`move` | 五类文件来源；四种内容来源不遵循 |
+| `RemoteCopyingSource` | `copy` | 本地、WebDAV、iCloud（仅文件）、百度 |
+| `RemoteIDAddressableSource` | `stat(id:)`、`list(parentID:request:)`、`download(id:to:options:)` | OneDrive Personal、百度；仅在各自绑定范围内读取 |
 | `RemoteByteRangeSource` | **自 v0.4.0 提供**：强版本与有界区间 `readBytes` | WebDAV；Transfer 复用调度/合并，其他来源可实现协议接入，见 [分片下载](Transfer.md#可插拔的单文件并行分片下载) |
 | `RemoteResumableDownloadSource` | **自 v0.4.0 提供**：checkpoint 观察、受管理恢复下载 | WebDAV；需明确目标互斥，见 [Transfer](Transfer.md) |
 | `RemoteResumableUploadSource` | **自 v0.4.0 提供**：本地准备、继续上传、checkpoint、显式终止 | OneDrive Personal 专用构造器 opt-in；与下载队列分离，见 [OneDrive](OneDrive.md#upload-session-可恢复上传显式-opt-in) |
 
-`OPDSSource` 使用 `browse`、`nextPage`、`publication`、`search` 处理书库链接，通过 `prepareDownload` 签发会话内合成路径，交给 Transfer；未发布开发源码另有 `cover(_:)` 有界读取封面。`sourceBinding()` 每次连接变化；stat 不做远端 HEAD，文件版本及大小保持未知，不支持强版本缓存、递归目录或 Catalog。不要把书目 Atom ID、Feed ETag 或 updated 当作文件版本。详见 [OPDS API](OPDS.md)。
+`OPDSSource` 使用 `browse`、`nextPage`、`publication`、`search` 处理书库链接，通过 `prepareDownload` 签发会话内合成路径，交给 Transfer；自 `v0.9.0` 可用 `cover(_:)` 有界读取封面。`sourceBinding()` 每次连接变化；stat 不做远端 HEAD，文件版本及大小保持未知，不支持强版本缓存、递归目录或 Catalog。不要把书目 Atom ID、Feed ETag 或 updated 当作文件版本。详见 [OPDS API](OPDS.md)。
 
-未发布 `BaiduDriveSource` 使用已存在且获授权的 `/apps/{app}` 或子目录作为 `rootPath`，不提供全盘浏览。`BaiduDriveOAuth` 生成简化/授权码模式 URL 并校验回调；code 交换和令牌刷新交给宿主后端保护 SecretKey，无 PKCE 承诺。`BaiduDriveTokenRefresher` 由宿主调用后端并安全持久化新令牌，单实例合并刷新、核对账号，失败使会话失效；Catalog 的固定引用回调另见 [Catalog](Catalog.md)。尚无真实百度应用或 token，接入合同见 [百度指南](BaiduDrive.md)。
+`BaiduDriveSource` 使用已存在且获授权的 `/apps/{app}` 或子目录作为 `rootPath`，不提供全盘浏览。`BaiduDriveOAuth` 生成简化/授权码模式 URL 并校验回调；code 交换和令牌刷新交给宿主后端保护 SecretKey，无 PKCE 承诺。`BaiduDriveTokenRefresher` 由宿主调用后端并安全持久化新令牌，单实例合并刷新、核对账号，失败使会话失效；Catalog 的固定引用回调另见 [Catalog](Catalog.md)。真实百度应用和账号尚未验收，接入合同见 [百度指南](BaiduDrive.md)。
 
-未发布原生 `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 均遵循 `RemoteSource`，但仅声明会话登记描述的 `stat` 与完整 `download`；通过各自的原生 API 浏览和搜索，不支持 `list/walk` 或 Catalog。`prepareDownload` 返回会话内不透明引用，与同一连接的 `sourceBinding()` 一起接入 Transfer。阅读/收听进度是独立显式写操作，不表示实现文件上传/删除。`RemoteSourceKind` 新增 `.komga`、`.kavita`、`.audiobookshelf`，宿主穷举 switch 需覆盖；图标仍为 nil。详见 [内容服务合同](ContentServices.md)。
+原生 `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 均遵循 `RemoteSource`，但仅声明会话登记描述的 `stat` 与完整 `download`；通过各自的原生 API 浏览和搜索，不支持 `list/walk` 或 Catalog。`prepareDownload` 返回会话内不透明引用，与同一连接的 `sourceBinding()` 一起接入 Transfer。阅读/收听进度是独立显式写操作，不表示实现文件上传/删除。`RemoteSourceKind` 新增 `.komga`、`.kavita`、`.audiobookshelf`，宿主穷举 switch 需覆盖；图标仍为 nil。详见 [内容服务合同](ContentServices.md)。
 
 ## 网盘访问权限
 
@@ -172,7 +172,7 @@ Catalog 会话的 `RemoteAccessControlledSource` 按操作检查权限；`capabi
 | Local / iCloud | 本机文件系统 `creationDate` |
 | WebDAV | 成功 DAV 属性中的 `creationdate`（ISO 8601，支持小数秒和时区偏移） |
 | OneDrive | Graph `driveItem.createdDateTime`，不是 `fileSystemInfo.createdDateTime` |
-| 百度（未发布） | `server_ctime`，服务端 Unix 时间；`server_mtime` 对应修改时间 |
+| 百度 | `server_ctime`，服务端 Unix 时间；`server_mtime` 对应修改时间 |
 
 WebDAV / OneDrive 的网络创建时间接受带时区的 `YYYY-MM-DDTHH:mm:ss[.小数秒]Z` 或 `±HH:mm` 形式，严格检查日期与完整输入；年份为 0001–9999 的延伸公历，时区偏移小时小于 24、分钟小于 60，不接受闰秒、24:00、无时区或尾随垃圾。百度使用服务端 Unix 时间。
 
@@ -197,13 +197,13 @@ func describeFile(_ entry: RemoteEntry) -> String {
 }
 ```
 
-分类不打开文件、不读取文件头、不下载远端内容，也不验证 MIME 或扩展名是否真实；不能用它做安全校验或判断文件一定可解码。普通文件 `list` 不提取图片尺寸、EXIF、时长或封面。未发布原生内容服务可获取服务端已有的媒体元数据、封面和页面；Audiobookshelf 可创建直放会话，但 SDK 不提供媒体解析器、播放器或转码器，见 [内容服务](ContentServices.md)。
+分类不打开文件、不读取文件头、不下载远端内容，也不验证 MIME 或扩展名是否真实；不能用它做安全校验或判断文件一定可解码。普通文件 `list` 不提取图片尺寸、EXIF、时长或封面。原生内容服务可获取服务端已有的媒体元数据、封面和页面；Audiobookshelf 可创建直放会话，但 SDK 不提供媒体解析器、播放器或转码器，见 [内容服务](ContentServices.md)。
 
 当前数据语义：`createdAt` 是默认 nil 的可选参数；Swift 合成的 Codable 将缺失字段解码为 nil，与来源可能不提供创建时间的语义一致。这不是跨版本格式兼容承诺。分类是计算属性，不重复写入 Codable 数据。`createdAt` 参与合成的相等性/哈希，完整条目相等不等于内容相同；`hasReliableFingerprint` 仍只依据 ETag 或修改时间，不因为有创建时间就变成 true。
 
 ## 稳定 ID 读取
 
-部分云盘可通过可选的 `RemoteIDAddressableSource` 按稳定条目标识读取，而不是依赖可变路径。当前 OneDrive Personal 和未发布百度实现 `stat(id:)`、`list(parentID:request:)` 与 `download(id:to:options:)`；OneDrive 按 ID 返回的条目可以没有路径。百度必须使用来源签发的完整 ID，可跟随同一根内的重命名，跨应用/账号/根或条目移出根时拒绝。调用前检查 `capabilities.idAddressing`，不要把原始 `fs_id`、路径、分页游标或下载 URL 当稳定 ID。
+部分云盘可通过可选的 `RemoteIDAddressableSource` 按稳定条目标识读取，而不是依赖可变路径。OneDrive Personal 和百度实现 `stat(id:)`、`list(parentID:request:)` 与 `download(id:to:options:)`；OneDrive 按 ID 返回的条目可以没有路径。百度必须使用来源签发的完整 ID，可跟随同一根内的重命名，跨应用/账号/根或条目移出根时拒绝。调用前检查 `capabilities.idAddressing`，不要把原始 `fs_id`、路径、分页游标或下载 URL 当稳定 ID。
 
 ## 分页
 
@@ -214,7 +214,7 @@ func describeFile(_ entry: RemoteEntry) -> String {
 | 本地 / iCloud | nil 或正数合法，仍返回完整单层结果 | 拒绝任何非 nil 值，包括 `""` |
 | WebDAV | nil 或正数合法，仍返回完整 Depth:1 结果 | 拒绝任何非 nil 值，包括 `""` |
 | OneDrive | 向 Graph 发送 `min(limit, 200)`，实际条数由服务端决定 | 使用来源返回的游标，并保持目录与选项一致 |
-| 百度（未发布） | list 的 start/limit 分页，单页最多 1000 | 绑定连接、路径/父 ID、原始 limit 和 includeHidden；成功推进后旧游标失效 |
+| 百度 | list 的 start/limit 分页，单页最多 1000 | 绑定连接、路径/父 ID、原始 limit 和 includeHidden；成功推进后旧游标失效 |
 
 `RemoteListRequest.all` **不代表自动消费所有 OneDrive 或百度页面**。来源会在操作中校验连接与请求参数，未连接时不保证优先返回参数错误。
 
@@ -282,11 +282,11 @@ func inspectTree(source: any RemoteSource) async throws -> RemoteWalkSummary {
 
 ## 写入与失败语义
 
-下表列出本地、WebDAV、OneDrive 和当前工作区未发布百度；iCloud 的协调、本地提交与云端异步传播、仅文件 copy 和冲突拒绝策略见 [iCloud 写入语义](ICloudDrive.md#当前能力与协调语义)。
+下表列出本地、WebDAV、OneDrive 和百度；iCloud 的协调、本地提交与云端异步传播、仅文件 copy 和冲突拒绝策略见 [iCloud 写入语义](ICloudDrive.md#当前能力与协调语义)。
 
 统一协议统一的是调用方式，不是远端事务保证。
 
-| 行为 | 本地 | WebDAV | OneDrive | 百度（未发布） |
+| 行为 | 本地 | WebDAV | OneDrive | 百度 |
 | --- | --- | --- | --- | --- |
 | 上传父目录 | 可自动创建 | 必须已存在 | 必须已存在 | 必须已存在，可显式递归 mkdir；配置根须预先存在 |
 | `overwrite=false` | 非覆盖安装 | `If-None-Match: *` | Graph `conflictBehavior=fail` | `rtype=0`，冲突失败，不改名 |

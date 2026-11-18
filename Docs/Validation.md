@@ -2,7 +2,13 @@
 
 [返回项目首页](../README.md)
 
-本页按实施阶段保留验证证据。旧章节的“未提交/未推送”“未集成”和测试数量描述当时状态，不覆盖后续实现；当前工作区、已推送源码和发布标签的区别以[首页版本对照](../README.md#开发源码与版本范围)为准。旧 API 名称只在迁移说明、负向测试或历史记录中保留。
+本页按实施阶段保留验证证据。下方旧章节的“未发布”“未推送”“未集成”和测试数量描述当时状态，当前发布范围以[首页版本对照](../README.md#开发源码与版本范围)为准。
+
+## v0.9.0 发布前验证
+
+- macOS（Swift 6.4）：`swift test --no-parallel` 共 812 次执行（39 XCTest、773 Swift Testing），0 失败、0 跳过；`swift build -c release` 通过。
+- 以 `v0.8.2` 为基线运行 `script/api-baseline.sh`：确认存在预期的公共 API 移除或签名变更，详见[升级说明](API.md#来源枚举升级)。
+- 本次发布准备未改动生产源码，也未补做真实网盘/书库、最低系统真机或大文件性能验收。
 
 ## 说明文档与当前功能对齐（文档校正）
 
@@ -459,7 +465,7 @@ Core 的空实现契约先出现 4 项行为失败，Catalog 接入先出现 6 �
 | WebDAV 写入 | localhost：PUT、MKCOL、DELETE、MOVE、COPY；覆盖竞争、取消、重连、错误映射等 | 真实 NAS 写权限、ETag 与方法兼容性 |
 | WebDAV managed 恢复 | localhost 故障注入、独立进程取消／SIGKILL 后恢复、ready／rename 窗口 | 真实网络、硬件断电、移动设备运行 |
 | OneDrive Personal | localhost：OAuth 请求合同、分页、文件读写、生命周期与安全边界 | 真实 Microsoft 应用／账号、CDN、刷新轮换与授权撤销验收 |
-| 百度网盘（未发布） | localhost：OAuth 回调、账号绑定/刷新、分页、文件传输/管理、Catalog/Transfer、目标保护与取消 | 真实百度应用审核、用户授权、应用目录权限、线上文件操作、配额与大文件性能 |
+| 百度网盘 | localhost：OAuth 回调、账号绑定/刷新、分页、文件传输/管理、Catalog/Transfer、目标保护与取消 | 真实百度应用审核、用户授权、应用目录权限、线上文件操作、配额与大文件性能 |
 
 真实服务验收清单见 [WebDAV 示例](../Examples/WebDAVReadWrite/README.md)、[OneDrive 示例](../Examples/OneDriveReadOnly/README.md)和 [百度示例](../Examples/BaiduDrive/README.md)。只在明确授权的专用测试目录中写入；失败后先核实远端状态，不依据错误返回推断“没有创建”。
 

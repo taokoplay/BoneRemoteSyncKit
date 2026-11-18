@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [Transfer](Transfer.md) · [验证记录](Validation.md)
 
-三个原生适配器已包含在推送的开发提交 `fe8cfc2` 中，尚未纳入版本标签，最新标签仍为 `v0.8.2`。通过 `import BoneRemoteSyncKit` 接入，或按需依赖独立产品；统一来源枚举的新 API 需当前工作区，见[版本对照](../README.md#开发源码与版本范围)。三个原生适配器仅依赖 Core、共享 Content 与 Apple 系统框架，无第三方运行依赖。
+三个原生适配器自 `v0.9.0` 提供；通过 `import BoneRemoteSyncKit` 接入，或按需依赖独立产品。它们仅依赖 Core、共享 Content 与 Apple 系统框架，无第三方运行依赖。
 
 ## 服务与能力
 

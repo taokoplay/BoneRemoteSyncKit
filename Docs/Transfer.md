@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [百度接入](BaiduDrive.md) · [验证记录](Validation.md)
 
-> Transfer 基础 API 自 **`v0.4.0`** 提供，最新标签为 `v0.8.2`；百度、三种原生内容服务及 Browser 已在推送的开发源码中，统一来源枚举仍在工作区，详见[版本对照](../README.md#开发源码与版本范围)。Transfer 不解析文件格式，不是自动同步引擎；代码可接入不代表真实服务、最低系统或性能验收完成。
+> Transfer 基础 API 自 **`v0.4.0`** 提供；百度、三种原生内容服务、Browser 和统一来源枚举自 `v0.9.0` 提供。Transfer 不解析文件格式，不是自动同步引擎；代码可接入不代表真实服务、最低系统或性能验收完成。
 
 ## 一个 Kit，内部按职责分层
 
@@ -18,15 +18,15 @@
 
 **自 v0.8.0 提供 OPDS 接入：** `OPDSSource.prepareDownload(_:acquisition:)` 返回会话内 `RemoteFileReference`，使用同一来源的 `sourceBinding()` 构造 materializer；现有 coordinator/lease 无需 OPDS 分支。OPDS stat 只返回登记描述，文件大小、ETag、修改时间未知，因此 Transfer 不复用旧文件或合并同版本请求。重连后旧引用失效，必须新建 binding/materializer；不支持强版本、分片或恢复。完整示例见 [OPDS](OPDS.md)。
 
-**百度接入（当前工作区，未发布）：** `BaiduDriveSource` 连接后，用 `try await source.connectedBinding()` 构造 materializer 和 `RemoteFileReference`；locator 可为来源内路径或 `RemoteEntry.id`，ID 必须由来源签发，不能用原始 `fs_id`、路径或 dlink 代替。可复用完整文件物化、coordinator、进度/取消与 lease，完整生命周期见 [百度示例](../Examples/BaiduDrive/README.md)。其 `rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能浏览全盘。
+**百度接入：** `BaiduDriveSource` 连接后，用 `try await source.connectedBinding()` 构造 materializer 和 `RemoteFileReference`；locator 可为来源内路径或 `RemoteEntry.id`，ID 必须由来源签发，不能用原始 `fs_id`、路径或 dlink 代替。可复用完整文件物化、coordinator、进度/取消与 lease，完整生命周期见 [百度示例](../Examples/BaiduDrive/README.md)。其 `rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能浏览全盘。
 
 百度仅提供完整文件下载：不支持 Range、`resumeFrom`、`RemoteDownloadRecovery`、强条件读取或后台任务。非空 ≤4 GiB 的上传虽使用 4 MiB 顺序分片，但 `resumableUpload=false`，不提供持久上传恢复，也不加入下载 coordinator；`expectedETag` 同样不支持。
 
-**原生内容服务（未发布）：** Komga 用 `prepareDownload(bookID:)`，Kavita 用 `prepareDownload(_ chapterReference:)`，Audiobookshelf 用 `prepareDownload(itemID:fileID:)` 或 `prepareTrackDownload`。这些方法返回会话内 `RemoteFileReference`；必须使用同一连接的 `sourceBinding()` 创建 materializer，不手工拼接路径。完整下载复用 coordinator、进度、取消和 lease。重连/账号切换后旧引用失效，需重新选择并登记、新建 binding/materializer。
+**原生内容服务：** Komga 用 `prepareDownload(bookID:)`，Kavita 用 `prepareDownload(_ chapterReference:)`，Audiobookshelf 用 `prepareDownload(itemID:fileID:)` 或 `prepareTrackDownload`。这些方法返回会话内 `RemoteFileReference`；必须使用同一连接的 `sourceBinding()` 创建 materializer，不手工拼接路径。完整下载复用 coordinator、进度、取消和 lease。重连/账号切换后旧引用失效，需重新选择并登记、新建 binding/materializer。
 
 三者的 `stat` 只读已登记描述；未知大小保持 nil，不把书库更新时间、阅读进度或服务端本地路径当文件版本。没有强版本时不复用旧内容；不支持 Range、`resumeFrom`、`expectedETag` 或持久续传。Kavita 多文件章节返回服务端 ZIP，大小未知；Audiobookshelf 显式选一个文件/音轨，不自动拼接多文件书籍。下载不会修改阅读/收听进度；Audiobookshelf 直放会话独立于 Transfer，见 [内容服务总览](ContentServices.md)。
 
-**统一 Browser（未发布）：** 对跨来源界面，可以统一调用 `browser.downloadOptions(for: item)`，让用户选择格式或实际文件，再 `browser.prepareDownload(selection)`。返回引用直接交给以 `browser.source` / `browser.sourceBinding` 创建的 materializer/coordinator。Browser 不自动选择首个格式，不将多音轨拼接为一个文件；浏览器关闭也不替代 Transfer shutdown，见 [Browser 生命周期](Browser.md#生命周期快照和错误)。
+**统一 Browser：** 对跨来源界面，可以统一调用 `browser.downloadOptions(for: item)`，让用户选择格式或实际文件，再 `browser.prepareDownload(selection)`。返回引用直接交给以 `browser.source` / `browser.sourceBinding` 创建的 materializer/coordinator。Browser 不自动选择首个格式，不将多音轨拼接为一个文件；浏览器关闭也不替代 Transfer shutdown，见 [Browser 生命周期](Browser.md#生命周期快照和错误)。
 
 ## 基本使用
 
@@ -281,4 +281,4 @@ func recoverDownload(
 - OneDrive Upload Session 的受控 fixture 已覆盖分片、范围、session/PUT HTTP 错误、快照与提交未知边界；真实 iCloud/Microsoft/NAS、Keychain entitlement、大文件吞吐、空间不足、权限/掉电和最低系统真机仍需单独验收。
 - 百度没有真实应用或 token，localhost fixture 不能替代线上 OAuth、目录权限、下载上传和大文件性能验收。本轮构建与测试结果以[验证记录](Validation.md)的最终记录为准。
 
-已发布四类文件来源的既有下载合同接入同一 materializer：Local 临时目录、WebDAV/OneDrive localhost HTTP fixture、iCloud 本地容器 seam 提供受控验证。当前工作区另接入百度；OneDrive 和百度引用均使用来源返回的完整不透明 entry ID，不手工拼装底层 ID。这些受控环境不能替代真实服务物化验收。
+五类文件来源的下载合同接入同一 materializer：Local 临时目录、WebDAV/OneDrive/百度 localhost HTTP fixture、iCloud 本地容器测试入口提供受控验证。OneDrive 和百度引用均使用来源返回的完整不透明 entry ID，不手工拼装底层 ID。这些受控环境不能替代真实服务物化验收。

@@ -1,10 +1,10 @@
-# Komga 原生客户端（当前未发布）
+# Komga 原生客户端
 
-本适配器面向 Komga **1.30.0**，合同固定在官方 commit `ff800c21253793d4d3fd855651b82d4924915950`。实现提供原生 REST 浏览、认证、图片、完整文件下载和显式阅读进度操作；与 OPDS 适配器分别使用。当前属于未发布代码，**没有完成真实 Komga 服务验收**。本地 Python fixture 检查请求协议和客户端行为，不能替代真实书库、媒体分析和部署环境的兼容性验证。
+本适配器面向 Komga **1.30.0**，合同固定在官方 commit `ff800c21253793d4d3fd855651b82d4924915950`。实现提供原生 REST 浏览、认证、图片、完整文件下载和显式阅读进度操作；与 OPDS 适配器分别使用。**真实 Komga 服务尚未验收。** 本地 Python fixture 检查请求协议和客户端行为，不能替代真实书库、媒体分析和部署环境的兼容性验证。
 
 Swift tools 6.0 / Swift 6，最低 macOS 12、iOS/tvOS 15、visionOS 1。宿主统一 `import BoneRemoteSyncKit`；按需模块为 `BoneRemoteSyncKomga`，依赖共享 Content/Core。运行时没有第三方依赖或 Python 依赖。
 
-模块已在推送的开发提交 `fe8cfc2` 中，未纳入 `v0.8.2` 标签；与工作区统一枚举的版本区别见[版本对照](../README.md#开发源码与版本范围)。跨来源页面可以使用 [Browser](Browser.md)，专属阅读位置仍通过本页原生 API 操作。
+模块自 `v0.9.0` 提供。跨来源页面可以使用 [Browser](Browser.md)，专属阅读位置仍通过本页原生 API 操作。
 
 ## 连接与账号隔离
 

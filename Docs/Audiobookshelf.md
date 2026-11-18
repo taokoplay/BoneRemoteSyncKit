@@ -4,7 +4,7 @@
 
 The protocol baseline is official **v2.37.2**, commit **edb1f7efc92ecacdef51aafb4d9d5054ce10604f**. The tests use a synthetic Python HTTP server on `127.0.0.1`; no real Audiobookshelf deployment or credentials were supplied. Passing fixtures proves the documented wire contract and lifecycle behavior, not acceptance against a deployed server.
 
-The adapter is available in pushed development commit `fe8cfc2`, but is not part of the `v0.8.2` release tag. See the [version matrix](../README.md#开发源码与版本范围). Import the Kit product for the unified API, or select the individual products used by the host. For shared browser screens, see [RemoteBrowser](Browser.md); native progress and playback methods remain separate.
+The adapter is available since `v0.9.0`. Import the Kit product for the unified API, or select the individual products used by the host. For shared browser screens, see [RemoteBrowser](Browser.md); native progress and playback methods remain separate.
 
 The snippets below run inside host-owned async code. Supply the saved credential/user ID, selected library/item/episode/file IDs, a private cache directory and the media-consumer callback. Keep the source connected while using it; stop playback and shut down Transfer before disconnecting it on both success and failure. These snippets do not constitute a standalone player.
 

@@ -1,10 +1,10 @@
 # BoneRemoteSyncKit
 
-**面向 Apple 平台的 Swift 文件与内容服务 SDK，连接本地目录、iCloud Drive、WebDAV、OneDrive Personal、百度应用目录，以及 OPDS、Komga、Kavita 和 Audiobookshelf。百度和三种原生内容服务为当前工作区未发布实现。**
+**面向 Apple 平台的 Swift 文件与内容服务 SDK，连接本地目录、iCloud Drive、WebDAV、OneDrive Personal、百度应用目录，以及 OPDS、Komga、Kavita 和 Audiobookshelf。**
 
 一次 `import BoneRemoteSyncKit`，即可使用目录浏览、文件上传与下载、目录创建、移动、删除及按来源提供的复制能力。基于 Swift Concurrency，无第三方运行依赖。
 
-> 当前发布版本为 **`v0.8.2`**。包含 v0.8.0 的独立 OPDS 1.2 只读书库与 Transfer 下载接入，并修正 WebDAV 最终上传进度及发布 API 导出路径。版本变化及迁移要求见[更新说明](CHANGELOG.md)。
+> 当前发布版本为 **`v0.9.0`**。新增百度应用目录、Catalog 扫描节流、原生内容服务、统一浏览及 OPDS 封面。版本变化见[更新说明](CHANGELOG.md)。
 >
 > 自 `v0.7.0` 起，权限模型统一为只读必选、编辑/新增/删除多选；旧角色 API 与持久化格式不再兼容，详见 [Catalog 权限说明](Docs/Catalog.md)。
 
@@ -12,13 +12,13 @@
 >
 > **v0.8.0 新增：** 独立 `BoneRemoteSyncOPDS` 提供 OPDS 1.2 书目浏览、分页、详情、OpenSearch 和只读文件获取，可接入 Transfer；使用专用浏览 API，尚未接入 Catalog。见 [OPDS 指南](Docs/OPDS.md)。
 >
-> **开发源码新增，未发布标签：** `BoneRemoteSyncBaidu` 基于百度官方开放 API，提供已授权应用目录的读写、Catalog 与 Transfer 接入；代码已推送至 `main`，但 `v0.8.2` 不包含百度。尚无真实百度应用或 token，线上验收待完成，见 [百度指南](Docs/BaiduDrive.md)。
+> **百度应用目录：** `BoneRemoteSyncBaidu` 基于百度官方开放 API，提供已授权应用目录的读写、Catalog 与 Transfer 接入。真实应用和账号验收待完成，见 [百度指南](Docs/BaiduDrive.md)。
 >
-> **原生内容服务（未发布）：** `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 提供认证、书库/系列/卷章或节目浏览、搜索、封面、完整文件下载和显式阅读/收听进度；Audiobookshelf 另提供直放会话及宿主播放器认证请求。见 [内容服务总览](Docs/ContentServices.md)。需要包含本次实现的源码；`v0.8.2` 不包含这些模块，真实部署验收待完成。
+> **原生内容服务：** `KomgaSource`、`KavitaSource`、`AudiobookshelfSource` 提供认证、书库浏览、搜索、封面、完整文件下载和显式阅读/收听进度。Audiobookshelf 另提供直放会话及宿主播放器认证请求；真实部署验收待完成。见 [内容服务总览](Docs/ContentServices.md)。
 >
-> **统一浏览层（未发布）：** `RemoteBrowser` 将五类文件来源及 OPDS/Komga/Kavita/Audiobookshelf 转为 `RemoteBrowsePage`、`RemoteBrowseItem` 和可编码展示快照。统一浏览/搜索/详情/封面/下载选择，保留来源完整性与原生进度语义；见 [Browser 指南](Docs/Browser.md)和[宿主示例](Examples/UnifiedBrowser/README.md)。
+> **统一浏览层：** `RemoteBrowser` 将五类文件来源及 OPDS/Komga/Kavita/Audiobookshelf 转为通用条目和可编码展示快照。统一浏览、搜索、详情、封面与下载选择，保留各来源的原生语义；见 [Browser 指南](Docs/Browser.md)和[宿主示例](Examples/UnifiedBrowser/README.md)。
 >
-> **当前文档以工作区 API 为准。** 已推送开发代码与本地统一枚举调整的范围不同，安装前请核对[版本对照](#开发源码与版本范围)；不要将最新指南直接套到 `v0.8.2`。
+> **升级注意：** `v0.9.0` 移除 `.cloudAPI` 和 `RemoteCatalogProvider`，OneDrive 改为 `.oneDrive`，网盘 `id` 改用 `RemoteSourceKind`。旧绑定与 OneDrive 上传恢复记录不自动迁移；升级前先核对未结上传，见[来源枚举升级](Docs/API.md#来源枚举升级)。
 
 [支持的来源](#支持的来源) · [能力矩阵](#能力矩阵) · [业务场景](Docs/UseCases.md) · [安装](#安装) · [快速上手](#快速上手) · [更新说明](CHANGELOG.md) · [详细文档](#详细文档) · [验证状态](Docs/Validation.md)
 
@@ -30,10 +30,10 @@
 | --- | --- | --- |
 | 多来源文件管理器 / NAS 浏览器 | 统一浏览、文件信息、读写与目录管理；NAS 通过 WebDAV 接入 | UI、账号和目录授权、破坏性操作确认；不是 SMB 客户端 |
 | 文档阅读 / 笔记附件 / 媒体导入 | 下载完整文件；Transfer 提供本地 URL、复用与 lease | 解析、预览、播放、缩略图和编辑；不支持通用边下边播 |
-| 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询；支持 Local、WebDAV、OneDrive Personal、iCloud 和未发布百度配置 | 正文离线保存、刷新触发与状态展示 |
+| 离线目录浏览 | Catalog 保存来源、选定根和最近完整列表，离线查询；支持 Local、WebDAV、OneDrive Personal、iCloud 和百度配置 | 正文离线保存、刷新触发与状态展示 |
 | 备份与恢复 | 上传宿主生成的备份包、列出备份、下载及显式删除；百度限已授权应用目录 | 数据一致性导出、打包/加密、保留策略、恢复安装；iCloud 写成功不等于云端已同步，百度没有持久续传 |
 | 前台批量获取与中断恢复 | Transfer 限制下载并发，并提供可插拔单文件分片下载（首个适配 WebDAV）；WebDAV 可恢复下载，OneDrive 可恢复上传 | 持久任务、后台执行、显式继续与未知结果核对；不是所有来源双向都能续传 |
-| 漫画/电子书阅读器、有声书与播客客户端（未发布） | Komga/Kavita 原生书库与阅读进度；Audiobookshelf 元数据、音轨、收听进度及直放会话；可复用 Transfer | 阅读器/播放器、格式解析、长期收藏、凭据保存、进度冲突和实际播放生命周期 |
+| 漫画/电子书阅读器、有声书与播客客户端 | Komga/Kavita 原生书库与阅读进度；Audiobookshelf 元数据、音轨、收听进度及直放会话；可复用 Transfer | 阅读器/播放器、格式解析、长期收藏、凭据保存、进度冲突和实际播放生命周期 |
 | 跨来源一次性导入 / 导出 | 宿主可组合“下载到本地 → 上传到另一来源” | 两段操作的编排与结果核对；没有跨来源直传、原子移动或回滚 |
 
 完整的业务流程、模块选择、版本范围及宿主职责见 **[业务能力与适用场景](Docs/UseCases.md)**。
@@ -42,7 +42,7 @@
 
 ## 支持的来源
 
-当前工作区内置 **5 类文件来源（含未发布百度）**，均从 `BoneRemoteSyncKit` 统一使用；已发布 `v0.8.2` 包含前四类。以下是实际接入范围，不是对同品牌全部服务的支持承诺。
+`v0.9.0` 内置 **5 类文件来源**，均从 `BoneRemoteSyncKit` 统一使用。以下是实际接入范围，不是对同品牌全部服务的支持承诺。
 
 | 来源 | 适配器 | 当前接入范围与前提 |
 | --- | --- | --- |
@@ -50,13 +50,13 @@
 | WebDAV / NAS | `WebDAVSource` | 提供 WebDAV 接口的 NAS 或服务器，支持匿名 / Basic 认证；优先 HTTPS，具体操作取决于服务端实现与账号权限；不是 SMB 接入 |
 | OneDrive Personal | `OneDriveSource` | Microsoft 个人账号的主盘，OAuth / PKCE 授权；不含 Business、SharePoint、共享 `remoteItem` 或跨盘访问 |
 | iCloud Drive | `ICloudDriveSource` | 系统 Apple 账号及宿主获授权的 ubiquitous container，需正确 entitlement；不是任意浏览用户整个 iCloud Drive，也不是 CloudKit |
-| 百度网盘（未发布） | `BaiduDriveSource` | 官方开放 API；`rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能全盘浏览；OAuth 简化/授权码 URL 与回调校验，code 交换和刷新由宿主后端保护 SecretKey，无 PKCE 承诺 |
+| 百度网盘 | `BaiduDriveSource` | 官方开放 API；`rootPath` 必须是已存在且获授权的 `/apps/{app}` 或子目录，不能全盘浏览；OAuth 简化/授权码 URL 与回调校验，code 交换和刷新由宿主后端保护 SecretKey，无 PKCE 承诺 |
 
 Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFTP、FTP/FTPS、NFS 等协议尚未实现，见[来源开发计划](Docs/CloudDriveRoadmap.md)。第三方服务即使提供 WebDAV，也仅可按其 WebDAV 接口尝试接入，不代表已实现该品牌原生 API 或完成兼容性验收。
 
 自 `v0.8.0` 起另提供 **OPDS 只读内容来源** `OPDSSource`，用于阅读器/个人书库导入。它支持匿名或 Basic，使用 `browse/search/publication` 获取书目，显式选择格式后下载；不提供文件目录树或写操作，不计入上述五类文件来源。默认兼容缺失时间、常见目录 MIME 错标和直接搜索模板，可显式选择严格模式。两轮公开实测已有六个站点的 EPUB 下载证据；各站点限制见[公开书库实测](Docs/OPDSPublicCatalogValidation.md)。
 
-当前工作区另提供三个独立原生内容适配器，由 Kit 统一导出。它们使用服务自己的内容模型，`list/walk` 和 Catalog 文件目录索引不适用。
+`v0.9.0` 另提供三个独立原生内容适配器，由 Kit 统一导出。它们使用服务自己的内容模型，`list/walk` 和 Catalog 文件目录索引不适用。
 
 | 服务 | 原生适配器 | 主要能力 |
 | --- | --- | --- |
@@ -68,7 +68,7 @@ Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFT
 
 ## 能力矩阵
 
-下表列出已发布 **`v0.8.2`** 的四类文件来源；当前工作区新增的百度单列在后。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。** OPDS 内容来源另见表后说明。
+下表列出本地、WebDAV、OneDrive 和 iCloud 的文件能力；`v0.9.0` 新增的百度单列在后。图标目录与来源适配器分开统计；“支持”表示已有实现，不代表账号具备权限或所有服务端已经验收。**“未适配”表示公共扩展入口存在，但该内置来源尚未接入，不能直接使用。** OPDS 内容来源另见表后说明。
 
 | 功能 | 本地目录 | WebDAV | OneDrive Personal | iCloud Drive |
 | --- | --- | --- | --- | --- |
@@ -99,9 +99,9 @@ Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFT
 
 **v0.8.0 OPDS 能力：** 书目浏览/搜索/分页/详情支持；完整文件下载、Transfer 进度/取消/lease 支持；通用 `list/walk`、稳定 ID 寻址、写操作、Range/恢复、文件版本缓存及 Catalog 均不支持。`stat` 仅返回会话内登记描述，详情见 [OPDS](Docs/OPDS.md)。
 
-**开发源码新增 OPDS 封面：** `cover(_:)` 有界读取当前书目的 thumbnail/image，返回可选 Data；该方法和 `RemoteBrowser` 均不在 `v0.8.2` 标签中。Browser 统一九种已实现来源的展示、分页、详情、封面和下载选择，搜索范围仍取决于来源，不新增文件树写入或 Catalog 集成。
+**v0.9.0 OPDS 封面与统一浏览：** `cover(_:)` 有界读取当前书目的 thumbnail/image，返回可选 Data。Browser 统一九种已实现来源的展示、分页、详情、封面和下载选择，搜索范围仍取决于来源，不新增文件树写入或 Catalog 集成。
 
-**百度网盘能力矩阵（当前工作区，未发布）：**
+**百度网盘能力矩阵（自 v0.9.0）：**
 
 | 功能 | 百度应用目录范围 |
 | --- | --- |
@@ -145,25 +145,24 @@ Google Drive、Dropbox、阿里云盘等独立网盘适配器，以及 SMB、SFT
 
 ### Xcode
 
-按已发布版本接入时，添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择 **`0.8.2`** 和 **`BoneRemoteSyncKit`** 产品。使用本文新增内容服务、Browser 或统一枚举时，按下表选择对应源码；本地工作区可通过 **Add Local…** 加入。
+添加仓库 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择精确版本 **`0.9.0`** 并将 **`BoneRemoteSyncKit`** 产品加入宿主 target。也可以用 **Add Local…** 加入本地检出的源码。
 
 ### 开发源码与版本范围
 
 | 代码范围 | 包含的功能 | 接入方式 |
 | --- | --- | --- |
-| 已发布标签 `v0.8.2` | Local、WebDAV、OneDrive Personal、iCloud、OPDS 1.2、Catalog、Transfer；不含下两行新增能力 | `exact: "0.8.2"` |
-| 已推送开发提交 `fe8cfc2bad65b02fe5ef5e946619af71e7287e1f`（本轮核对的 `main`） | 增加百度、Catalog 请求间隔、Komga/Kavita/Audiobookshelf、Browser、OPDS 封面及使用说明 | 固定该 revision 或跟随 `main`；尚无新版本标签 |
-| 本地源码，尚未推送的来源枚举统一 | 移除 `.cloudAPI` / `RemoteCatalogProvider`，采用 `.oneDrive` 等精确来源，网盘 id 改为枚举并新增 `hasBuiltInAdapter` | 使用本地工作区；不要将本页枚举筛选示例直接用于上行旧 API |
+| 已发布标签 `v0.9.0` | 新增百度、Catalog 请求间隔、Komga/Kavita/Audiobookshelf、Browser、OPDS 封面及统一来源枚举 | `exact: "0.9.0"`，本页示例以此版本为准 |
+| 历史标签 `v0.8.2` | Local、WebDAV、OneDrive Personal、iCloud、OPDS 1.2、Catalog、Transfer，沿用旧来源枚举 | `exact: "0.8.2"`，请查阅该标签中的文档 |
 
-推送提交、发布版本和真实服务验收是三个状态。已推送开发代码可以按源码接入，但没有因此增加真实账号、最低 OS 真机或媒体格式验收。历史版本用对应标签中的文档；本页后续枚举/API 示例按当前工作区说明。
+从 `v0.8.2` 升级时，应同步修改调用代码和持久化数据，见[来源枚举升级](Docs/API.md#来源枚举升级)。`main` 可能领先于发布标签；版本发布不代表真实服务、最低 OS 真机或媒体格式均已验收。
 
 ### Swift Package Manager
 
-在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用已发布 `0.8.2`；需开发能力时按[版本对照](#开发源码与版本范围)改用 `revision: "fe8cfc2bad65b02fe5ef5e946619af71e7287e1f"` 或 `branch: "main"`。当前统一来源枚举尚未推送，应使用 `.package(path: "../BoneRemoteSyncKit")` 指向本地源码。图标目录自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 自 `v0.8.0` 提供。
+在宿主 `Package.swift` 的相应数组中添加以下配置。示例固定使用 `0.9.0`。图标目录自 `v0.5.0`、Catalog 统计自 `v0.6.0`、可组合权限自 `v0.7.0`、OPDS 基础能力自 `v0.8.0` 提供。
 
 ```swift
 // Package.dependencies
-.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.8.2")
+.package(url: "https://github.com/taokoplay/BoneRemoteSyncKit.git", exact: "0.9.0")
 ```
 
 ```swift
@@ -210,7 +209,7 @@ let visibleDrives = BoneRemoteSyncIcons.driveTypes().filter {
 
 要同时显示 OPDS/Komga 等书库，将 `driveTypes()` 换成 `sourceTypes()`，并在集合中加入相应枚举值。集合不决定显示顺序；需要固定顺序时使用 `[RemoteSourceKind]` 并映射为 `BoneRemoteSyncSourceType(kind:)`。`hasBuiltInAdapter` 仅表示 SDK 有内置实现，Google Drive、阿里云盘目前为 false，不代表账号已授权或所有操作可用。
 
-此枚举调整为未发布的 API/编码格式变更：移除 `.cloudAPI` 和 `RemoteCatalogProvider`，`configuration.provider` 返回 `RemoteSourceKind`。旧字符串目录 ID、绑定和恢复记录的处理见 [来源枚举升级](Docs/API.md#来源枚举升级)。
+`v0.9.0` 移除 `.cloudAPI` 和 `RemoteCatalogProvider`，`configuration.provider` 返回 `RemoteSourceKind`。旧字符串目录 ID、绑定和恢复记录的处理见 [来源枚举升级](Docs/API.md#来源枚举升级)。
 
 ## 路径与存储统计
 
@@ -229,7 +228,7 @@ print(root.path, summary?.recursiveFileCount as Any, summary?.totalBytes as Any)
 
 ### 1. 连接并浏览
 
-下面的函数适用于五类文件来源（百度需包含未发布实现的源码），在同一连接中读取根目录的全部页面，并在成功和异常路径等待断开。它适合大小可控的目录；大型目录应使用[逐页消费或有界遍历](Docs/API.md)，避免累积全部结果。
+下面的函数适用于五类文件来源，在同一连接中读取根目录的全部页面，并在成功和异常路径等待断开。它适合大小可控的目录；大型目录应使用[逐页消费或有界遍历](Docs/API.md)，避免累积全部结果。
 
 ```swift
 import Foundation
@@ -266,7 +265,7 @@ func readRootDirectory(
 | iCloud Drive | `ICloudDriveSource(configuration: configuration)` | `.anonymous` 使用系统账号；宿主配置 entitlement 和容器，见 [iCloud 指南](Docs/ICloudDrive.md) |
 | WebDAV | `try WebDAVSource(baseURL: collectionURL)` | `.anonymous` 或 `.basic(username:password:)`；优先 HTTPS |
 | OneDrive | `OneDriveSource(configuration: configuration, onTokenRefresh: persistToken)` | OAuth token；首次授权和刷新持久化见 [OneDrive 指南](Docs/OneDrive.md) |
-| 百度（未发布） | `BaiduDriveSource(configuration: configuration, refreshToken: refresh)` | `BaiduDriveToken.credential` 或 `.apiToken`；宿主负责后端交换/刷新与安全持久化，见 [百度指南](Docs/BaiduDrive.md) |
+| 百度 | `BaiduDriveSource(configuration: configuration, refreshToken: refresh)` | `BaiduDriveToken.credential` 或 `.apiToken`；宿主负责后端交换/刷新与安全持久化，见 [百度指南](Docs/BaiduDrive.md) |
 
 表中的 URL、配置和 token 保存回调由宿主提供，不是库内全局变量。`/` 总是指当前来源的根，而不是服务器或本机的系统根。
 
@@ -306,7 +305,7 @@ func transferFile(
 - `RemoteWritableSource`：增加上传、建目录、删除、移动。
 - `RemoteCopyingSource`：增加来源内复制。
 
-本地、iCloud 与 WebDAV 遵循 `RemoteCopyingSource`，OneDrive 遵循 `RemoteWritableSource` 和 `RemoteIDAddressableSource`；未发布百度同时遵循 `RemoteCopyingSource` 和 `RemoteIDAddressableSource`。UI 可读取 `capabilities` 决定展示哪些入口，执行时仍需处理权限、冲突及服务端错误。稳定 ID 读取不等于支持按 ID 写入。
+本地、iCloud 与 WebDAV 遵循 `RemoteCopyingSource`，OneDrive 遵循 `RemoteWritableSource` 和 `RemoteIDAddressableSource`；百度同时遵循 `RemoteCopyingSource` 和 `RemoteIDAddressableSource`。UI 可读取 `capabilities` 决定展示哪些入口，执行时仍需处理权限、冲突及服务端错误。稳定 ID 读取不等于支持按 ID 写入。
 
 ## 接入前需要了解
 
@@ -328,21 +327,21 @@ func transferFile(
 | [文件物化、前台调度与恢复传输](Docs/Transfer.md) | 自 v0.4.0 提供：本地文件 lease、缓存复用、有界下载队列、可插拔分片下载、WebDAV 恢复下载与 OneDrive 恢复上传 |
 | [配置持久化与离线目录索引](Docs/Catalog.md) | 非敏感配置、Keychain 桥接、网盘访问权限、根选择、目录/子树刷新与恢复 |
 | [通用 API 与生命周期](Docs/API.md) | 模块、协议、路径、分页、遍历、错误、进度与宿主职责 |
-| [统一浏览完整使用指南](Docs/Browser.md) | 未发布：本地源码安装、九种来源配置、binding、分页搜索、详情封面、下载取消、原生阅读/播放及问题排查 |
+| [统一浏览完整使用指南](Docs/Browser.md) | 安装、九种来源配置、binding、分页搜索、详情封面、下载取消、原生阅读/播放及问题排查 |
 | [统一浏览示例](Examples/UnifiedBrowser/README.md) | 两份可编译 Swift 示例：各来源连接、逐页消费、下载/lease、快照编解码与原生进度入口 |
 | [本地目录](Docs/Local.md) | 本地读写、落盘、符号链接和权限边界 |
 | [iCloud Drive](Docs/ICloudDrive.md) | entitlement、容器、占位下载、协调、状态与真机验收边界 |
 | [WebDAV](Docs/WebDAV.md) | 连接、文件管理、条件覆盖、重试、Range 与 checkpoint 恢复 |
 | [OneDrive Personal](Docs/OneDrive.md) | OAuth/PKCE、token 刷新、分页、安全下载、普通写入及 opt-in Upload Session |
-| [百度网盘应用目录](Docs/BaiduDrive.md) | 未发布：官方 OAuth、宿主后端刷新、作用域 ID、分片上传、Catalog/Transfer 与线上验收边界 |
+| [百度网盘应用目录](Docs/BaiduDrive.md) | 官方 OAuth、宿主后端刷新、作用域 ID、分片上传、Catalog/Transfer 与线上验收边界 |
 | [OPDS 1.2 只读书库](Docs/OPDS.md) | 自 v0.8.0：书目导航、搜索、详情、多格式获取、会话引用与 Transfer 衔接 |
-| [来源开发计划](Docs/CloudDriveRoadmap.md) | 百度已实现待真实验收/未发布；Google Drive、Dropbox、SMB、SFTP、FTP/FTPS、NFS 与其他网盘候选 |
+| [来源开发计划](Docs/CloudDriveRoadmap.md) | 已发布来源、待验收能力与候选来源 |
 | [构建与验证状态](Docs/Validation.md) | 构建命令、验证记录、真实服务验收边界与待办方向 |
 | [WebDAV 完整示例](Examples/WebDAVReadWrite/README.md) | 读写操作生命周期及真实 NAS 验收清单 |
 | [OneDrive 宿主示例](Examples/OneDriveReadOnly/README.md) | 授权事务管理、读路径及账号验收清单 |
 | [OPDS 宿主示例](Examples/OPDSReadOnly/README.md) | 用户选书/格式、下载、lease 消费和清理生命周期 |
-| [百度宿主示例](Examples/BaiduDrive/README.md) | 未发布：应用目录配置、授权、Transfer lease、非覆盖上传与固定用户 Catalog 绑定 |
-| [原生内容服务总览](Docs/ContentServices.md) | 未发布：Komga、Kavita、Audiobookshelf 的能力、配置、下载与宿主职责 |
+| [百度宿主示例](Examples/BaiduDrive/README.md) | 应用目录配置、授权、Transfer lease、非覆盖上传与固定用户 Catalog 绑定 |
+| [原生内容服务总览](Docs/ContentServices.md) | Komga、Kavita、Audiobookshelf 的能力、配置、下载与宿主职责 |
 | [Komga 指南](Docs/Komga.md) / [示例](Examples/Komga/README.md) | 原生书库、原文件下载、页进度与 EPUB progression |
 | [Kavita 指南](Docs/Kavita.md) / [示例](Examples/Kavita/README.md) | 系列/卷章、章节下载、页面与 EPUB XPath 进度 |
 | [Audiobookshelf 指南](Docs/Audiobookshelf.md) / [示例](Examples/Audiobookshelf/README.md) | 文件/音轨、收听进度与宿主直放会话 |
@@ -387,7 +386,7 @@ script/api-baseline.sh check api-baseline.txt   # 存在移除时退出码 2
 
 截至 **2026-10-28（GMT+8）**，`v0.4.0` 发布前重新运行串行全包，**506 项测试通过**，并通过 Release 与独立 Kit 分片消费端检查。八模块四目标编译链接、文档示例类型检查及恢复传输的受控跨进程证据沿用同一实现的既有结果，不代表真实账号、Keychain、最低系统运行或大文件性能已验收。
 
-以上为历史验证快照，分别见 [v0.4.0 发布前验证](Docs/Validation.md#v040-发布前验证)、[分片下载验证](Docs/Validation.md#v040可插拔单文件并行分片下载)、[阶段5上传验证](Docs/Validation.md#v040阶段5-onedrive-upload-session-验证)及 [v0.3.0 验证](Docs/Validation.md#v030-icloud-备份-r1r2-验证)。当前工作区最新全包结果为 **740 个去重测试函数通过**，详见[验证记录顶部](Docs/Validation.md)；本轮文档校正未修改生产代码。旧标签不变，不包含后续新增功能。
+以上为历史验证快照，分别见 [v0.4.0 发布前验证](Docs/Validation.md#v040-发布前验证)、[分片下载验证](Docs/Validation.md#v040可插拔单文件并行分片下载)、[阶段5上传验证](Docs/Validation.md#v040阶段5-onedrive-upload-session-验证)及 [v0.3.0 验证](Docs/Validation.md#v030-icloud-备份-r1r2-验证)。本版回归情况见[验证记录顶部](Docs/Validation.md)；旧标签不变，不包含后续新增功能。
 
 ### 错误日志
 

@@ -6,7 +6,7 @@
 >
 > 2026-11-05 首轮测试15个公开地址；兼容扩展后复测五个。两轮分别在 Gutenberg、Textos.info、The Anarchist Library 和 Unglue.it、Ebooks Gratuits、Wolne Lektury 完成 EPUB 下载与本地文件检查；其余服务限制见 [公开书库实测](OPDSPublicCatalogValidation.md)。
 >
-> 本页 `cover(_:)` 与上层 Browser 属于已推送开发提交 `fe8cfc2` 的新增能力，**不包含在 `v0.8.2` 标签中**；基础书目接口仍自 v0.8.0 提供，安装范围见[版本对照](../README.md#开发源码与版本范围)。
+> 基础书目接口自 `v0.8.0` 提供；`cover(_:)` 与上层 Browser 自 `v0.9.0` 提供，见[版本对照](../README.md#开发源码与版本范围)。
 
 ## 业务定位与模块
 

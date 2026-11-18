@@ -1,4 +1,4 @@
-# Komga 宿主示例（当前未发布）
+# Komga 宿主示例
 
 [KomgaExample.swift](KomgaExample.swift) 只导入 `BoneRemoteSyncKit`。代码面向 Komga 1.30.0 的原生 REST 合同，凭据、实例配置、选择的 book ID 和应用私有缓存路径均由调用方传入；文件中没有实际账号、密码或 API key。
 

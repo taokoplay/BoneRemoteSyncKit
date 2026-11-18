@@ -2,7 +2,7 @@
 
 [首页](../README.md) · [通用 API](API.md) · [内容服务](ContentServices.md) · [Transfer](Transfer.md) · [完整示例](../Examples/UnifiedBrowser/README.md)
 
-`BoneRemoteSyncBrowser` 将文件网盘、OPDS、Komga、Kavita、Audiobookshelf 的浏览结果转换为同一组展示类型，由 Kit 导出。Browser 已包含在推送的开发提交 `fe8cfc2` 中，尚无版本标签；`v0.8.2` 不包含它。本页使用的统一来源枚举仍为工作区改动，详见[版本对照](../README.md#开发源码与版本范围)。
+`BoneRemoteSyncBrowser` 自 `v0.9.0` 提供，将文件网盘、OPDS、Komga、Kavita、Audiobookshelf 的浏览结果转换为同一组展示类型，由 Kit 导出。来源筛选使用统一的 `RemoteSourceKind`；旧来源标识的升级见[来源枚举升级](API.md#来源枚举升级)。
 
 原生来源负责认证和实际 API；Browser 负责展示模型、分页、详情、封面、下载选择和错误分类；Transfer 负责完整文件下载与 lease。Browser 不实现登录、文件写操作、后台队列、Catalog 索引、阅读器或播放器。
 
@@ -10,7 +10,7 @@
 
 ## 安装与导入
 
-要完整使用本页的统一来源枚举示例，先依赖当前本地工作区。在 Xcode 中通过 **File → Add Package Dependencies → Add Local…** 选择 `BoneRemoteSyncKit` 目录，再将 `BoneRemoteSyncKit` 产品加入宿主 target。已推送 `main` 的 `fe8cfc2` 提供 Browser 本身，但仍使用统一枚举前的来源标识；固定 `0.8.2` 没有 Browser。
+在 Xcode 中添加 `https://github.com/taokoplay/BoneRemoteSyncKit.git`，选择精确版本 `0.9.0`，再将 `BoneRemoteSyncKit` 产品加入宿主 target。SwiftPM 接入见[安装说明](../README.md#安装)；也可用 **Add Local…** 加入本地源码。`v0.8.2` 不含 Browser。
 
 SwiftPM 宿主若与 SDK 目录同级，可以使用以下完整清单；目录不同则调整 `path`：
 
@@ -377,7 +377,7 @@ Browser 方法将失败映射为 `RemoteBrowserError`：统一 `code` 包括认�
 
 | 现象 / 分类 | 处理方式 |
 | --- | --- |
-| 找不到 `RemoteBrowser` | 确认依赖包含未发布实现的源码并选择 Kit/Browser 产品；`0.8.2` 没有该类型 |
+| 找不到 `RemoteBrowser` | 检查依赖是否为 `v0.9.0` 或更新版本，并选择 Kit 或 Browser 产品；`v0.8.2` 不含该类型 |
 | 找不到 `BrowserConnectionExamples` 等函数 | 将两个示例 Swift 文件加入宿主 target；它们不是 SDK 内置 API |
 | `notConnected` / `authentication` | 检查 source 是否连接、凭据类型和用户身份；重新授权由宿主负责 |
 | `sessionExpired` / `invalidReference` | 丢弃旧浏览器的条目、游标和选项，重新建立 Browser 并获取新结果；不要篡改 ID |

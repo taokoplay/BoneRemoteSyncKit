@@ -2,7 +2,7 @@
 
 [完整使用指南](../../Docs/Browser.md) · [连接示例](BrowserConnectionExamples.swift) · [通用操作示例](UnifiedBrowserExample.swift) · [内容服务](../../Docs/ContentServices.md)
 
-适用于统一展示五种文件来源及 OPDS/Komga/Kavita/Audiobookshelf 的 Apple App。Browser 已在推送的开发提交 `fe8cfc2` 中，尚未发布版本标签，`v0.8.2` 不包含它；本目录的枚举筛选示例使用尚未推送的统一来源 API，需要当前工作区。安装前见[版本对照](../../README.md#开发源码与版本范围)和[本地源码安装](../../Docs/Browser.md#安装与导入)。
+适用于统一展示五种文件来源及 OPDS/Komga/Kavita/Audiobookshelf 的 Apple App。Browser 和本示例使用的统一来源枚举自 `v0.9.0` 提供；见[安装与导入](../../Docs/Browser.md#安装与导入)。
 
 ## 如何使用示例
 

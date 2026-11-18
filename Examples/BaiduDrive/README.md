@@ -2,7 +2,7 @@
 
 [完整指南](../../Docs/BaiduDrive.md) · [Swift 示例](BaiduDriveExample.swift)
 
-依赖 `BoneRemoteSyncKit` 产品并 `import BoneRemoteSyncKit`。百度适配器当前为未发布新增能力；固定 `v0.8.2` 版本不包含此模块，开发接入需使用包含本次实现的源码。
+百度适配器自 `v0.9.0` 提供。依赖 `BoneRemoteSyncKit` 产品并 `import BoneRemoteSyncKit`；安装方式见[项目首页](../../README.md#安装)。
 
 1. 在百度开放平台创建应用，配置回调和所需接口权限；配置 `BaiduDriveConfiguration(appKey:rootPath:)`，rootPath 如 `/apps/你的应用名称`，目录必须已存在并获授权。
 2. 使用 `BaiduDriveOAuth` 生成授权事务，由宿主展示系统授权页面；使用同一实例的 `complete(_:callbackURL:)` 校验回调。
